@@ -1,5 +1,5 @@
 import { OpenAPIRoute } from "chanfana";
-import { BiliTypes, type AppContext } from "../types";
+import { APITypes, BiliTypes, type AppContext } from "../types";
 import BiliVideoParser from "../services/video-parse";
 import { b23Parser } from "../utils/b23-parse";
 import z from "zod";
@@ -36,18 +36,14 @@ const CDNS: Record<string, string> = {
     rali: 'upos-sz-mirrorrali.bilivideo.com',
 };
 
-export interface BiliResultWarp {
-    data: BiliTypes.BiliPlayResult
-    expirationS: number
-}
-
 export class BiliVideoRoute extends OpenAPIRoute {
 
     private readonly BILI_VIDEO_URLPATTERN = new URLPattern({ hostname: "*.bilibili.com", pathname: "/video/*" })
     private readonly BILI_BTV_URLPATTERN = new URLPattern({ hostname: "b23.tv" })
     private readonly BV_PATTERN = new RegExp(/(BV[a-zA-Z0-9]{10})/)
-    private readonly BV_CACHE_TIME = process.env.X_KVTTL ? parseInt(process.env.X_KVTTL) : 5400
-    private readonly BILI_AVAILABLE_QN = [16, 32, 64, 80, 116, 120]
+
+    private readonly BILI_URL_CACHE_TIME = process.env.X_PLAYURL_CACHE_TIME ? parseInt(process.env.X_PLAYURL_CACHE_TIME) : 5400
+    private readonly BILI_VIDEOINFO_CACHE_TIME = process.env.X_VIDEOINFO_CACHE_TIME ? parseInt(process.env.X_VIDEOINFO_CACHE_TIME) : 60 * 60 * 24
 
     private readonly R_AVAILABLE_TYPE = z.enum(["video", "json", "url"]).default("video")
     private readonly R_AVAILABLE_PLATFORM = z.enum(["web", "app"]).optional()
@@ -91,65 +87,131 @@ export class BiliVideoRoute extends OpenAPIRoute {
         return ctx.json(response, code as any, headers)
     }
 
-    private createCacheKey(bvid: string, qn: number, platform: BiliTypes.GetURLPlatform) {
-        return `${bvid}_${platform}_${qn}`
-    }
-
-    private async getBiliCache(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.GetURLPlatform = 'web'): Promise<BiliTypes.BiliPlayResult | null> {
-        try {
-            const key = this.createCacheKey(bvid, qn, platform)
-            const cached = await ctx.env.BILI_CACHE.get<BiliResultWarp>(key, 'json');
-            if (cached) {
-                const expirationS = cached.expirationS
-                const nowS = Math.floor(Date.now() / 1000)
-                if (nowS < expirationS) {
-                    return cached.data
-                }
-                else {
-                    ctx.env.BILI_CACHE.delete(key).catch(() => { })
-                }
-            }
-            return null
-        } catch (error) {
-            return null
+    private isCacheAvailable(cache: APITypes.APICacheWarp<any>): boolean {
+        const expirationS = cache.expiration
+        const nowS = Math.floor(Date.now() / 1000)
+        if (nowS < expirationS) {
+            return true
         }
+        return false
     }
 
-    private async setBiliCache(ctx: AppContext, bvid: string, qn: number, data: BiliTypes.BiliPlayResult) {
-        try {
-            const platform = data.platform;
-            const key = this.createCacheKey(bvid, qn, platform);
+    private createBiliInfoCacheKey(bvid: string) {
+        return `info_${bvid}`
+    }
 
-            let videoBufferTimeS: number
-            const videoDuration = data.duration
-            //动态计算缓冲冗余长度
-            if (videoDuration < 60 * 10) {
-                videoBufferTimeS = 60
-            }
-            else if (videoDuration < 3600) {
-                videoBufferTimeS = Math.min(videoDuration * 0.1, 10 * 60)
+    private createPlayURLCacheKey(bvid: string, qn: number, platform: BiliTypes.GetURLPlatform) {
+        return `playurl_${bvid}_${platform}_${qn}`
+    }
+
+    private async getBiliVideoInfoCache(ctx: AppContext, bvid: string): Promise<BiliTypes.BiliVideoInfo | null> {
+        const key = this.createBiliInfoCacheKey(bvid)
+        const cache = await ctx.env.BILI_VIDEOINFO_CACHE.get<APITypes.APICacheWarp<BiliTypes.BiliVideoInfo>>(key, 'json')
+        if (cache) {
+            const available = this.isCacheAvailable(cache)
+            if (available) {
+                return cache.data
             }
             else {
-                videoBufferTimeS = Math.min(videoDuration * 0.05, 20 * 60)
+                ctx.env.BILI_VIDEOINFO_CACHE.delete(key).catch(() => { })
             }
+        }
+        return null
+    }
 
-            const videoExpirationS = data.urlExpirationS - videoBufferTimeS
-            const userExpirationS = Math.floor(Date.now() / 1000) + this.BV_CACHE_TIME
-            const expirationS = Math.min(videoExpirationS, userExpirationS)
+    private async setBiliVideoInfoCache(ctx: AppContext, bvid: string, info: BiliTypes.BiliVideoInfo) {
+        const key = this.createBiliInfoCacheKey(bvid)
+        const expiration = Math.floor(Date.now() / 1000) + this.BILI_VIDEOINFO_CACHE_TIME
+        const warp: APITypes.APICacheWarp<BiliTypes.BiliVideoInfo> = {
+            data: info,
+            expiration: expiration
+        }
+        ctx.env.BILI_VIDEOINFO_CACHE.put(key, JSON.stringify(warp), {
+            expiration: expiration
+        }).catch(() => { })
+    }
 
-            if (expirationS > Math.floor(Date.now() / 1000)) {
-                const warp: BiliResultWarp = {
-                    expirationS: expirationS,
-                    data: data
-                };
-
-                await ctx.env.BILI_CACHE.put(key, JSON.stringify(warp), {
-                    expiration: expirationS
-                });
-            } else {
+    private async getBiliPlayUrlCache(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.GetURLPlatform): Promise<BiliTypes.BiliPlayURL | null> {
+        const key = this.createPlayURLCacheKey(bvid, qn, platform)
+        const cache = await ctx.env.BILI_PLAYURL_CACHE.get<APITypes.APICacheWarp<BiliTypes.BiliPlayURL>>(key, 'json')
+        if (cache) {
+            const available = this.isCacheAvailable(cache)
+            if (available) {
+                return cache.data
             }
-        } catch (error) {
+            else {
+                ctx.env.BILI_PLAYURL_CACHE.delete(key).catch(() => { })
+            }
+        }
+        return null
+    }
 
+    /**
+     * 需要根据视频时长计算安全过期时间 所以额外需要videoDuration 解耦后data里并不包含
+     */
+    private async setBiliPlayUrlCache(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.GetURLPlatform, videoDuration: number, data: BiliTypes.BiliPlayURL) {
+        const key = this.createPlayURLCacheKey(bvid, qn, platform)
+        let videoBufferTimeS: number
+        if (videoDuration < 60 * 10) {
+            videoBufferTimeS = 60
+        }
+        else if (videoDuration < 3600) {
+            videoBufferTimeS = Math.min(videoDuration * 0.1, 10 * 60)
+        }
+        else {
+            videoBufferTimeS = Math.min(videoDuration * 0.05, 20 * 60)
+        }
+
+        const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
+        const userExpirationS = Math.floor(Date.now() / 1000) + this.BILI_URL_CACHE_TIME
+        const expiration: number = Math.min(videoExpirationS, userExpirationS)
+
+        const warp: APITypes.APICacheWarp<BiliTypes.BiliPlayURL> = {
+            data: data,
+            expiration: expiration
+        }
+
+        ctx.env.BILI_PLAYURL_CACHE.put(key, JSON.stringify(warp), {
+            expiration: expiration
+        }).catch(() => { })
+    }
+
+    private async parseBiliVideo(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.GetURLPlatform): Promise<{ result: BiliTypes.BiliParseResult, infoCacheHit: boolean, urlCacheHit: boolean }> {
+
+        const parser = new BiliVideoParser()
+
+        let videoInfoCacheHit: boolean = false
+        let videoPlayURLCacheHit: boolean = false
+
+        let videoInfo = await this.getBiliVideoInfoCache(ctx, bvid)
+        if (!videoInfo) {
+            videoInfo = await parser.getBiliVideoInfo(bvid)
+            await this.setBiliVideoInfoCache(ctx, bvid, videoInfo)
+        }
+        else {
+            videoInfoCacheHit = true
+        }
+
+        let playUrl = await this.getBiliPlayUrlCache(ctx, bvid, qn, platform)
+        if (!playUrl) {
+            const cid = videoInfo.cid
+            const duration = videoInfo.duration
+            playUrl = await parser.getBiliPlayURL(bvid, cid, qn, platform)
+            await this.setBiliPlayUrlCache(ctx, bvid, qn, platform, duration, playUrl)
+        }
+        else {
+            videoPlayURLCacheHit = true
+        }
+
+        const result: BiliTypes.BiliParseResult = {
+            ...videoInfo,
+            ...playUrl
+        }
+
+        return {
+            result: result,
+            infoCacheHit: videoInfoCacheHit,
+            urlCacheHit: videoPlayURLCacheHit
         }
     }
 
@@ -179,18 +241,14 @@ export class BiliVideoRoute extends OpenAPIRoute {
                 }
             }
 
-            if (!bvid || !this.BV_PATTERN.test(bvid) || !this.BILI_AVAILABLE_QN.includes(qn)) {
-                return this.createJsonResponse(context, "Invalid parameters", 400, null)
+            if (!bvid) {
+                return this.createJsonResponse(context, "cannot get bvid to parse", 400, null)
             }
 
-            //await this.getBiliCache(context, bvid, qn)
-            let result: BiliTypes.BiliPlayResult | null = await this.getBiliCache(context, bvid, qn) || null
-            let isCacheHit: boolean = Boolean(result)
-            if (!result) {
-                const parser = new BiliVideoParser()
-                result = await parser.parseBiliVideo(bvid, qn, platform)
-                const parsedVideoQuality = result.quality
-                await this.setBiliCache(context, bvid, parsedVideoQuality, result)
+            const { result, infoCacheHit, urlCacheHit } = await this.parseBiliVideo(context, bvid, qn, platform)
+            const cacheHitHeader: Record<string, string> = {
+                "X-Info-Cache-Hit": infoCacheHit ? 'true' : 'false',
+                "X-URL-Cache-Hit": urlCacheHit ? 'true' : 'false'
             }
 
             if (cdn && CDNS[cdn]) {
@@ -201,16 +259,16 @@ export class BiliVideoRoute extends OpenAPIRoute {
 
             switch (type) {
                 case "json":
-                    return this.createJsonResponse<BiliTypes.BiliPlayResult>(context, "Success", 200, result, {
-                        "X-Cache-Hit": isCacheHit ? "true" : "false"
+                    return this.createJsonResponse<BiliTypes.BiliParseResult>(context, "Success", 200, result, {
+                        ...cacheHitHeader
                     })
                 case "url":
                     return context.text(result.url, 200, {
-                        "X-Cache-Hit": isCacheHit ? "true" : "false"
+                        ...cacheHitHeader
                     })
                 case "video":
                 default:
-                    return context.redirect(result.url, 302)
+                    return context.redirect(result.url, 307)
             }
 
         } catch (error) {

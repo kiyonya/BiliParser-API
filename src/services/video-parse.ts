@@ -2,8 +2,13 @@ import { BiliTypes } from "../types"
 import BiliCrypto from "../utils/bili-crypto"
 import { proxyFetch } from "../utils/proxy-fetch"
 
+export interface GetPlayURLTaskReturns {
+    url: string, quality: number, platform: BiliTypes.GetURLPlatform
+}
+
 export default class BiliVideoParser {
 
+    private BILI_CID_BACKUP_API = "https://api.bilibili.com/x/player/pagelist"
     private BILI_VIDEO_VIEW_API = "https://api.bilibili.com/x/web-interface/view"
     private BILI_VIDEO_H5_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
     private BILI_VIDEO_APP_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
@@ -13,69 +18,74 @@ export default class BiliVideoParser {
 
     private BCrypto = new BiliCrypto()
 
-    public async parseBiliVideo(bvid: string, qn: number, platform?: BiliTypes.GetURLPlatform): Promise<BiliTypes.BiliPlayResult> {
-
+    public async getBiliVideoInfo(bvid: string): Promise<BiliTypes.BiliVideoInfo> {
         const cookie = await this.BCrypto.getBiliAntiCookie();
-        const infoURL = new URL(this.BILI_VIDEO_VIEW_API)
-        infoURL.searchParams.append('bvid', bvid)
-
-        const req = await proxyFetch(infoURL, {
+        const videoViewInfoURL = new URL(this.BILI_VIDEO_VIEW_API)
+        videoViewInfoURL.searchParams.append('bvid', bvid)
+        const videoViewReq = await proxyFetch(videoViewInfoURL, {
             headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
-
-        const data = await req.json<BiliTypes.API.BiliVideoInfo>()
-        if (data.code !== 0) throw new Error(data.message);
-
-        const headData = data.data
-        if (!headData) {
-            throw new Error()
-        }
-
-        const cid = headData.cid as number
-        const duration = headData.duration
-        const aid = headData.aid
-        const cover = headData.pic || ""
-        const title = headData.title || ""
-        const desc = headData.desc || ""
-        const owner = headData.owner || { mid: 0, name: "", face: "" }
-
-        const { url, quality, method: parsedPlatform } = await this.getBiliPlayURL(bvid, cid, qn, platform)
-
-        let expirationS: number
-        try {
-            const playURL = new URL(url)
-            if (playURL.searchParams.has('deadline')) {
-                expirationS = (parseInt(playURL.searchParams.get('deadline') as string))
+        const videoViewData = await videoViewReq.json<BiliTypes.API.BiliVideoViewInfo>()
+        if (videoViewData.code === 0) {
+            //正常 其他的情况走fallback
+            const headData = videoViewData.data
+            const cid = headData.cid as number
+            const duration = headData.duration
+            const aid = headData.aid
+            const cover = headData.pic || ""
+            const title = headData.title || ""
+            const desc = headData.desc || ""
+            const owner = headData.owner || { mid: 0, name: "", face: "" }
+            const info: BiliTypes.BiliVideoInfo = {
+                bvid: bvid,
+                aid: aid,
+                cid: cid,
+                pic: cover,
+                duration: duration,
+                title: title,
+                desc: desc,
+                owner: owner,
+                info_source: 'view'
             }
-            else {
-                expirationS = Date.now() + 3 * duration
-            }
-        } catch (error) {
-            expirationS = Date.now() + 3 * duration
+            return info
         }
 
-        const result: BiliTypes.BiliPlayResult = {
-            bvid: bvid,
-            aid: aid,
-            cid: cid,
-            url: url,
-            pic: cover,
-            duration: duration,
-            title: title,
-            desc: desc,
-            owner: owner,
-            quality: quality,
-            platform: parsedPlatform,
-            urlExpirationS: expirationS
+        const videoCidURL = new URL(this.BILI_CID_BACKUP_API)
+        videoCidURL.searchParams.append('bvid', bvid)
+        const videoCidReq = await proxyFetch(videoCidURL, {
+            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+        })
+        const videoCidData = await videoCidReq.json<BiliTypes.API.BiliVideoCidInfo>()
+        if (videoCidData.code === 0 && videoCidData.data.length && videoCidData.data[0]) {
+            const data = videoCidData.data[0]
+            const cid = data.cid as number
+            const duration = data.duration
+            const aid = -1
+            const cover = data.first_frame || ""
+            const title = data.part || ""
+            const desc = ""
+            const owner = { mid: 0, name: "", face: "" }
+            const info: BiliTypes.BiliVideoInfo = {
+                bvid: bvid,
+                aid: aid,
+                cid: cid,
+                pic: cover,
+                duration: duration,
+                title: title,
+                desc: desc,
+                owner: owner,
+                info_source: 'fallback'
+            }
+            return info
         }
-        return result
+
+        throw new Error("cannot get bili video info")
     }
 
-    private async getBiliPlayURL(bvid: string, cid: number, qn: number = 64, platform?: BiliTypes.GetURLPlatform): Promise<{ url: string, quality: number, method: BiliTypes.GetURLPlatform }> {
+    public async getBiliPlayURL(bvid: string, cid: number, qn: number = 64, platform?: BiliTypes.GetURLPlatform): Promise<BiliTypes.BiliPlayURL> {
 
         const cookie = await this.BCrypto.getBiliAntiCookie();
-
-        const tasks: (() => Promise<{ url: string, quality: number, method: BiliTypes.GetURLPlatform }>)[] = []
+        const tasks: (() => Promise<GetPlayURLTaskReturns>)[] = []
         switch (platform) {
             case "web":
             default:
@@ -88,15 +98,35 @@ export default class BiliVideoParser {
         }
         for (const task of tasks) {
             try {
-                return await task()
+                const { url, quality, platform } = await task()
+                let urlExpirationAt: number
+                try {
+                    const playURL = new URL(url)
+                    if (playURL.searchParams.has('deadline')) {
+                        urlExpirationAt = (parseInt(playURL.searchParams.get('deadline') as string))
+                    }
+                    else {
+                        urlExpirationAt = Math.floor(Date.now() / 1000) + 3600
+                    }
+                } catch (error) {
+                    urlExpirationAt = Math.floor(Date.now() / 1000) + 3600
+                }
+                const data: BiliTypes.BiliPlayURL = {
+                    url: url,
+                    quality: quality,
+                    platform: platform,
+                    urlExpirationAt: urlExpirationAt
+                }
+                return data
             } catch (error) {
+                continue
             }
         }
 
         throw new Error('Cannot Get Play URL')
     }
 
-    private async getPlayURLFromH5(bvid: string, cid: number, cookie: string, qn: number): Promise<{ url: string, quality: number, method: BiliTypes.GetURLPlatform }> {
+    private async getPlayURLFromH5(bvid: string, cid: number, cookie: string, qn: number): Promise<GetPlayURLTaskReturns> {
 
         const url = new URL(this.BILI_VIDEO_H5_PLAYURL_API)
         url.searchParams.append("bvid", String(bvid))
@@ -121,13 +151,13 @@ export default class BiliVideoParser {
             return {
                 url: data.data.durl?.[0]?.url,
                 quality: data.data.quality,
-                method: "web"
+                platform: "web"
             }
         }
         throw new Error(data.message);
     }
 
-    private async getPlayURLFromAPP(platform: BiliTypes.PlatformAPPKEY, bvid: string, cid: number, qn: number): Promise<{ url: string, quality: number, method: BiliTypes.GetURLPlatform }> {
+    private async getPlayURLFromAPP(platform: BiliTypes.PlatformAPPKEY, bvid: string, cid: number, qn: number): Promise<GetPlayURLTaskReturns> {
 
         const params = {
             bvid,
@@ -155,14 +185,14 @@ export default class BiliVideoParser {
             return {
                 url: data.data.durl?.[0]?.url,
                 quality: data.data.quality,
-                method: "app"
+                platform: "app"
             }
         }
 
         throw new Error(data.message);
     }
 
-    private async getPlayURLFromWBI(bvid: string, cid: number, cookie: string, qn: number): Promise<{ url: string, quality: number, method: BiliTypes.GetURLPlatform }> {
+    private async getPlayURLFromWBI(bvid: string, cid: number, cookie: string, qn: number): Promise<GetPlayURLTaskReturns> {
         const params = {
             bvid, cid, qn, fnval: 1, try_look: 1, platform: 'html5', high_quality: 1
         }
@@ -182,7 +212,7 @@ export default class BiliVideoParser {
             return {
                 url: data.data.durl?.[0]?.url,
                 quality: data.data.quality,
-                method: "web"
+                platform: "web"
             }
         }
 

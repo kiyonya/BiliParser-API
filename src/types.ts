@@ -4,11 +4,11 @@ import { z } from "zod";
 export type AppContext = Context<{ Bindings: Env }>;
 
 export const Task = z.object({
-	name: z.string().openapi({ example: "lorem" }),
-	slug: z.string(),
-	description: z.string().optional(),
-	completed: z.boolean().default(false),
-	due_date: z.iso.date(),
+    name: z.string().openapi({ example: "lorem" }),
+    slug: z.string(),
+    description: z.string().optional(),
+    completed: z.boolean().default(false),
+    due_date: z.iso.date(),
 });
 
 export namespace BiliTypes {
@@ -28,25 +28,36 @@ export namespace BiliTypes {
             ticket: string
         }> { }
 
-        export interface BiliVideoInfo extends Response<{
+        export interface BiliVideoViewInfo extends Response<{
             cid: number,
-			aid:number,
-			bvid:string,
-            pic:string,
-			title:string,
-			desc:string,
-			duration:number,
-			owner:{
-				mid:number,
-				name:string,
-				face:string,
-			},
+            aid: number,
+            bvid: string,
+            pic: string,
+            title: string,
+            desc: string,
+            duration: number,
+            owner: {
+                mid: number,
+                name: string,
+                face: string,
+            },
         }> { }
+
+        export interface BiliVideoCidInfo extends Response<{
+            cid: number,
+            page: number,
+            from: string,
+            part: string,
+            duration: number,
+            vid: string,
+            first_frame: string,
+            ctime: number
+        }[]> { }
 
         export interface BiliPlayURL extends Response<{
             format: string,
             accept_quality: number[],
-            quality:number,
+            quality: number,
             durl: {
                 url: string,
                 length: number,
@@ -63,23 +74,36 @@ export namespace BiliTypes {
         }> { }
     }
 
-    export interface BiliPlayResult {
+    export interface BiliVideoInfo {
         bvid: string,
         cid: number,
-		aid:number,
+        aid: number,
         title: string,
         pic: string
+        duration: number,
+        info_source: "fallback" | "view"
+        owner: {
+            mid: number,
+            name: string,
+            face: string,
+        },
+        desc: string,
+    }
+
+    export interface BiliPlayURL {
         url: string,
-        duration: number
-        quality:number,
-        owner:{
-			mid:number,
-			name:string,
-			face:string,
-		},
-		desc:string,
-        platform:GetURLPlatform,
-        urlExpirationS:number
+        quality: number,
+        platform: GetURLPlatform,
+        urlExpirationAt: number
+    }
+
+    export type BiliParseResult = BiliVideoInfo & BiliPlayURL
+
+    export interface BiliPlayResult extends BiliVideoInfo {
+        url: string,
+        quality: number,
+        platform: GetURLPlatform,
+        urlExpirationS: number
     }
 
     export interface PlatformAPPKEY {
@@ -90,4 +114,11 @@ export namespace BiliTypes {
     }
 
     export type GetURLPlatform = "web" | 'app'
+}
+
+export namespace APITypes {
+    export interface APICacheWarp<Data> {
+        data: Data,
+        expiration: number
+    }
 }
