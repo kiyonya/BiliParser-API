@@ -113,7 +113,7 @@ export class BiliVideoRoute extends OpenAPIRoute {
                 return cache.data
             }
             else {
-                ctx.env.BILI_VIDEOINFO_CACHE.delete(key).catch(() => { })
+               await ctx.env.BILI_VIDEOINFO_CACHE.delete(key)
             }
         }
         return null
@@ -126,9 +126,9 @@ export class BiliVideoRoute extends OpenAPIRoute {
             data: info,
             expiration: expiration
         }
-        ctx.env.BILI_VIDEOINFO_CACHE.put(key, JSON.stringify(warp), {
+        await ctx.env.BILI_VIDEOINFO_CACHE.put(key, JSON.stringify(warp), {
             expiration: expiration
-        }).catch(() => { })
+        })
     }
 
     private async getBiliPlayUrlCache(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.GetURLPlatform): Promise<BiliTypes.BiliPlayURL | null> {
@@ -140,7 +140,7 @@ export class BiliVideoRoute extends OpenAPIRoute {
                 return cache.data
             }
             else {
-                ctx.env.BILI_PLAYURL_CACHE.delete(key).catch(() => { })
+                await ctx.env.BILI_PLAYURL_CACHE.delete(key)
             }
         }
         return null
@@ -165,15 +165,14 @@ export class BiliVideoRoute extends OpenAPIRoute {
         const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
         const userExpirationS = Math.floor(Date.now() / 1000) + this.BILI_URL_CACHE_TIME
         const expiration: number = Math.min(videoExpirationS, userExpirationS)
-
         const warp: APITypes.APICacheWarp<BiliTypes.BiliPlayURL> = {
             data: data,
             expiration: expiration
         }
 
-        ctx.env.BILI_PLAYURL_CACHE.put(key, JSON.stringify(warp), {
+        await ctx.env.BILI_PLAYURL_CACHE.put(key, JSON.stringify(warp), {
             expiration: expiration
-        }).catch(() => { })
+        })
     }
 
     private async parseBiliVideo(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.GetURLPlatform): Promise<{ result: BiliTypes.BiliParseResult, infoCacheHit: boolean, urlCacheHit: boolean }> {
