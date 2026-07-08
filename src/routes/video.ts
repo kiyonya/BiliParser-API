@@ -34,7 +34,8 @@ const CDNS: Record<string, string> = {
     estghw: 'upos-sz-estghw.bilivideo.com',
     upcdnbda2: 'upos-sz-upcdnbda2.bilivideo.com',
     rali: 'upos-sz-mirrorrali.bilivideo.com',
-};
+    akam: "upos-hz-mirrorakam.akamaized.net"
+} as const;
 
 export class BiliVideoRoute extends OpenAPIRoute {
 
@@ -49,6 +50,7 @@ export class BiliVideoRoute extends OpenAPIRoute {
     private readonly R_AVAILABLE_PLATFORM = z.enum(["web", "app"]).optional()
     private readonly R_AVAILABLE_CDN = z.enum(Object.keys(CDNS)).default('ali')
     private readonly R_AVAILABLE_QN = z.enum(["64"]).default("64")
+
 
     private async getBvidFromURL(biliurl: string | URL): Promise<string> {
         let url: URL = new URL(biliurl)
@@ -74,8 +76,7 @@ export class BiliVideoRoute extends OpenAPIRoute {
             "Expires": "0",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "X-Server": "cloudflare",
-            "X-NEKOCHA": "is nekocha silly?",
+            "X-Nekocha": "is nekocha silly?",
             ...headers
         }
         const response: APIResponse<Data> = {
@@ -113,7 +114,7 @@ export class BiliVideoRoute extends OpenAPIRoute {
                 return cache.data
             }
             else {
-               await ctx.env.BILI_VIDEOINFO_CACHE.delete(key)
+                await ctx.env.BILI_VIDEOINFO_CACHE.delete(key)
             }
         }
         return null
@@ -216,12 +217,19 @@ export class BiliVideoRoute extends OpenAPIRoute {
 
     public override async handle(context: AppContext): Promise<Response> {
         try {
+            const cf = context.req.raw.cf
             const url = new URL(context.req.url)
+            const pathname = url.pathname
+            const { success } = await context.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return context.text(`429 Too Many Requests`, 429)
+            }
+
             const parmas = url.searchParams
 
             let type = this.R_AVAILABLE_TYPE.safeParse(parmas.get('type')).data || 'video'
             let platform = this.R_AVAILABLE_PLATFORM.safeParse(parmas.get('method')).data || 'web'
-            let cdn = this.R_AVAILABLE_CDN.safeParse(parmas.get('cdn')).data || 'ali'
+            let cdn = this.R_AVAILABLE_CDN.safeParse(parmas.get('cdn')).data
             let qn = parseInt(this.R_AVAILABLE_QN.safeParse(parmas.get('qn')).data || "64")
 
             let bvid: string | null = null
@@ -245,25 +253,48 @@ export class BiliVideoRoute extends OpenAPIRoute {
             }
 
             const { result, infoCacheHit, urlCacheHit } = await this.parseBiliVideo(context, bvid, qn, platform)
+
+
             const cacheHitHeader: Record<string, string> = {
                 "X-Info-Cache-Hit": infoCacheHit ? 'true' : 'false',
                 "X-URL-Cache-Hit": urlCacheHit ? 'true' : 'false'
             }
+            const biliServerHeaders: Record<string, string> = {}
 
+
+            let cdnHostname: string
             if (cdn && CDNS[cdn]) {
-                const url = new URL(result.url)
-                url.hostname = CDNS[cdn]
-                result.url = url.toString()
+                cdnHostname = CDNS[cdn]
+            }
+            else {
+                //国内用户默认分配ali
+                //海外默认分配aliov
+                const isCN = cf?.continent === 'AS' && cf.country === "CN"
+                if (isCN) {
+                    cdnHostname = CDNS['ali'] as string
+                }
+                else {
+                    cdnHostname = CDNS['aliov'] as string
+                }
+            }
+
+            if (cdnHostname) {
+                biliServerHeaders['X-bili-video-cdn'] = cdnHostname
+                const mirrorURL = new URL(result.url)
+                mirrorURL.hostname = cdnHostname
+                result.url = mirrorURL.toString()
             }
 
             switch (type) {
                 case "json":
                     return this.createJsonResponse<BiliTypes.BiliParseResult>(context, "Success", 200, result, {
-                        ...cacheHitHeader
+                        ...cacheHitHeader,
+                        ...biliServerHeaders
                     })
                 case "url":
                     return context.text(result.url, 200, {
-                        ...cacheHitHeader
+                        ...cacheHitHeader,
+                        ...biliServerHeaders
                     })
                 case "video":
                 default:

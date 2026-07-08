@@ -20,4 +20,4 @@ openapi.get('/video-cdn', BiliVideoCDNRoute)
 //alias
 // openapi.get('/bili/v1/video/:bvid?',BiliVideoRoute)
 // openapi.get('/bili/v1/video-cdn',BiliVideoCDNRoute)
-export default app;
+export default app
