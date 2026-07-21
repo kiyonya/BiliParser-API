@@ -49,7 +49,7 @@ export default class BiliCrypto {
         try {
             const res = await proxyFetch(this.BILI_FINGER_SPI,
                 { headers: { "User-Agent": this.BROWSER_UA } });
-            const json = await res.json<BiliTypes.API.FingerSPI>();
+            const json = await res.json<BiliTypes.BAPI.FingerSPI>();
             if (json.data?.b_3) buvid3 = json.data.b_3;
             if (json.data?.b_4) buvid4 = json.data.b_4;
 
@@ -67,7 +67,7 @@ export default class BiliCrypto {
             webTicketURL.searchParams.append('csrf', '')
 
             const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": this.BROWSER_UA } });
-            const json = await res.json<BiliTypes.API.BiliWebTicket>();
+            const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
             if (json.data?.ticket) {
                 ticket = json.data.ticket
             }
@@ -86,7 +86,7 @@ export default class BiliCrypto {
         const req = await proxyFetch(this.BILI_WEB_NAV, {
             headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         });
-        const res = await req.json<BiliTypes.API.BiliNav>()
+        const res = await req.json<BiliTypes.BAPI.BiliNav>()
         const img_url = res.data.wbi_img.img_url
         const sub_url = res.data.wbi_img.sub_url
         if (!img_url || !sub_url) {

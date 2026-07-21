@@ -1,31 +1,22 @@
 import { BiliTypes } from "../types"
 import BiliCrypto from "../utils/bili-crypto"
+import Parser from "../utils/parser"
 import { proxyFetch } from "../utils/proxy-fetch"
 
 export interface GetPlayURLTaskReturns {
-    url: string, quality: number, platform: BiliTypes.GetURLPlatform
+    url: string, quality: number, platform: BiliTypes.BVideoPlatform
 }
 
-export default class BiliVideoParser {
+export default class BiliVideoParser extends Parser {
 
-    private BILI_CID_BACKUP_API = "https://api.bilibili.com/x/player/pagelist"
-    private BILI_VIDEO_VIEW_API = "https://api.bilibili.com/x/web-interface/view"
-    private BILI_VIDEO_H5_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
-    private BILI_VIDEO_APP_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
-    private BILI_VIDEO_WBI_PLAYURL_API = "https://api.bilibili.com/x/player/wbi/playurl"
-    private BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
-    private BILI_REFERER = "https://www.bilibili.com"
-
-    private BCrypto = new BiliCrypto()
-
-    public async getBiliVideoInfo(bvid: string): Promise<BiliTypes.BiliVideoInfo> {
+    public async getVideoInfo(bvid: string): Promise<BiliTypes.RES.Video.VideoInfo> {
         const cookie = await this.BCrypto.getBiliAntiCookie();
         const videoViewInfoURL = new URL(this.BILI_VIDEO_VIEW_API)
         videoViewInfoURL.searchParams.append('bvid', bvid)
         const videoViewReq = await proxyFetch(videoViewInfoURL, {
             headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
-        const videoViewData = await videoViewReq.json<BiliTypes.API.BiliVideoViewInfo>()
+        const videoViewData = await videoViewReq.json<BiliTypes.BAPI.BiliVideoViewInfo>()
         if (videoViewData.code === 0) {
             //正常 其他的情况走fallback
             const headData = videoViewData.data
@@ -36,7 +27,7 @@ export default class BiliVideoParser {
             const title = headData.title || ""
             const desc = headData.desc || ""
             const owner = headData.owner || { mid: 0, name: "", face: "" }
-            const info: BiliTypes.BiliVideoInfo = {
+            const info: BiliTypes.RES.Video.VideoInfo = {
                 bvid: bvid,
                 aid: aid,
                 cid: cid,
@@ -55,7 +46,7 @@ export default class BiliVideoParser {
         const videoCidReq = await proxyFetch(videoCidURL, {
             headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
-        const videoCidData = await videoCidReq.json<BiliTypes.API.BiliVideoCidInfo>()
+        const videoCidData = await videoCidReq.json<BiliTypes.BAPI.BiliVideoCidInfo>()
         if (videoCidData.code === 0 && videoCidData.data.length && videoCidData.data[0]) {
             const data = videoCidData.data[0]
             const cid = data.cid as number
@@ -65,7 +56,7 @@ export default class BiliVideoParser {
             const title = data.part || ""
             const desc = ""
             const owner = { mid: 0, name: "", face: "" }
-            const info: BiliTypes.BiliVideoInfo = {
+            const info: BiliTypes.RES.Video.VideoInfo = {
                 bvid: bvid,
                 aid: aid,
                 cid: cid,
@@ -82,7 +73,7 @@ export default class BiliVideoParser {
         throw new Error("cannot get bili video info")
     }
 
-    public async getBiliPlayURL(bvid: string, cid: number, qn: number = 64, platform?: BiliTypes.GetURLPlatform): Promise<BiliTypes.BiliPlayURL> {
+    public async getVideoPlayUrl(bvid: string, cid: number, qn: number = 64, platform?: BiliTypes.BVideoPlatform): Promise<BiliTypes.RES.Video.PlayURL> {
 
         const cookie = await this.BCrypto.getBiliAntiCookie();
         const tasks: (() => Promise<GetPlayURLTaskReturns>)[] = []
@@ -111,7 +102,7 @@ export default class BiliVideoParser {
                 } catch (error) {
                     urlExpirationAt = Math.floor(Date.now() / 1000) + 3600
                 }
-                const data: BiliTypes.BiliPlayURL = {
+                const data: BiliTypes.RES.Video.PlayURL = {
                     url: url,
                     quality: quality,
                     platform: platform,
@@ -146,7 +137,7 @@ export default class BiliVideoParser {
         const req = await proxyFetch(url, {
             headers: xHeaders,
         })
-        const data = await req.json<BiliTypes.API.BiliPlayURL>()
+        const data = await req.json<BiliTypes.BAPI.BiliPlayURL>()
         if (data.code === 0 && data.data.durl?.[0]?.url) {
             return {
                 url: data.data.durl?.[0]?.url,
@@ -180,7 +171,7 @@ export default class BiliVideoParser {
             headers: { 'User-Agent': platform.ua }
         })
 
-        const data = await req.json<BiliTypes.API.BiliPlayURL>()
+        const data = await req.json<BiliTypes.BAPI.BiliPlayURL>()
         if (data.code === 0 && data.data.durl?.[0]?.url) {
             return {
                 url: data.data.durl?.[0]?.url,
@@ -207,7 +198,7 @@ export default class BiliVideoParser {
             headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         });
 
-        const data = await req.json<BiliTypes.API.BiliPlayURL>()
+        const data = await req.json<BiliTypes.BAPI.BiliPlayURL>()
         if (data.code === 0 && data.data.durl?.[0]?.url) {
             return {
                 url: data.data.durl?.[0]?.url,
@@ -217,5 +208,25 @@ export default class BiliVideoParser {
         }
 
         throw new Error(data.message);
+    }
+
+    public async getVideoContentLength(videoUrl: string | URL): Promise<number | null> {
+        try {
+            const headReq = await fetch(videoUrl, {
+                method: "HEAD",
+                headers: {
+                    "User-Agent": this.BROWSER_UA,
+                    "Referer": this.BILI_REFERER
+                }
+            })
+            const headers = headReq.headers
+            const length = headers.get('Content-Length')
+            if (length) {
+                return parseInt(length)
+            }
+            return null
+        } catch (error) {
+            return null
+        }
     }
 }
