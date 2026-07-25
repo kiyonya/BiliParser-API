@@ -37,6 +37,7 @@ export default class APIRoute extends OpenAPIRoute {
         cos: 'upos-sz-mirrorcos.bilivideo.com',
         cosb: 'upos-sz-mirrorcosb.bilivideo.com',
         coso1: 'upos-sz-mirrorcoso1.bilivideo.com',
+        cosov: 'upos-sz-mirrorcosov.bilivideo.com',
         cosdisp: 'upos-sz-mirrorcosdisp.bilivideo.com',
         hw: 'upos-sz-mirrorhw.bilivideo.com',
         hwb: 'upos-sz-mirrorhwb.bilivideo.com',
@@ -53,6 +54,7 @@ export default class APIRoute extends OpenAPIRoute {
         rali: 'upos-sz-mirrorrali.bilivideo.com',
         akam: "upos-hz-mirrorakam.akamaized.net"
     }
+
     protected readonly BILI_VIDEO_CNCDN = "ali"
     protected readonly BILI_VIDEO_OVCDN = "aliov"
     protected readonly BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
@@ -145,6 +147,5 @@ export default class APIRoute extends OpenAPIRoute {
             return ctx.text(`429 Too Many Requests`, 429)
         }
     }
-
 
 }

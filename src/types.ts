@@ -338,6 +338,7 @@ export namespace BiliTypes {
         cosb: string;
         coso1: string;
         cosdisp: string;
+        cosov:string
         hw: string;
         hwb: string;
         hwo1: string;
