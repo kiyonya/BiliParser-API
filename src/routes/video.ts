@@ -1,19 +1,48 @@
-import z from "zod";
+import z, { optional } from "zod";
 import { type BiliTypes, type AppContext } from "../types";
 import BiliVideoParser from "../services/video-parser";
 import { b23Parser } from "../utils/b23-parse";
 import APIRoute from "../utils/api-route";
+
+export interface CDNStrategy {
+    continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN
+}
+
+export interface CDNStrategyWithPriority extends CDNStrategy {
+    priority: number
+}
 
 export class BiliVideoRoute extends APIRoute {
 
     private readonly PARAMS = z.object({
         type: z.enum(["video", "json", "url"]).default("video"),
         platform: z.enum(["web", "app"]).default('web'),
-        cdn: z.enum(Object.keys(this.CDNS)).default('ali'),
+        cdn: z.enum(Object.keys(this.CDNS)).optional(),
         qn: z.coerce.number().pipe(z.literal(64)).default(64),
         url: z.url("*.bilibili.com/video/*").optional(),
         bvid: z.string().optional()
     })
+
+    protected CDNS_DEFAULT: CDNStrategy[] = [
+        // 中国大陆
+        { continent: "AS", area: "CN", cdn: "ali" },
+        // 印度
+        { continent: "AS", area: "IN", cdn: "akam" },
+        // 欧洲
+        { continent: "EU", area: "*", cdn: "akam" },
+        // 澳大利亚
+        { continent: "OC", area: "*", cdn: "akam" },
+        // 日韩
+        { continent: "AS", area: "KR", cdn: "aliov" },
+        { continent: "AS", area: "JP", cdn: "aliov" },
+        // 港澳台
+        { continent: "AS", area: "HK", cdn: "aliov" },
+        { continent: "AS", area: "MO", cdn: "aliov" },
+        { continent: "AS", area: "TW", cdn: "aliov" },
+        // 北美
+        { continent: "NA", area: "*", cdn: "akam" },
+        { continent: "*", area: "*", cdn: "aliov" }
+    ]
 
     private async getBvidFromURL(biliurl: string | URL): Promise<string | undefined> {
 
@@ -51,7 +80,7 @@ export class BiliVideoRoute extends APIRoute {
         let videoInfo = await this.getCache(ctx, infoKey)
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx,infoKey,videoInfo,this.nowS + this.BILI_VIDEO_INFO_CACHE_TIME)
+            await this.setCache(ctx, infoKey, videoInfo, this.nowS + this.BILI_VIDEO_INFO_CACHE_TIME)
         }
 
         const urlKey = this.createUrlCacheKey(bvid, qn, platform)
@@ -85,26 +114,42 @@ export class BiliVideoRoute extends APIRoute {
 
     private autoSwitchBiliCdn(ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
         const cf = ctx.req.raw.cf
-        let cdnHostname: string
+        let cdnHostname: string | undefined = undefined
         if (cdn && this.CDNS[cdn]) {
             cdnHostname = this.CDNS[cdn]
-            this.resHeaders.set('X-Bili-CDN', cdn)
         }
         else {
-            const isChinaRegion = cf?.continent === 'AS' && cf.country === "CN"
-            if (isChinaRegion) {
-                cdnHostname = this.CDNS[this.BILI_VIDEO_CNCDN]
-                this.resHeaders.set('X-Bili-CDN', this.BILI_VIDEO_CNCDN)
-            }
-            else {
-                cdnHostname = this.CDNS[this.BILI_VIDEO_OVCDN]
-                this.resHeaders.set('X-Bili-CDN', this.BILI_VIDEO_OVCDN)
+            //LPM
+            const priorityStrategies: CDNStrategyWithPriority[] = this.CDNS_DEFAULT.map(i => {
+                let priority = 2
+                if (i.area === '*') {
+                    priority--
+                }
+                if (i.continent === '*') {
+                    priority--
+                }
+                return {
+                    priority,
+                    ...i
+                }
+            }).sort((a, b) => b.priority - a.priority)
+
+            for (const strategy of priorityStrategies) {
+                const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
+                console.log(strategy)
+                if(isMatch){
+                    const cdnName = strategy.cdn
+                    cdnHostname = this.CDNS[cdnName]
+                    this.resHeaders.set('X-CDN-Strategy',`${strategy.continent},${strategy.area},${cdnName}`)
+                    break
+                }
             }
         }
         if (cdnHostname) {
             const _ = new URL(url)
             _.hostname = cdnHostname
             url = _.toString()
+            this.resHeaders.set('X-Bili-CDN',cdnHostname)
         }
         return url
     }

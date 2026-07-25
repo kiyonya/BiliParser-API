@@ -1,4 +1,4 @@
-import { fromHono, OpenAPIRoute } from "chanfana";
+import { fromHono } from "chanfana";
 import { Hono } from "hono";
 import { BiliVideoRoute } from "./routes/video";
 import { AppContext } from "./types";
