@@ -25,6 +25,7 @@ export namespace BiliTypes {
                 pic: string
                 duration: number,
                 info_source: "fallback" | "view"
+                infoSource: "fallback" | "view"
                 owner: {
                     mid: number,
                     name: string,

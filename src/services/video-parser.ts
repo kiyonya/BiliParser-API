@@ -36,7 +36,8 @@ export default class BiliVideoParser extends Parser {
                 title: title,
                 desc: desc,
                 owner: owner,
-                info_source: 'view'
+                info_source: 'view',
+                infoSource:'view'
             }
             return info
         }
@@ -65,7 +66,8 @@ export default class BiliVideoParser extends Parser {
                 title: title,
                 desc: desc,
                 owner: owner,
-                info_source: 'fallback'
+                info_source: 'fallback',
+                infoSource:'fallback'
             }
             return info
         }
