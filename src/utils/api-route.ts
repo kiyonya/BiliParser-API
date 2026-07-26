@@ -14,7 +14,8 @@ export interface APIResponse<Data = any> {
 export default class APIRoute extends OpenAPIRoute {
 
     public SERVER_VERSION = process.env.X_SERVER_VERSION
-    public CF_CACHE_BASEURL = "https://bili.internal/cache"
+    protected CF_CACHE_BASEURL = "https://bili.internal/cache"
+    protected BILI_REFERER = "https://www.bilibili.com"
 
     protected readonly BILI_VIDEO_PLAYURL_CACHE_TIME = process.env.X_VIDEO_PLAYURL_CACHE_TIME ? parseInt(process.env.X_VIDEO_PLAYURL_CACHE_TIME) : 5400
 
@@ -66,11 +67,12 @@ export default class APIRoute extends OpenAPIRoute {
         'X-Nekocha': "isn't nekocha cute?"
     })
     protected EdgeCache = new EdgeCache()
-    protected KVCache = new KVCache('BILI_CACHE')
+    protected KVCache = new KVCache('BILI_API_CACHE')
     protected cacheHits = {
         edge: new Set<string>(),
         kv: new Set<string>()
     }
+    protected kvCacheNotUsed:boolean = false
 
     get headers() {
         const headers: Record<string, string> = {}
@@ -78,7 +80,7 @@ export default class APIRoute extends OpenAPIRoute {
             headers[k] = String(v)
         }
         headers['X-Cache-Edge-Hit'] = [...this.cacheHits.edge].map(i => btoa(i)).join(", ") || 'MISS'
-        headers['X-Cache-KV-Hit'] = [...this.cacheHits.kv].map(i => btoa(i)).join(", ") || 'MISS'
+        headers['X-Cache-KV-Hit'] = [...this.cacheHits.kv].map(i => btoa(i)).join(", ") || (this.kvCacheNotUsed ? 'NOTUSE' : 'MISS')
         return headers
     }
 
@@ -103,11 +105,13 @@ export default class APIRoute extends OpenAPIRoute {
             const edgeCache = await this.EdgeCache.getEdgeCache<Data>(ctx, key)
             if (edgeCache) {
                 this.cacheHits.edge.add(key)
+                this.kvCacheNotUsed = true
                 return edgeCache.data
             }
             const kvCache = await this.KVCache.getKVCache<Data>(ctx, key)
             if (kvCache) {
                 this.cacheHits.kv.add(key)
+                this.kvCacheNotUsed = false
                 const kvCacheKey = kvCache.raw.key
                 const expirationAt = kvCache.raw.expirationAt
                 await this.EdgeCache.setEdgeCache(ctx, kvCacheKey, kvCache.data, expirationAt)

@@ -10,21 +10,23 @@ import { BiliArchieveRoute } from "./routes/archieve";
 import { BiliVideoCDNRoute } from "./routes/cdn";
 import APIRoute from "./utils/api-route";
 import { BARoute } from "./routes/b2a";
+import { BiliCoverRoute } from "./routes/cover";
 
 
 const app = new Hono<{ Bindings: Env }>();
 const openapi = fromHono(app, {
-	docs_url: "/doc",
+	docs_url: "/doc"
 });
 
 class BaseRoute extends APIRoute {
 	public override handle(context: AppContext) {
-		return context.text(`Cloudflare BiliParser API\nProgram By Nekocha\nVersion:${this.SERVER_VERSION}\ngithub:https://github.com/kiyonya/BiliParser-API\n\n\nだから妄想感傷代償連盟\n愛を懐いて理想を叫んだ\n行き場のない愚者のメロディー\n再挑戦•転生•テレポーテーション\n何回だって　重ねて逝くんだ`, 200)
+		return context.text(`Cloudflare BiliParser API\nProgram By Nekocha\nVersion:${this.SERVER_VERSION}\ngithub:https://github.com/kiyonya/BiliParser-API\nlicense:MIT\n\n\nだから妄想感傷代償連盟\n愛を懐いて理想を叫んだ\n行き場のない愚者のメロディー\n再挑戦•転生•テレポーテーション\n何回だって　重ねて逝くんだ`, 200)
 	}
 }
 
 openapi.all('/', BaseRoute)
 openapi.get('/video/:bvid?', BiliVideoRoute)
+openapi.get('/cover/:bvid?',BiliCoverRoute)
 openapi.get('/video-cdn', BiliVideoCDNRoute)
 openapi.get('/live/:roomId?', BiliLiveRoute)
 openapi.get('/pplay', BiliProxyPlay)
