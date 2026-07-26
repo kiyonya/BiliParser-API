@@ -27,11 +27,11 @@ export class BiliVideoRoute extends APIRoute {
         // 中国大陆
         { continent: "AS", area: "CN", cdn: "ali" },
         // 印度
-        { continent: "AS", area: "IN", cdn: "akam" },
+        { continent: "AS", area: "IN", cdn: "aliov" },
         // 欧洲
-        { continent: "EU", area: "*", cdn: "akam" },
+        { continent: "EU", area: "*", cdn: "aliov" },
         // 澳大利亚
-        { continent: "OC", area: "*", cdn: "akam" },
+        { continent: "OC", area: "*", cdn: "aliov" },
         // 日韩
         { continent: "AS", area: "KR", cdn: "aliov" },
         { continent: "AS", area: "JP", cdn: "aliov" },
@@ -40,7 +40,7 @@ export class BiliVideoRoute extends APIRoute {
         { continent: "AS", area: "MO", cdn: "aliov" },
         { continent: "AS", area: "TW", cdn: "aliov" },
         // 北美
-        { continent: "NA", area: "*", cdn: "akam" },
+        { continent: "NA", area: "*", cdn: "aliov" },
         { continent: "*", area: "*", cdn: "aliov" }
     ]
 
@@ -137,10 +137,10 @@ export class BiliVideoRoute extends APIRoute {
             for (const strategy of priorityStrategies) {
                 const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
                 console.log(strategy)
-                if(isMatch){
+                if (isMatch) {
                     const cdnName = strategy.cdn
                     cdnHostname = this.CDNS[cdnName]
-                    this.resHeaders.set('X-CDN-Strategy',`${strategy.continent},${strategy.area},${cdnName}`)
+                    this.resHeaders.set('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
                     break
                 }
             }
@@ -149,7 +149,7 @@ export class BiliVideoRoute extends APIRoute {
             const _ = new URL(url)
             _.hostname = cdnHostname
             url = _.toString()
-            this.resHeaders.set('X-Bili-CDN',cdnHostname)
+            this.resHeaders.set('X-Bili-CDN', cdnHostname)
         }
         return url
     }
@@ -169,14 +169,14 @@ export class BiliVideoRoute extends APIRoute {
             })
 
             if (!parmas.success) {
-                return this.jsonResponse(ctx, "inp", 400, null)
+                return this.jsonResponse(ctx, "invalid params", 400, null)
             }
             let { type, platform, cdn, qn, bvid, url } = parmas.data
             if (!bvid && url) {
                 bvid = await this.getBvidFromURL(url)
             }
             if (!bvid) {
-                return this.jsonResponse(ctx, "inp", 400, null)
+                return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
             }
 
             const result = await this.parseBiliVideo(ctx, bvid, qn, platform)
