@@ -104,8 +104,11 @@ export default class BiliVideoParser extends Parser {
                 } catch (error) {
                     urlExpirationAt = Math.floor(Date.now() / 1000) + 3600
                 }
+                const urlInst = new URL(url)
+                const originalCdnHostname= urlInst.hostname
                 const data: BiliTypes.RES.Video.PlayURL = {
                     url: url,
+                    originalCdnHostname,
                     quality: quality,
                     platform: platform,
                     urlExpirationAt: urlExpirationAt

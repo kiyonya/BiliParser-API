@@ -1,16 +1,10 @@
-import z, { optional } from "zod";
+import z from "zod";
 import { type BiliTypes, type AppContext } from "../types";
 import BiliVideoParser from "../services/video-parser";
 import { b23Parser } from "../utils/b23-parse";
 import APIRoute from "../utils/api-route";
-
-export interface CDNStrategy {
-    continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN
-}
-
-export interface CDNStrategyWithPriority extends CDNStrategy {
-    priority: number
-}
+import { Validation } from "../validation";
+import { Config } from "../config";
 
 export class BiliVideoRoute extends APIRoute {
 
@@ -22,27 +16,6 @@ export class BiliVideoRoute extends APIRoute {
         url: z.url("*.bilibili.com/video/*").optional(),
         bvid: z.string().optional()
     })
-
-    protected CDNS_DEFAULT: CDNStrategy[] = [
-        // 中国大陆
-        { continent: "AS", area: "CN", cdn: "ali" },
-        // 印度
-        { continent: "AS", area: "IN", cdn: "aliov" },
-        // 欧洲
-        { continent: "EU", area: "*", cdn: "aliov" },
-        // 澳大利亚
-        { continent: "OC", area: "*", cdn: "aliov" },
-        // 日韩
-        { continent: "AS", area: "KR", cdn: "aliov" },
-        { continent: "AS", area: "JP", cdn: "aliov" },
-        // 港澳台
-        { continent: "AS", area: "HK", cdn: "aliov" },
-        { continent: "AS", area: "MO", cdn: "aliov" },
-        { continent: "AS", area: "TW", cdn: "aliov" },
-        // 北美
-        { continent: "NA", area: "*", cdn: "aliov" },
-        { continent: "*", area: "*", cdn: "aliov" }
-    ]
 
     private async getBvidFromURL(biliurl: string | URL): Promise<string | undefined> {
 
@@ -77,14 +50,14 @@ export class BiliVideoRoute extends APIRoute {
 
         const parser = new BiliVideoParser()
         const infoKey = this.createInfoCacheKey(bvid)
-        let videoInfo = await this.getCache(ctx, infoKey)
+        let videoInfo = await this.getCache(ctx, infoKey, Validation.validVideoInfo)
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + this.BILI_VIDEO_INFO_CACHE_TIME)
+            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.validVideoInfo)
         }
 
         const urlKey = this.createUrlCacheKey(bvid, qn, platform)
-        let playUrl = await this.getCache<BiliTypes.RES.Video.PlayURL>(ctx, urlKey)
+        let playUrl = await this.getCache<BiliTypes.RES.Video.PlayURL>(ctx, urlKey, Validation.validPlayUrl)
         if (!playUrl) {
             const cid = videoInfo.cid
             const duration = videoInfo.duration
@@ -101,10 +74,10 @@ export class BiliVideoRoute extends APIRoute {
                     videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
                 }
                 const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                const userExpirationS = this.nowS + this.BILI_VIDEO_PLAYURL_CACHE_TIME
+                const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
                 const expiration: number = Math.min(videoExpirationS, userExpirationS)
                 return expiration
-            })
+            }, Validation.validPlayUrl)
         }
         return {
             ...videoInfo,
@@ -112,53 +85,14 @@ export class BiliVideoRoute extends APIRoute {
         }
     }
 
-    private autoSwitchBiliCdn(ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
-        const cf = ctx.req.raw.cf
-        let cdnHostname: string | undefined = undefined
-        if (cdn && this.CDNS[cdn]) {
-            cdnHostname = this.CDNS[cdn]
-        }
-        else {
-            //LPM
-            const priorityStrategies: CDNStrategyWithPriority[] = this.CDNS_DEFAULT.map(i => {
-                let priority = 2
-                if (i.area === '*') {
-                    priority--
-                }
-                if (i.continent === '*') {
-                    priority--
-                }
-                return {
-                    priority,
-                    ...i
-                }
-            }).sort((a, b) => b.priority - a.priority)
-
-            for (const strategy of priorityStrategies) {
-                const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
-                console.log(strategy)
-                if (isMatch) {
-                    const cdnName = strategy.cdn
-                    cdnHostname = this.CDNS[cdnName]
-                    this.resHeaders.set('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
-                    break
-                }
-            }
-        }
-        if (cdnHostname) {
-            const _ = new URL(url)
-            _.hostname = cdnHostname
-            url = _.toString()
-            this.resHeaders.set('X-Bili-CDN', cdnHostname)
-        }
-        return url
-    }
-
     public override async handle(ctx: AppContext): Promise<Response> {
         try {
-            await this.checkRateLimit(ctx)
             const reqUrl = new URL(ctx.req.url)
-
+            const pathname = reqUrl.pathname
+            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return ctx.text(`429 Too Many Requests`, 429)
+            }
             const parmas = this.PARAMS.safeParse({
                 type: reqUrl.searchParams.get('type') || undefined,
                 platform: reqUrl.searchParams.get('platform') || undefined,

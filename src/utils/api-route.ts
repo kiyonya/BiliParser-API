@@ -1,8 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
-import { APITypes, AppContext, BiliTypes } from "../types";
+import { AppContext, BiliTypes } from "../types";
 import EdgeCache from "./edge-cache";
 import KVCache from "./kv-cache";
-
 export interface APIResponse<Data = any> {
     code: number,
     message: string,
@@ -10,24 +9,18 @@ export interface APIResponse<Data = any> {
     data: Data,
 }
 
+export interface CDNStrategy {
+    continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN
+}
 
+export interface CDNStrategyWithPriority extends CDNStrategy {
+    priority: number
+}
 export default class APIRoute extends OpenAPIRoute {
 
-    public SERVER_VERSION = process.env.X_SERVER_VERSION
+    public SERVER_VERSION = process.env.SERVER_VERSION
     protected CF_CACHE_BASEURL = "https://bili.internal/cache"
     protected BILI_REFERER = "https://www.bilibili.com"
-
-    protected readonly BILI_VIDEO_PLAYURL_CACHE_TIME = process.env.X_VIDEO_PLAYURL_CACHE_TIME ? parseInt(process.env.X_VIDEO_PLAYURL_CACHE_TIME) : 5400
-
-    protected readonly BILI_BANGUMI_PLAYURL_CACHE_TIME = process.env.X_BANGUMI_PLAYURL_CACHE_TIME ? parseInt(process.env.X_BANGUMI_PLAYURL_CACHE_TIME) : 5400
-
-    protected readonly BILI_VIDEO_INFO_CACHE_TIME = process.env.X_VIDEO_INFO_CACHE_TIME ? parseInt(process.env.X_VIDEO_INFO_CACHE_TIME) : 60 * 60 * 24
-
-    protected readonly BILI_BANGUMI_EPISODES_CACHE_TIME = process.env.X_BANGUMI_EPISODES_CACHE_TIME ? parseInt(process.env.X_BANGUMI_EPISODES_CACHE_TIME) : 60 * 60 * 24 * 7
-
-    protected readonly BILI_BANGUMI_INFO_CACHE_TIME = process.env.X_BANGUMI_INFO_CACHE_TIME ? parseInt(process.env.X_BANGUMI_INFO_CACHE_TIME) : 60 * 60 * 24 * 7
-
-    protected readonly BILI_LIVE_CACHE_TIME = process.env.X_BILI_LIVE_CACHE_TIME ? parseInt(process.env.X_BILI_LIVE_CACHE_TIME) : 60
 
     protected CDNS: BiliTypes.BiliVideoCDN = {
         ali: 'upos-sz-mirrorali.bilivideo.com',
@@ -55,16 +48,33 @@ export default class APIRoute extends OpenAPIRoute {
         rali: 'upos-sz-mirrorrali.bilivideo.com',
         akam: "upos-hz-mirrorakam.akamaized.net"
     }
-
-    protected readonly BILI_VIDEO_CNCDN = "ali"
-    protected readonly BILI_VIDEO_OVCDN = "aliov"
+    protected CDNS_DEFAULT: CDNStrategy[] = [
+        // 中国大陆
+        { continent: "AS", area: "CN", cdn: "ali" },
+        // 印度
+        { continent: "AS", area: "IN", cdn: "aliov" },
+        // 欧洲
+        { continent: "EU", area: "*", cdn: "aliov" },
+        // 澳大利亚
+        { continent: "OC", area: "*", cdn: "aliov" },
+        // 日韩
+        { continent: "AS", area: "KR", cdn: "aliov" },
+        { continent: "AS", area: "JP", cdn: "aliov" },
+        // 港澳台
+        { continent: "AS", area: "HK", cdn: "aliov" },
+        { continent: "AS", area: "MO", cdn: "aliov" },
+        { continent: "AS", area: "TW", cdn: "aliov" },
+        // 北美
+        { continent: "NA", area: "*", cdn: "aliov" },
+        { continent: "*", area: "*", cdn: "aliov" }
+    ]
     protected readonly BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
     protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
 
     protected resHeaders = new Headers({
         'Server-Version': this.SERVER_VERSION,
-        'X-Nekocha': "isn't nekocha cute?"
+        'X-Nekocha': process.env.MOTD ?? "is nekocha cute?"
     })
     protected EdgeCache = new EdgeCache()
     protected KVCache = new KVCache('BILI_API_CACHE')
@@ -72,7 +82,7 @@ export default class APIRoute extends OpenAPIRoute {
         edge: new Set<string>(),
         kv: new Set<string>()
     }
-    protected kvCacheNotUsed:boolean = false
+    protected kvCacheNotUsed: boolean = false
 
     get headers() {
         const headers: Record<string, string> = {}
@@ -88,27 +98,27 @@ export default class APIRoute extends OpenAPIRoute {
         return Math.floor(Date.now() / 1000)
     }
 
-    protected async setCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAtCall: number | ((data: Data) => number)): Promise<void> {
+    protected async setCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAtCall: number | ((data: Data) => number), validate?: (data: Data) => boolean): Promise<void> {
         try {
             const expirationAt: number = typeof expirationAtCall === 'function' ? expirationAtCall(data) : expirationAtCall
             await Promise.allSettled([
-                this.EdgeCache.setEdgeCache(ctx, key, data, expirationAt),
-                this.KVCache.setKVCache(ctx, key, data, expirationAt)
+                this.EdgeCache.setEdgeCache(ctx, key, data, expirationAt, validate),
+                this.KVCache.setKVCache(ctx, key, data, expirationAt, validate)
             ])
         } catch (error) {
             return
         }
     }
 
-    protected async getCache<Data = any>(ctx: AppContext, key: string): Promise<Data | null> {
+    protected async getCache<Data = any>(ctx: AppContext, key: string, validate?: (data: Data) => boolean): Promise<Data | null> {
         try {
-            const edgeCache = await this.EdgeCache.getEdgeCache<Data>(ctx, key)
+            const edgeCache = await this.EdgeCache.getEdgeCache<Data>(ctx, key, validate)
             if (edgeCache) {
                 this.cacheHits.edge.add(key)
                 this.kvCacheNotUsed = true
                 return edgeCache.data
             }
-            const kvCache = await this.KVCache.getKVCache<Data>(ctx, key)
+            const kvCache = await this.KVCache.getKVCache<Data>(ctx, key, validate)
             if (kvCache) {
                 this.cacheHits.kv.add(key)
                 this.kvCacheNotUsed = false
@@ -152,4 +162,44 @@ export default class APIRoute extends OpenAPIRoute {
         }
     }
 
+    protected autoSwitchBiliCdn(ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
+        const cf = ctx.req.raw.cf
+        let cdnHostname: string | undefined = undefined
+        if (cdn && this.CDNS[cdn]) {
+            cdnHostname = this.CDNS[cdn]
+        }
+        else {
+            //LPM
+            const priorityStrategies: CDNStrategyWithPriority[] = this.CDNS_DEFAULT.map(i => {
+                let priority = 2
+                if (i.area === '*') {
+                    priority--
+                }
+                if (i.continent === '*') {
+                    priority--
+                }
+                return {
+                    priority,
+                    ...i
+                }
+            }).sort((a, b) => b.priority - a.priority)
+
+            for (const strategy of priorityStrategies) {
+                const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
+                if (isMatch) {
+                    const cdnName = strategy.cdn
+                    cdnHostname = this.CDNS[cdnName]
+                    this.resHeaders.set('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
+                    break
+                }
+            }
+        }
+        if (cdnHostname) {
+            const _ = new URL(url)
+            _.hostname = cdnHostname
+            url = _.toString()
+            this.resHeaders.set('X-Bili-CDN', cdnHostname)
+        }
+        return url
+    }
 }

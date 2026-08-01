@@ -15,8 +15,12 @@ export class BARoute extends APIRoute {
 
     public override async handle(ctx: AppContext) {
         try {
-            await this.checkRateLimit(ctx)
             const url = new URL(ctx.req.url)
+            const pathname = url.pathname
+            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return ctx.text(`429 Too Many Requests`, 429)
+            }
             const params = this.PARAMS.safeParse({
                 bvid: url.searchParams.get('bvid') || undefined,
                 avid: url.searchParams.get('avid')?.replaceAll('av', '') || undefined

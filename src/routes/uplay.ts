@@ -4,7 +4,6 @@ import APIRoute from "../utils/api-route";
 
 export class BiliProxyPlay extends APIRoute {
 
-    private readonly BILI_REFERER = "https://www.bilibili.com"
     private readonly ALLOWED_REQUEST_HEADERS = ['Cookie', 'Origin', 'Range']
     private readonly R_ALLOWED_BILIURLS = [new URLPattern({ hostname: "*.bilivideo.com" })]
 
@@ -29,6 +28,11 @@ export class BiliProxyPlay extends APIRoute {
             }
 
             const url = new URL(ctx.req.url)
+            const pathname = url.pathname
+            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return ctx.text(`429 Too Many Requests`, 429)
+            }
 
             const params = this.PARAMS.safeParse({
                 url: url.searchParams.get('url'),

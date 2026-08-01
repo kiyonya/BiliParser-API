@@ -1,16 +1,15 @@
 import type { Context } from "hono";
-import { z } from "zod";
-
 export type AppContext = Context<{ Bindings: Env }>;
-
-export const Task = z.object({
-    name: z.string().openapi({ example: "lorem" }),
-    slug: z.string(),
-    description: z.string().optional(),
-    completed: z.boolean().default(false),
-    due_date: z.iso.date(),
-});
-
+export interface CacheWarp<Data = any> {
+    data: Data,
+    expirationAt: number,
+    key: string
+}
+export interface CacheResult<Data = any> {
+    data: Data,
+    raw: CacheWarp<Data>,
+    valid: boolean
+}
 export namespace BiliTypes {
 
     export namespace RES {
@@ -36,6 +35,7 @@ export namespace BiliTypes {
 
             export interface PlayURL {
                 url: string,
+                originalCdnHostname: string,
                 quality: number,
                 platform: BVideoPlatform,
                 urlExpirationAt: number
@@ -67,7 +67,7 @@ export namespace BiliTypes {
         export namespace Live {
             export interface LiveInfo {
                 isLiving: boolean,
-                uid: string,
+                uid: number,
                 roomId: number,
                 shortId: number,
                 attention: number,
@@ -134,9 +134,9 @@ export namespace BiliTypes {
             }
         }
 
-        export interface BAvid{
-            bvid:string,
-            avid:number
+        export interface BAvid {
+            bvid: string,
+            avid: number
         }
     }
 
@@ -339,7 +339,7 @@ export namespace BiliTypes {
         cosb: string;
         coso1: string;
         cosdisp: string;
-        cosov:string
+        cosov: string
         hw: string;
         hwb: string;
         hwo1: string;

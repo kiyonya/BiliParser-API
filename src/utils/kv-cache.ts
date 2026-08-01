@@ -1,33 +1,31 @@
 
-import { AppContext } from "../types"
-export interface KVCacheWarp<Data = any> {
-    data: Data,
-    expirationAt: number,
-    key:string
-}
+import { Config } from "../config"
+import { AppContext, CacheResult, CacheWarp } from "../types"
 export default class KVCache {
     private kvnamespace: string
     constructor(kvbind: string) {
         this.kvnamespace = kvbind
     }
-    public async setKVCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number): Promise<void> {
+    public async setKVCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: (data: Data) => boolean): Promise<void> {
+        const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate(data) : true) : true
+        if (!isDataValid) { return }
         //@ts-ignore
         const ns: KVNamespace | undefined = ctx.env[this.kvnamespace]
         if (!ns) { return }
-        const warp: KVCacheWarp<Data> = {
+        const warp: CacheWarp<Data> = {
             data: data,
             expirationAt: expirationAt,
-            key:key
+            key: key
         }
         await ns.put(key, JSON.stringify(warp), {
             expiration: expirationAt
         })
     }
-    public async getKVCache<Data = any>(ctx: AppContext, key: string): Promise<{ data: Data, raw: KVCacheWarp<Data> } | null> {
+    public async getKVCache<Data = any>(ctx: AppContext, key: string, validate?: (data: Data) => boolean): Promise<CacheResult | null> {
         //@ts-ignore
         const ns: KVNamespace | undefined = ctx.env[this.kvnamespace]
         if (!ns) { return null }
-        const cached = await ns.get<KVCacheWarp<Data>>(key, 'json')
+        const cached = await ns.get<CacheWarp<Data>>(key, 'json')
         if (cached) {
             const nowS = Math.floor(Date.now() / 1000)
             const isExpried = nowS >= cached.expirationAt
@@ -36,9 +34,17 @@ export default class KVCache {
                 return null
             }
             const data = cached.data
-            return {
-                data: data,
-                raw: cached
+            const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate(data) : true) : true
+            if (isDataValid) {
+                return {
+                    data: data,
+                    raw: cached,
+                    valid: isDataValid
+                }
+            }
+            else {
+                await ns.delete(key)
+                return null
             }
         }
         return null

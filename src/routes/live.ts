@@ -2,6 +2,8 @@ import { AppContext, BiliTypes } from "../types";
 import z from "zod";
 import BiliLiveParser from "../services/live-parser";
 import APIRoute from "../utils/api-route";
+import { Validation } from "../validation";
+import { Config } from "../config";
 
 export class BiliLiveRoute extends APIRoute {
 
@@ -81,9 +83,12 @@ export class BiliLiveRoute extends APIRoute {
 
     public override async handle(ctx: AppContext) {
         try {
-            await this.checkRateLimit(ctx)
-
             const url = new URL(ctx.req.url)
+            const pathname = url.pathname
+            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return ctx.text(`429 Too Many Requests`, 429)
+            }
             const params = this.PARAMS.safeParse({
                 roomId: ctx.req.param('roomId') || url.searchParams.get('roomId') || undefined,
                 type: url.searchParams.get('type') || undefined,
@@ -107,7 +112,7 @@ export class BiliLiveRoute extends APIRoute {
             }
             const cacheKey = this.createLiveCacheKey(roomId)
             //edgeonly
-            let cached = await this.EdgeCache.getEdgeCache<BiliTypes.RES.Live.Live>(ctx, cacheKey)
+            let cached = await this.EdgeCache.getEdgeCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.validLive)
             let result = cached?.data
             if (!result) {
                 const parser = new BiliLiveParser()
@@ -125,13 +130,13 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
                 //edgeonly
-                await this.EdgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + this.BILI_LIVE_CACHE_TIME)
+                await this.EdgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + Config.BiliLiveCacheTime, Validation.validLive)
             }
             else {
                 this.cacheHits.edge.add(cacheKey)
             }
 
-            if (result.stream) {
+            if (result.stream && Validation.validLiveStream(result.stream)) {
                 this.resHeaders.set('X-Stream-Parse-Platform', result.stream.platform)
                 if (result.stream.platform === 'xlive') {
                     this.resHeaders.set('X-Stream-Format', format)

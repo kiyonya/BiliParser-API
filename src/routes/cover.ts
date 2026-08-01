@@ -3,6 +3,7 @@ import APIRoute from "../utils/api-route";
 import { AppContext, BiliTypes } from "../types";
 import { b23Parser } from "../utils/b23-parse";
 import BiliVideoParser from "../services/video-parser";
+import { Config } from "../config";
 
 export class BiliCoverRoute extends APIRoute {
 
@@ -63,7 +64,7 @@ export class BiliCoverRoute extends APIRoute {
             if (!videoInfo) {
                 const parser = new BiliVideoParser()
                 videoInfo = await parser.getVideoInfo(bvid)
-                await this.setCache(ctx, key, videoInfo, this.nowS + this.BILI_VIDEO_INFO_CACHE_TIME)
+                await this.setCache(ctx, key, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime)
             }
             const imgUrl = videoInfo.pic
             switch (type) {

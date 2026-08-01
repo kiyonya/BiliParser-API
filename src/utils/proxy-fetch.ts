@@ -1,3 +1,5 @@
+import { Config } from "../config";
+
 export async function proxyFetch(
     url: string | URL,
     init?: RequestInit,
@@ -10,7 +12,7 @@ export async function proxyFetch(
     }
 ) {
     const {
-        retries = 3,
+        retries = Config.ProxyFetchMaxRetries,
         initialDelay = 1000,
         maxDelay = 30000,
         backoffFactor = 2,
@@ -28,9 +30,9 @@ export async function proxyFetch(
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const headers = new Headers(init?.headers);
-            headers.append('Authorization', `Bearer ${process.env.X_VERCEL_PROXY_TOKEN}`);
+            headers.append('Authorization', `Bearer ${process.env.CONFIG_VERCEL_PROXY_TOKEN}`);
 
-            const proxyFetchUrl = new URL(`${process.env.X_VERCEL_PROXY_URL}`);
+            const proxyFetchUrl = new URL(`${process.env.CONFIG_VERCEL_PROXY_URL}`);
             proxyFetchUrl.searchParams.set('url', url.toString());
 
             const response = await fetch(proxyFetchUrl, {

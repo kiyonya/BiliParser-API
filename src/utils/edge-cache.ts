@@ -1,12 +1,7 @@
 
-import { AppContext } from "../types";
+import { Config } from "../config";
+import { AppContext, CacheResult, CacheWarp } from "../types";
 import crypto from 'crypto'
-
-export interface EdgeCacheWarp<Data = any> {
-    data: Data,
-    expirationAt: number,
-    key: string
-}
 
 export default class EdgeCache {
 
@@ -22,7 +17,7 @@ export default class EdgeCache {
         return keyUrl
     }
 
-    public async getEdgeCache<Data = any>(ctx: AppContext, key: string): Promise<{ data: Data, raw: EdgeCacheWarp<Data> } | null> {
+    public async getEdgeCache<Data = any>(ctx: AppContext, key: string, validate?: (data: Data) => boolean): Promise<CacheResult | null> {
         try {
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cached = await caches.default.match(vCacheKey)
@@ -37,10 +32,18 @@ export default class EdgeCache {
                     await caches.default.delete(vCacheKey)
                     return null
                 }
-                const warp = await cached.json<EdgeCacheWarp>()
-                return {
-                    data: warp.data,
-                    raw: warp
+                const warp = await cached.json<CacheWarp>()
+                const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate(warp.data) : true) : true
+                if (isDataValid) {
+                    return {
+                        data: warp.data,
+                        raw: warp,
+                        valid:isDataValid
+                    }
+                }
+                else {
+                    await caches.default.delete(vCacheKey)
+                    return null
                 }
             }
             return null
@@ -49,8 +52,10 @@ export default class EdgeCache {
         }
     }
 
-    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number) {
+    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: (data: Data) => boolean) {
         try {
+            const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate(data) : true) : true
+            if (!isDataValid) { return }
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cacheHeaders = new Headers()
             const nowS = Math.floor(Date.now() / 1000)
@@ -59,7 +64,7 @@ export default class EdgeCache {
             cacheHeaders.set('Cache-Control', `public, max-age=${maxAge}`)
             cacheHeaders.set('X-Cache-Type', 'cf-vcache')
             cacheHeaders.set('X-ExpirationAt', String(expirationAt))
-            const warp: EdgeCacheWarp<Data> = {
+            const warp: CacheWarp<Data> = {
                 data: data,
                 expirationAt: expirationAt,
                 key: key

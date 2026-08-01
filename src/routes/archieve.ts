@@ -2,10 +2,10 @@ import z from "zod";
 import { AppContext, BiliTypes } from "../types";
 import APIRoute from "../utils/api-route";
 import BiliUserParser from "../services/user-parser";
+import { Validation } from "../validation";
+import { Config } from "../config";
 
 export class BiliArchieveRoute extends APIRoute {
-
-    private BILI_UGCSEASON_ARCHIEVE_CACHE_TIME = 86400
 
     private readonly PARAMS = z.object({
         mid: z.coerce.number(),
@@ -20,8 +20,12 @@ export class BiliArchieveRoute extends APIRoute {
 
     public override async handle(ctx: AppContext) {
         try {
-            await this.checkRateLimit(ctx)
             const url = new URL(ctx.req.url)
+            const pathname = url.pathname
+            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return ctx.text(`429 Too Many Requests`, 429)
+            }
 
             const params = this.PARAMS.safeParse({
                 mid: ctx.req.param('mid') || url.searchParams.get('mid') || undefined,
@@ -36,11 +40,11 @@ export class BiliArchieveRoute extends APIRoute {
             const { mid, seasonId, page, pageSize } = params.data
 
             const resultCacheKey = this.createArchieveCacheKey(mid, seasonId, page, pageSize)
-            let result = await this.getCache<BiliTypes.RES.User.UserArchieves>(ctx, resultCacheKey)
+            let result = await this.getCache<BiliTypes.RES.User.UserArchieves>(ctx, resultCacheKey, Validation.validUserArchieves)
             if (!result) {
                 const parser = new BiliUserParser()
                 result = await parser.getUserSeasonArchieves(mid, seasonId, false, page, pageSize)
-                await this.setCache(ctx, resultCacheKey, result, this.nowS + this.BILI_UGCSEASON_ARCHIEVE_CACHE_TIME)
+                await this.setCache(ctx, resultCacheKey, result, this.nowS + Config.UGCSeasonArchieveCacheTime, Validation.validUserArchieves)
             }
             return this.jsonResponse(ctx, 'Success', 200, result)
         } catch (error) {
