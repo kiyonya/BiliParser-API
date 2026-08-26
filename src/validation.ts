@@ -3,21 +3,31 @@ import { BiliTypes } from "./types";
 
 export abstract class Validation {
 
+    protected static videoPartSchema:z.ZodType<BiliTypes.RES.Video.VideoPart> = z.object({
+        page:z.coerce.number(),
+        firstFrame:z.union([z.url(),z.string()]).default(""),
+        duration:z.coerce.number(),
+        partTitle:z.string(),
+        ctime:z.number(),
+        cid:z.number()
+    })
+
     protected static videoInfoSchema: z.ZodType<BiliTypes.RES.Video.VideoInfo> = z.object({
         bvid: z.string(),
         cid: z.number(),
         aid: z.number(),
         title: z.string(),
-        pic: z.url(),
+        pic: z.union([z.url(),z.string()]).default(""),
         duration: z.number().nonnegative(),
         info_source: z.enum(["fallback", "view"]),
         infoSource: z.enum(["fallback", "view"]),
         owner: z.object({
-            mid: z.number().int().positive(),
+            mid: z.number().int().nonnegative(),
             name: z.string(),
-            face: z.url(),
+            face: z.string(),
         }),
         desc: z.string(),
+        parts:z.array(this.videoPartSchema)
     });
 
     protected static videoPlayUrlSchema: z.ZodType<BiliTypes.RES.Video.PlayURL> = z.object({
@@ -48,9 +58,9 @@ export abstract class Validation {
         description: z.string(),
         areaId: z.number().int().positive(),
         areaName: z.string(),
-        background: z.url(),
-        cover: z.url(),
-        keyframe: z.url(),
+        background: z.string(),
+        cover:z.string(),
+        keyframe: z.string(),
         title: z.string(),
         liveTime: z.string(),
         stream: z.union([
@@ -60,12 +70,12 @@ export abstract class Validation {
 
     protected static bangumiInfoSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiInfo> = z.object({
         title: z.string(),
-        cover: z.url(),
+        cover: z.string(),
         actors: z.string(),
         evaluate: z.string(),
         seasonId: z.number().int().positive(),
         seasons: z.array(z.object({
-            cover: z.url(),
+            cover: z.string(),
             seasonId: z.number().int().positive(),
             title: z.string(),
         })),
@@ -131,6 +141,9 @@ export abstract class Validation {
     }
     public static validUserArchieves(data: BiliTypes.RES.User.UserArchieves) {
         return Validation.userArchievesSchema.safeParse(data).success
+    }
+    public static validDanmaku(data:string){
+        return z.string().safeParse(data).success
     }
 
 }

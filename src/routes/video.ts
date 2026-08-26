@@ -1,7 +1,6 @@
 import z from "zod";
 import { type BiliTypes, type AppContext } from "../types";
 import BiliVideoParser from "../services/video-parser";
-import { b23Parser } from "../utils/b23-parse";
 import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
 import { Config } from "../config";
@@ -14,54 +13,37 @@ export class BiliVideoRoute extends APIRoute {
         cdn: z.enum(Object.keys(this.CDNS)).optional(),
         qn: z.coerce.number().pipe(z.literal(64)).default(64),
         url: z.url("*.bilibili.com/video/*").optional(),
-        bvid: z.string().optional()
+        bvid: z.string().optional(),
+        p: z.coerce.number().nonnegative().int().default(1).transform((p)=>p === 0 ? 1 : p)
+    }).superRefine((args, ctx) => {
+        if (!args.bvid && !args.url) {
+            ctx.addIssue("must provided url or bvid to parse video")
+        }
     })
 
-    private async getBvidFromURL(biliurl: string | URL): Promise<string | undefined> {
-
-        const BILI_VIDEO_URLPATTERN = new URLPattern({ hostname: "*.bilibili.com", pathname: "/video/*" })
-        const BILI_BTV_URLPATTERN = new URLPattern({ hostname: "b23.tv" })
-        const BV_PATTERN = new RegExp(/(BV[a-zA-Z0-9]{10})/)
-
-        let url: URL = new URL(biliurl)
-        if (BILI_BTV_URLPATTERN.test(url)) {
-            const rawURL = await b23Parser(url.toString())
-            url = new URL(rawURL)
-        }
-        if (BILI_VIDEO_URLPATTERN.test(url)) {
-            const pathname = url.pathname
-            const bvid = pathname.match(BV_PATTERN)?.[1]
-            if (bvid) {
-                return bvid
-            }
-        }
-        return undefined
-    }
-
-    private createInfoCacheKey(bvid: string) {
-        return `info_${bvid}`
-    }
-
-    private createUrlCacheKey(bvid: string, qn: number, platform: BiliTypes.BVideoPlatform) {
-        return `playurl_${bvid}_${platform}_${qn}`
-    }
-
-    private async parseBiliVideo(ctx: AppContext, bvid: string, qn: number, platform: BiliTypes.BVideoPlatform): Promise<BiliTypes.RES.Video.Video> {
+    private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.BVideoPlatform): Promise<BiliTypes.RES.Video.Video> {
 
         const parser = new BiliVideoParser()
-        const infoKey = this.createInfoCacheKey(bvid)
+        const infoKey = this.CacheKey.videoInfo(bvid)
         let videoInfo = await this.getCache(ctx, infoKey, Validation.validVideoInfo)
+
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
             await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.validVideoInfo)
         }
-
-        const urlKey = this.createUrlCacheKey(bvid, qn, platform)
+        if(p > videoInfo.parts.length){
+            throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
+        }
+        const targetPart = videoInfo.parts.filter((w) => w.page === p)[0]
+        if (!targetPart) {
+            throw new Error(`cannot get target video part with part ${p}`)
+        }
+        const targetCid = targetPart.cid
+        const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform)
         let playUrl = await this.getCache<BiliTypes.RES.Video.PlayURL>(ctx, urlKey, Validation.validPlayUrl)
         if (!playUrl) {
-            const cid = videoInfo.cid
             const duration = videoInfo.duration
-            playUrl = await parser.getVideoPlayUrl(bvid, cid, qn, platform)
+            playUrl = await parser.getVideoPlayUrl(bvid, targetCid, qn, platform)
             await this.setCache<BiliTypes.RES.Video.PlayURL>(ctx, urlKey, playUrl, (data) => {
                 let videoBufferTimeS: number
                 if (duration < 60 * 10) {
@@ -78,10 +60,15 @@ export class BiliVideoRoute extends APIRoute {
                 const expiration: number = Math.min(videoExpirationS, userExpirationS)
                 return expiration
             }, Validation.validPlayUrl)
+
         }
+        this.resHeaders.set("x-url-cid", String(targetCid))
+        this.resHeaders.set("x-url-vpart", String(p))
         return {
             ...videoInfo,
-            ...playUrl
+            ...playUrl,
+            urlVideoPart: p,
+            urlCid: targetCid
         }
     }
 
@@ -99,21 +86,26 @@ export class BiliVideoRoute extends APIRoute {
                 cdn: reqUrl.searchParams.get('cdn') || undefined,
                 qn: reqUrl.searchParams.get('qn') || undefined,
                 bvid: ctx.req.param('bvid') || reqUrl.searchParams.get('bvid') || undefined,
-                url: reqUrl.searchParams.get('url') || undefined
+                url: reqUrl.searchParams.get('url') || undefined,
+                p:ctx.req.param("p")|| reqUrl.searchParams.get('p') || undefined
             })
 
             if (!parmas.success) {
                 return this.jsonResponse(ctx, "invalid params", 400, null)
             }
-            let { type, platform, cdn, qn, bvid, url } = parmas.data
+            let { type, platform, cdn, qn, bvid, url, p: page } = parmas.data
             if (!bvid && url) {
-                bvid = await this.getBvidFromURL(url)
+                const processed = await this.getBvParamsFromUrl(url)
+                if(processed){
+                    bvid = processed.bvid
+                    page = processed.p
+                }
             }
             if (!bvid) {
                 return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
             }
 
-            const result = await this.parseBiliVideo(ctx, bvid, qn, platform)
+            const result = await this.parseBiliVideo(ctx, bvid, page, qn, platform)
             result.url = this.autoSwitchBiliCdn(ctx, result.url, cdn as any)
 
             switch (type) {
@@ -123,7 +115,15 @@ export class BiliVideoRoute extends APIRoute {
                     return ctx.text(result.url, 200)
                 case "video":
                 default:
-                    return ctx.redirect(result.url, 302)
+                    const redirectResponse = new Response(null, {
+                        status: 302,
+                        headers: new Headers({
+                            ...this.headers,
+                            'Location': result.url,
+                            'X-BVID': bvid
+                        })
+                    })
+                    return redirectResponse
             }
 
         } catch (error) {

@@ -9,9 +9,11 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "@types/xml2js": "^0.4.14",
     "chanfana": "^3.3.0",
     "hono": "^4.12.12",
     "lru-cache": "^11.5.1",
+    "xml2js": "^0.6.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {

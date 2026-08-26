@@ -2,6 +2,7 @@ import { BiliTypes } from "../types"
 import BiliCrypto from "../utils/bili-crypto"
 import Parser from "../utils/parser"
 import { proxyFetch } from "../utils/proxy-fetch"
+import { Validation } from "../validation"
 
 export interface GetPlayURLTaskReturns {
     url: string, quality: number, platform: BiliTypes.BVideoPlatform
@@ -18,15 +19,22 @@ export default class BiliVideoParser extends Parser {
         })
         const videoViewData = await videoViewReq.json<BiliTypes.BAPI.BiliVideoViewInfo>()
         if (videoViewData.code === 0) {
-            //正常 其他的情况走fallback
             const headData = videoViewData.data
-            const cid = headData.cid as number
             const duration = headData.duration
             const aid = headData.aid
+            const cid = headData.cid
             const cover = headData.pic || ""
             const title = headData.title || ""
             const desc = headData.desc || ""
             const owner = headData.owner || { mid: 0, name: "", face: "" }
+            const parts:BiliTypes.RES.Video.VideoPart[] = (headData.pages || []).map(i=>({
+                partTitle:i.part,
+                page:i.page,
+                firstFrame:i.first_frame || cover,
+                duration:i.duration,
+                cid:i.cid,
+                ctime:i.ctime
+            }))
             const info: BiliTypes.RES.Video.VideoInfo = {
                 bvid: bvid,
                 aid: aid,
@@ -37,9 +45,12 @@ export default class BiliVideoParser extends Parser {
                 desc: desc,
                 owner: owner,
                 info_source: 'view',
-                infoSource:'view'
+                infoSource: 'view',
+                parts:parts
             }
-            return info
+            if(Validation.validVideoInfo(info)){
+                return info
+            }
         }
 
         const videoCidURL = new URL(this.BILI_CID_BACKUP_API)
@@ -49,14 +60,26 @@ export default class BiliVideoParser extends Parser {
         })
         const videoCidData = await videoCidReq.json<BiliTypes.BAPI.BiliVideoCidInfo>()
         if (videoCidData.code === 0 && videoCidData.data.length && videoCidData.data[0]) {
-            const data = videoCidData.data[0]
-            const cid = data.cid as number
-            const duration = data.duration
+
+            const pageData = videoCidData.data[0]
+            if(!pageData){
+                throw new Error(`cannot get page data`)
+            }
+            const cid = pageData.cid as number
+            const duration = pageData.duration as number
             const aid = -1
-            const cover = data.first_frame || ""
-            const title = data.part || ""
+            const cover = pageData.first_frame || ""
+            const title = pageData.part || ""
             const desc = ""
             const owner = { mid: 0, name: "", face: "" }
+            const parts:BiliTypes.RES.Video.VideoPart[] = (videoCidData.data|| []).map(i=>({
+                partTitle:i.part,
+                page:i.page,
+                firstFrame:i.first_frame || cover,
+                duration:i.duration,
+                cid:i.cid,
+                ctime:i.ctime
+            }))
             const info: BiliTypes.RES.Video.VideoInfo = {
                 bvid: bvid,
                 aid: aid,
@@ -67,9 +90,13 @@ export default class BiliVideoParser extends Parser {
                 desc: desc,
                 owner: owner,
                 info_source: 'fallback',
-                infoSource:'fallback'
+                infoSource: 'fallback',
+                parts:parts
             }
-            return info
+            
+            if(Validation.validVideoInfo(info)){
+                return info
+            }
         }
 
         throw new Error("cannot get bili video info")
@@ -105,7 +132,7 @@ export default class BiliVideoParser extends Parser {
                     urlExpirationAt = Math.floor(Date.now() / 1000) + 3600
                 }
                 const urlInst = new URL(url)
-                const originalCdnHostname= urlInst.hostname
+                const originalCdnHostname = urlInst.hostname
                 const data: BiliTypes.RES.Video.PlayURL = {
                     url: url,
                     originalCdnHostname,
@@ -233,5 +260,20 @@ export default class BiliVideoParser extends Parser {
         } catch (error) {
             return null
         }
+    }
+
+    public async getVideoDanmakuXML(cid: number): Promise<string | null> {
+        const cookie = await this.BCrypto.getBiliAntiCookie();
+        const url = new URL(this.BILI_DANMAKU_API)
+        url.pathname = `${cid}.xml`
+        const req = await proxyFetch(url, {
+            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+        })
+        const isXML = req.headers.get('content-type') === 'text/xml' || req.headers.get('content-type') === 'application/xml'
+        if (isXML) {
+            const xmlText = await req.text()
+            return xmlText
+        }
+        return null
     }
 }

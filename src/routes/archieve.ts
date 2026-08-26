@@ -14,10 +14,6 @@ export class BiliArchieveRoute extends APIRoute {
         pageSize: z.coerce.number().default(30)
     })
 
-    private createArchieveCacheKey(mid: number, seasonId: number, p: number, ps: number) {
-        return `ugcseasonarch_${mid}_${seasonId}_${p}_${ps}`
-    }
-
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
@@ -39,7 +35,7 @@ export class BiliArchieveRoute extends APIRoute {
 
             const { mid, seasonId, page, pageSize } = params.data
 
-            const resultCacheKey = this.createArchieveCacheKey(mid, seasonId, page, pageSize)
+            const resultCacheKey = this.CacheKey.userArchieves(mid, seasonId, page, pageSize)
             let result = await this.getCache<BiliTypes.RES.User.UserArchieves>(ctx, resultCacheKey, Validation.validUserArchieves)
             if (!result) {
                 const parser = new BiliUserParser()

@@ -1,7 +1,6 @@
 import z from "zod";
 import APIRoute from "../utils/api-route";
 import { AppContext, BiliTypes } from "../types";
-import { b23Parser } from "../utils/b23-parse";
 import BiliVideoParser from "../services/video-parser";
 import { Config } from "../config";
 
@@ -10,31 +9,12 @@ export class BiliCoverRoute extends APIRoute {
     protected readonly PARAMS = z.object({
         url: z.url("*.bilibili.com/video/*").optional(),
         bvid: z.string().optional(),
-        type: z.enum(['img', 'url','redirect']).default('img').optional()
+        type: z.enum(['img', 'url', 'redirect']).default('img').optional()
+    }).superRefine((args, ctx) => {
+        if (!args.bvid && !args.url) {
+            ctx.addIssue("must provided url or bvid to parse video")
+        }
     })
-
-    private async getBvidFromURL(biliurl: string | URL): Promise<string | undefined> {
-        const BILI_VIDEO_URLPATTERN = new URLPattern({ hostname: "*.bilibili.com", pathname: "/video/*" })
-        const BILI_BTV_URLPATTERN = new URLPattern({ hostname: "b23.tv" })
-        const BV_PATTERN = new RegExp(/(BV[a-zA-Z0-9]{10})/)
-        let url: URL = new URL(biliurl)
-        if (BILI_BTV_URLPATTERN.test(url)) {
-            const rawURL = await b23Parser(url.toString())
-            url = new URL(rawURL)
-        }
-        if (BILI_VIDEO_URLPATTERN.test(url)) {
-            const pathname = url.pathname
-            const bvid = pathname.match(BV_PATTERN)?.[1]
-            if (bvid) {
-                return bvid
-            }
-        }
-        return undefined
-    }
-
-    private createInfoCacheKey(bvid: string) {
-        return `info_${bvid}`
-    }
 
     public override async handle(ctx: AppContext) {
         try {
@@ -53,13 +33,16 @@ export class BiliCoverRoute extends APIRoute {
             }
             let { type, bvid, url: provideVideoUrl } = params.data
             if (!bvid && provideVideoUrl) {
-                bvid = await this.getBvidFromURL(provideVideoUrl)
+                const processed = await this.getBvParamsFromUrl(provideVideoUrl)
+                if(processed){
+                    bvid = processed.bvid
+                }
             }
             if (!bvid) {
                 return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
             }
 
-            const key = this.createInfoCacheKey(bvid)
+            const key = this.CacheKey.videoInfo(bvid)
             let videoInfo = await this.getCache<BiliTypes.RES.Video.VideoInfo>(ctx, key)
             if (!videoInfo) {
                 const parser = new BiliVideoParser()
@@ -80,8 +63,8 @@ export class BiliCoverRoute extends APIRoute {
                     const responseHeaders = new Headers(imgReq.headers)
                     responseHeaders.set('Access-Control-Allow-Origin', '*')
                     responseHeaders.set('Cache-Control', 'max-age=31536000')
-                    for(const [k,v] of Object.entries(this.headers)){
-                        responseHeaders.append(k,v)
+                    for (const [k, v] of Object.entries(this.headers)) {
+                        responseHeaders.append(k, v)
                     }
                     const response = new Response(imgReq.body, {
                         status: imgReq.status,
@@ -89,7 +72,7 @@ export class BiliCoverRoute extends APIRoute {
                     })
                     return response
                 case 'redirect':
-                    return ctx.redirect(imgUrl,302)
+                    return ctx.redirect(imgUrl, 302)
             }
         } catch (error) {
             return this.jsonResponse(ctx, (error as Error)?.message, 500, null)

@@ -10,6 +10,7 @@ import { BiliVideoCDNRoute } from "./routes/cdn";
 import { BARoute } from "./routes/b2a";
 import { BiliCoverRoute } from "./routes/cover";
 import { BaseRoute } from "./routes/base";
+import { BiliDanmakuRoute } from "./routes/danmaku";
 
 const app = new Hono<{ Bindings: Env }>();
 const openapi = fromHono(app, {
@@ -17,7 +18,8 @@ const openapi = fromHono(app, {
 });
 
 openapi.all('/', BaseRoute)
-openapi.get('/video/:bvid?', BiliVideoRoute)
+openapi.get('/danmaku/:bvid?',BiliDanmakuRoute)
+openapi.get('/video/:bvid?/:p?', BiliVideoRoute)
 openapi.get('/cover/:bvid?',BiliCoverRoute)
 openapi.get('/video-cdn', BiliVideoCDNRoute)
 openapi.get('/live/:roomId?', BiliLiveRoute)

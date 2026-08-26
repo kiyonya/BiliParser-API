@@ -15,5 +15,7 @@ export abstract class Config {
 
     public static readonly UGCSeasonArchieveCacheTime = process.env.CONFIG_UGCSeasonArchieveCacheTime ? parseInt(process.env.CONFIG_UGCSeasonArchieveCacheTime) : 86400
 
+    public static readonly BiliDanmakuCacheTime = process.env.CONFIG_BiliDanmakuCacheTime ? parseInt(process.env.CONFIG_BiliDanmakuCacheTime) : 1800
+
     public static readonly ProxyFetchMaxRetries = process.env.CONFIG_ProxyFetchMaxRetries ? parseInt(process.env.CONFIG_ProxyFetchMaxRetries) : 3
 }

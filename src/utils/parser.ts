@@ -20,6 +20,7 @@ export default abstract class Parser {
     protected BILI_LIVE_PLAYURL_API = "https://api.live.bilibili.com/room/v1/Room/playUrl"
     protected BILI_LIVE_XLIVE_API = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo"
     protected BILI_SEASONS_ARCHIVES_API = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list"
+    protected BILI_DANMAKU_API = "https://comment.bilibili.com/"
 
     protected BCrypto = new BiliCrypto()
 }

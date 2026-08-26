@@ -16,6 +16,15 @@ export namespace BiliTypes {
 
         export namespace Video {
 
+            export interface VideoPart {
+                page:number,
+                firstFrame:string,
+                duration:number,
+                partTitle:string,
+                cid:number,
+                ctime:number
+            }
+
             export interface VideoInfo {
                 bvid: string,
                 cid: number,
@@ -31,6 +40,7 @@ export namespace BiliTypes {
                     face: string,
                 },
                 desc: string,
+                parts:VideoPart[]
             }
 
             export interface PlayURL {
@@ -41,7 +51,7 @@ export namespace BiliTypes {
                 urlExpirationAt: number
             }
 
-            export type Video = VideoInfo & PlayURL
+            export type Video = VideoInfo & PlayURL & {urlVideoPart:number,urlCid:number}
         }
 
         export namespace User {
@@ -138,6 +148,47 @@ export namespace BiliTypes {
             bvid: string,
             avid: number
         }
+
+        export namespace Danmaku {
+
+            export interface XML2JSONLike {
+                i: {
+                    chatserver: string[],
+                    chatid: string[],
+                    maxlimit: string[],
+                    source: string[],
+                    d: {
+                        _: string,
+                        $: {
+                            p: string
+                        }
+                    }[]
+                }
+            }
+
+            export interface Danmaku {
+                text: string,
+                params: {
+                    time: number,
+                    mode: number,
+                    fontSize: number,
+                    color: number,
+                    colorHex: string,
+                    sendTime: number,
+                    type: number,
+                    userHash: string,
+                    dbId: string
+                }
+            }
+
+            export interface DanmakuJSON {
+                chatServer: string,
+                chatId: string,
+                maxLimit: number,
+                source: string,
+                danmakus: Danmaku[]
+            }
+        }
     }
 
     export namespace BAPI {
@@ -198,6 +249,14 @@ export namespace BiliTypes {
                 name: string,
                 face: string,
             },
+            pages: {
+                cid: number,
+                page: number,
+                part: string,
+                duration: number,
+                first_frame:string,
+                ctime:number
+            }[]
         }> { }
 
         export interface BiliVideoCidInfo extends Response<{

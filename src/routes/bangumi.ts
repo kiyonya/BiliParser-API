@@ -1,11 +1,11 @@
 import z from "zod";
 import BiliBangumiParser from "../services/bangumi-parser";
 import { AppContext, BiliTypes } from "../types";
-import APIRoute from "../utils/api-route";
+import APIRoute, { BangumiIdType } from "../utils/api-route";
 import { Validation } from "../validation";
 import { Config } from "../config";
 
-export type BangumiIdType = 'ssid' | 'mdid' | 'epid'
+export { BangumiIdType }
 
 export class BiliBangumiInfoRoute extends APIRoute {
 
@@ -14,10 +14,6 @@ export class BiliBangumiInfoRoute extends APIRoute {
         mdid: z.string().optional(),
         epid: z.string().optional()
     })
-
-    private createInfoCacheKey(id: number, idType: BangumiIdType) {
-        return `bangumiinfo_${idType}_${id}`
-    }
 
     public override async handle(ctx: AppContext) {
 
@@ -57,7 +53,7 @@ export class BiliBangumiInfoRoute extends APIRoute {
                 return this.jsonResponse(ctx, 'invalid params', 400, null)
             }
 
-            const key = this.createInfoCacheKey(id, type)
+            const key = this.CacheKey.bangumiInfo(id, type)
             let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.validBangumiInfo)
             if (!result) {
                 const parser = new BiliBangumiParser()
@@ -78,10 +74,6 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
         ssid: z.string().optional(),
         mdid: z.string().optional()
     })
-
-    private createEpisodesCacheKey(id: number, idType: Omit<BangumiIdType, 'epid'>) {
-        return `bangumiep_${idType}_${id}`
-    }
 
     public override async handle(ctx: AppContext) {
         try {
@@ -115,7 +107,7 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
             }
             this.resHeaders.set('X-Bangumi-Id-Type', type as string)
 
-            const key = this.createEpisodesCacheKey(id, type)
+            const key = this.CacheKey.bangumiEpisodes(id, type)
             let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.validBangumiEpisode)
             if (!result) {
                 const parser = new BiliBangumiParser()
@@ -138,10 +130,6 @@ export class BiliBangumiPlayRoute extends APIRoute {
         qn: z.coerce.number().pipe(z.literal(64)).default(64),
         cdn: z.enum(Object.keys(this.CDNS)).default('ali')
     })
-
-    private createBangumiPlayUrlCacheKey(epid: number, qn: number) {
-        return `bangumiurl_${epid}_${qn}`
-    }
 
     public override async handle(ctx: AppContext) {
         try {
@@ -166,13 +154,13 @@ export class BiliBangumiPlayRoute extends APIRoute {
                 return this.jsonResponse(ctx, 'invalid params', 400, null)
             }
 
-            const key = this.createBangumiPlayUrlCacheKey(epid, qn)
+            const key = this.CacheKey.bangumiPlayUrl(epid, qn)
             let bangumi = await this.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.validBangumiPlayUrl)
             if (!bangumi) {
                 const parser = new BiliBangumiParser()
                 bangumi = await parser.getBangumiPlayUrl(epid, qn)
                 const realQn = bangumi.quality
-                const setCacheKey = this.createBangumiPlayUrlCacheKey(epid, realQn)
+                const setCacheKey = this.CacheKey.bangumiPlayUrl(epid, realQn)
                 await this.setCache(ctx, setCacheKey, bangumi, (data) => {
                     const videoDuration = data.duration
                     let videoBufferTimeS: number

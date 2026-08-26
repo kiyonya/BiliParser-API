@@ -77,10 +77,6 @@ export class BiliLiveRoute extends APIRoute {
         }
     }
 
-    private createLiveCacheKey(roomId: number) {
-        return `live_${roomId}`
-    }
-
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
@@ -110,7 +106,7 @@ export class BiliLiveRoute extends APIRoute {
             if (!roomId) {
                 return
             }
-            const cacheKey = this.createLiveCacheKey(roomId)
+            const cacheKey = this.CacheKey.live(roomId)
             //edgeonly
             let cached = await this.EdgeCache.getEdgeCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.validLive)
             let result = cached?.data
