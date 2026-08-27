@@ -33,7 +33,7 @@ export class BaseRoute extends APIRoute {
 
         return ctx.html(html, 200, {
             ...this.headers,
-            'Cache-Control': "public,max-age=60",
+            'Cache-Control': "public, max-age=60, must-revalidate",
             'Access-Control-Allow-Origin': "*"
         })
     }
