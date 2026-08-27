@@ -7,7 +7,7 @@ import { Config } from "../config";
 export class BiliCoverRoute extends APIRoute {
 
     protected readonly PARAMS = z.object({
-        url: z.url("*.bilibili.com/video/*").optional(),
+        url: z.url().optional(),
         bvid: z.string().optional(),
         type: z.enum(['img', 'url', 'redirect']).default('img').optional()
     }).superRefine((args, ctx) => {
@@ -31,9 +31,9 @@ export class BiliCoverRoute extends APIRoute {
             if (!params.success) {
                 return this.jsonResponse(ctx, "invalid params", 400, null)
             }
-            let { type, bvid, url: provideVideoUrl } = params.data
-            if (!bvid && provideVideoUrl) {
-                const processed = await this.getBvParamsFromUrl(provideVideoUrl)
+            let { type, bvid, url: purl } = params.data
+            if (!bvid && purl) {
+                const processed = await this.getBvParamsFromUrl(purl)
                 if(processed){
                     bvid = processed.bvid
                 }

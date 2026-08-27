@@ -1,21 +1,68 @@
+import z from "zod"
+import { BiliTypes } from "./types"
+
+export interface CDNStrategy {
+    continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN, priority: number
+}
+
 export abstract class Config {
-    public static EnableCacheDataValidation: boolean = process.env.CONFIG_EnableCacheDataValidation ? (process.env.CONFIG_EnableCacheDataValidation === 'true') : true
 
-    public static readonly BiliVideoPlayUrlCacheTime = process.env.CONFIG_BiliVideoPlayUrlCacheTime ? parseInt(process.env.CONFIG_BiliVideoPlayUrlCacheTime) : 5400
+    protected static parseCDNStrategy(strategies?: string): CDNStrategy[] {
+        const raw = strategies?.trim()
+        if (!raw) { return [] }
+        return raw.split(';').map(s => s.trim()).filter(Boolean).map(entry => {
+            const [continent, area, cdn] = entry.split(',').map(v => v.trim())
+            let priority = 2
+            if (area === '*') {
+                priority--
+            }
+            if (continent === '*') {
+                priority--
+            }
+            return {
+                continent: continent as ContinentCode | '*',
+                area: area as Iso3166Alpha2Code | '*',
+                cdn: cdn as keyof BiliTypes.BiliVideoCDN,
+                priority: priority as number
+            }
+        }).filter(s => s.continent && s.area && s.cdn).sort((a, b) => b.priority - a.priority)
+    }
 
-    public static readonly BiliBangumiPlayUrlCacheTime = process.env.CONFIG_BiliBangumiPlayUrlCacheTime ? parseInt(process.env.CONFIG_BiliBangumiPlayUrlCacheTime) : 5400
+    //cdn
+    public static readonly VideoCDNStrategy: CDNStrategy[] = this.parseCDNStrategy(process.env.CONFIG_VideoCDNStrategy ?? "AS,CN,alib;*,*,aliov") ?? []
 
-    public static readonly BiliVideoInfoCacheTime = process.env.CONFIG_BiliVideoInfoCacheTime ? parseInt(process.env.CONFIG_BiliVideoInfoCacheTime) : 60 * 60 * 24
+    //cache
+    public static EnableCacheDataValidation: boolean = z.coerce.boolean().default(true).safeParse(process.env.CONFIG_CacheValidation).data ?? true
 
-    public static readonly BiliBangumiEpisodesCacheTime = process.env.CONFIG_BiliBangumiEpisodesCacheTime ? parseInt(process.env.CONFIG_BiliBangumiEpisodesCacheTime) : 60 * 60 * 24 * 7
+    //video
+    public static readonly BiliVideoPlayUrlCacheTime: number = z.coerce.number().default(5400).safeParse(process.env.CONFIG_BiliVideoPlayUrlCacheTime).data ?? 5400
 
-    public static readonly BiliBangumiInfoCacheTime = process.env.CONFIG_BiliBangumiInfoCacheTime ? parseInt(process.env.CONFIG_BiliBangumiInfoCacheTime) : 60 * 60 * 24 * 7
+    public static readonly BiliVideoInfoCacheTime: number = z.coerce.number().default(60 * 60 * 24).safeParse(process.env.CONFIG_BiliVideoInfoCacheTime).data ?? 60 * 60 * 24
 
-    public static readonly BiliLiveCacheTime = process.env.CONFIG_BiliLiveCacheTime ? parseInt(process.env.CONFIG_BiliLiveCacheTime) : 60
+    //live
+    public static readonly BiliLiveCacheTime: number = z.coerce.number().default(60).safeParse(process.env.CONFIG_BiliLiveCacheTime).data ?? 60
 
-    public static readonly UGCSeasonArchieveCacheTime = process.env.CONFIG_UGCSeasonArchieveCacheTime ? parseInt(process.env.CONFIG_UGCSeasonArchieveCacheTime) : 86400
+    //bangumi
+    public static readonly BiliBangumiPlayUrlCacheTime: number = z.coerce.number().default(5400).safeParse(process.env.CONFIG_BiliBangumiPlayUrlCacheTime).data ?? 5400
 
-    public static readonly BiliDanmakuCacheTime = process.env.CONFIG_BiliDanmakuCacheTime ? parseInt(process.env.CONFIG_BiliDanmakuCacheTime) : 1800
+    public static readonly BiliBangumiEpisodesCacheTime: number = z.coerce.number().default(60 * 60 * 24 * 7).safeParse(process.env.CONFIG_BiliBangumiEpisodesCacheTime).data ?? 60 * 60 * 24 * 7
 
-    public static readonly ProxyFetchMaxRetries = process.env.CONFIG_ProxyFetchMaxRetries ? parseInt(process.env.CONFIG_ProxyFetchMaxRetries) : 3
+    public static readonly BiliBangumiInfoCacheTime: number = z.coerce.number().default(60 * 60 * 24 * 7).safeParse(process.env.CONFIG_BiliBangumiInfoCacheTime).data ?? 60 * 60 * 24 * 7
+
+    //archieve
+    public static readonly UGCSeasonArchieveCacheTime: number = z.coerce.number().default(86400).safeParse(process.env.CONFIG_UGCSeasonArchieveCacheTime).data ?? 86400
+
+    //danmaku
+    public static readonly BiliDanmakuCacheTime: number = z.coerce.number().default(1800).safeParse(process.env.CONFIG_BiliDanmakuCacheTime).data ?? 1800
+
+    //proxy
+    public static readonly UseProxyFetch = z.coerce.boolean().default(true).safeParse(process.env.CONFIG_UseProxyFetch).data ?? true
+
+    public static readonly ProxyFetchMaxRetries: number = z.coerce.number().default(3).safeParse(process.env.CONFIG_ProxyFetchMaxRetries).data ?? 3
+
+    public static readonly ProxyFetchTimeout = z.coerce.number().default(10 * 1000).safeParse(process.env.CONFIG_ProxyFetchTimeout).data ?? 10 * 1000
+
+    public static readonly ProxyServerUrl?:string = z.coerce.string().optional().safeParse(process.env.CONFIG_ProxyServerUrl).data
+
+    public static readonly ProxyToken?:string=z.coerce.string().optional().safeParse(process.env.CONFIG_ProxyToken).data
 }

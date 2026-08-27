@@ -10,9 +10,13 @@ export class BiliDanmakuRoute extends APIRoute {
 
     private readonly PARAMS = z.object({
         bvid: z.string().optional(),
-        cid: z.coerce.number().optional(),
         type: z.enum(['xml', 'json']).optional().default('xml'),
-        url: z.url("*.bilibili.com/video/*").optional(),
+        url: z.url().optional(),
+        p: z.coerce.number().nonnegative().int().default(1).transform((p) => p === 0 ? 1 : p)
+    }).superRefine((args, ctx) => {
+        if (!args.bvid && !args.url) {
+            ctx.addIssue("must provided url or bvid to parse danmaku")
+        }
     })
 
     private _parser: BiliVideoParser | null = null
@@ -23,17 +27,24 @@ export class BiliDanmakuRoute extends APIRoute {
         return this._parser
     }
 
-    private async getVideoInfo(ctx: AppContext, bvid: string): Promise<BiliTypes.RES.Video.VideoInfo> {
+    private async getDanmakuXML(ctx: AppContext, bvid: string, p: number = 1): Promise<string | null> {
         const infoKey = this.CacheKey.videoInfo(bvid)
         let videoInfo = await this.getCache(ctx, infoKey, Validation.validVideoInfo)
         if (!videoInfo) {
             videoInfo = await this.parser.getVideoInfo(bvid)
             await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.validVideoInfo)
         }
-        return videoInfo
-    }
+        if (p > videoInfo.parts.length) {
+            throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
+        }
+        const targetPart = videoInfo.parts.filter((w) => w.page === p)[0]
+        if (!targetPart) {
+            throw new Error(`cannot get target video part with part ${p}`)
+        }
+        const cid = targetPart.cid
+        this.resHeaders.set("x-url-cid", String(cid))
+        this.resHeaders.set("x-url-vpart", String(p))
 
-    private async getDanmakuXML(ctx: AppContext, cid: number): Promise<string | null> {
         const key = this.CacheKey.danmaku(cid)
         let danmakuXML = await this.getCache<string>(ctx, key, Validation.validDanmaku)
         if (!danmakuXML) {
@@ -87,7 +98,7 @@ export class BiliDanmakuRoute extends APIRoute {
             chatId: json.i.chatid[0] || "",
             maxLimit: Number(json.i.maxlimit[0]),
             source: json.i.source[0] || "",
-            danmakus: danmakus.sort((a,b)=>a.params.time - b.params.time)
+            danmakus: danmakus.sort((a, b) => a.params.time - b.params.time)
         }
     }
 
@@ -102,28 +113,26 @@ export class BiliDanmakuRoute extends APIRoute {
 
             const params = this.PARAMS.safeParse({
                 bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
-                cid: url.searchParams.get('cid') || undefined,
                 type: url.searchParams.get('type') || undefined,
-                url: url.searchParams.get('url') || undefined
+                url: url.searchParams.get('url') || undefined,
+                p: ctx.req.param("p") || url.searchParams.get('p') || undefined
             })
 
             if (!params.success) {
                 return this.jsonResponse(ctx, "invalid params", 400, null)
             }
-            let { type, bvid, cid, url: provideUrl } = params.data
-            if (!cid) {
-                if (!bvid && provideUrl) {
-                    bvid = await this.getBvParamsFromUrl(provideUrl)
-                }
-                if (bvid) {
-                    const videoInfo = await this.getVideoInfo(ctx, bvid)
-                    cid = videoInfo?.cid
-                }
-                if (!cid) {
-                    return this.jsonResponse(ctx, "cannot get cid to parse", 400, null)
+            let { type, bvid, url: provideUrl, p: page } = params.data
+            if (!bvid && provideUrl) {
+                const processed = await this.getBvParamsFromUrl(provideUrl)
+                if (processed) {
+                    bvid = processed.bvid
+                    page = processed.p
                 }
             }
-            const danmakuXML = await this.getDanmakuXML(ctx, cid)
+            if (!bvid) {
+                return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
+            }
+            const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
             if (!danmakuXML) {
                 throw new Error('failed to parse danmaku via cid')
             }

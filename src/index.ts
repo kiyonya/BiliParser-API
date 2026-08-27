@@ -11,6 +11,7 @@ import { BARoute } from "./routes/b2a";
 import { BiliCoverRoute } from "./routes/cover";
 import { BaseRoute } from "./routes/base";
 import { BiliDanmakuRoute } from "./routes/danmaku";
+import z from "zod";
 
 const app = new Hono<{ Bindings: Env }>();
 const openapi = fromHono(app, {
@@ -18,10 +19,10 @@ const openapi = fromHono(app, {
 });
 
 openapi.all('/', BaseRoute)
-openapi.get('/danmaku/:bvid?',BiliDanmakuRoute)
+openapi.get('/danmaku/:bvid?/:p?',BiliDanmakuRoute)
 openapi.get('/video/:bvid?/:p?', BiliVideoRoute)
 openapi.get('/cover/:bvid?',BiliCoverRoute)
-openapi.get('/video-cdn', BiliVideoCDNRoute)
+openapi.get('/cdn', BiliVideoCDNRoute)
 openapi.get('/live/:roomId?', BiliLiveRoute)
 openapi.get('/pplay', BiliProxyPlay)
 openapi.get('/bangumi/info', BiliBangumiInfoRoute)

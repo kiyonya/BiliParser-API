@@ -19,7 +19,7 @@ export default class BiliLiveParser extends Parser {
         const data = liveInfoData.data
         const { title, uid, room_id, short_id, attention, online, description, area_id, area_name, background, user_cover, keyframe, live_time, live_status } = data
         const result: BiliTypes.RES.Live.LiveInfo = {
-            title, uid, roomId: room_id, shortId: short_id, attention, online, description, areaId: area_id, areaName: area_name, background, cover: user_cover, keyframe, liveTime: live_time, isLiving: live_status === 1
+            title, uid:+uid, roomId: room_id, shortId: short_id, attention, online, description, areaId: area_id, areaName: area_name, background, cover: user_cover, keyframe, liveTime: live_time, isLiving: live_status === 1
         }
         return result
     }

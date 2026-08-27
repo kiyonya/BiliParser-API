@@ -4,16 +4,16 @@ import { proxyFetch } from "../utils/proxy-fetch"
 
 export default class BiliBangumiParser extends Parser {
 
-    public async getBangumiInfo(id: number | string, idType: 'ssid' | 'epid' | 'mdid'): Promise<BiliTypes.RES.Bangumi.BangumiInfo> {
+    public async getBangumiInfo(seasonId?: number, episodeId?: number): Promise<BiliTypes.RES.Bangumi.BangumiInfo> {
         const url = new URL(this.BILI_BANGUMI_INFO_API)
-        switch (idType) {
-            case "ssid":
-            case 'mdid':
-                url.searchParams.append('season_id', String(id))
-                break
-            case "epid":
-                url.searchParams.append('ep_id', String(id))
-                break
+        if (seasonId) {
+            url.searchParams.append('season_id', String(seasonId))
+        }
+        else if (episodeId) {
+            url.searchParams.append('ep_id', String(episodeId))
+        }
+        else {
+            throw new Error("missing seasonId or episodeId")
         }
         const cookie = await this.BCrypto.getBiliAntiCookie()
         const req = await proxyFetch(url, {
@@ -39,13 +39,12 @@ export default class BiliBangumiParser extends Parser {
         return info
     }
 
-    public async getBangumiEpisodes(id: number | string, idType: 'ssid' | 'mdid'): Promise<BiliTypes.RES.Bangumi.BangumiEpisode> {
+    public async getBangumiEpisodes(seasonId?: number): Promise<BiliTypes.RES.Bangumi.BangumiEpisode> {
         const url = new URL(this.BILI_BANGUMI_EPISODE_API)
-        switch (idType) {
-            case "ssid":
-            case "mdid":
-                url.searchParams.append('season_id', String(id))
+        if (!seasonId) {
+            throw new Error("missing seasonId")
         }
+        url.searchParams.append('season_id', String(seasonId))
         const cookie = await this.BCrypto.getBiliAntiCookie()
         const req = await proxyFetch(url, {
             headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }

@@ -5,35 +5,13 @@ import KVCache from "./kv-cache";
 import { b23Parser } from "./b23-parse";
 import crypto from 'crypto'
 import z from "zod";
+import { Config } from "../config";
 export interface APIResponse<Data = any> {
     code: number,
     message: string,
     time: number,
     data: Data,
 }
-
-export interface CDNStrategy {
-    continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN
-}
-
-export interface CDNStrategyWithPriority extends CDNStrategy {
-    priority: number
-}
-
-function parseCDNStrategies(strategies?: string): CDNStrategy[] {
-    const raw = strategies?.trim()
-    if(!raw){return[]}
-    return raw.split(';').map(s => s.trim()).filter(Boolean).map(entry => {
-        const [continent, area, cdn] = entry.split(',').map(v => v.trim())
-        return {
-            continent: continent as ContinentCode | '*',
-            area: area as Iso3166Alpha2Code | '*',
-            cdn: cdn as keyof BiliTypes.BiliVideoCDN
-        }
-    }).filter(s => s.continent && s.area && s.cdn)
-}
-
-export type BangumiIdType = 'ssid' | 'mdid' | 'epid'
 
 export default class APIRoute extends OpenAPIRoute {
 
@@ -70,7 +48,6 @@ export default class APIRoute extends OpenAPIRoute {
         rali: 'upos-sz-mirrorrali.bilivideo.com',
         akam: "upos-hz-mirrorakam.akamaized.net"
     }
-    protected CDNS_DEFAULT: CDNStrategy[] = parseCDNStrategies(process.env.CONFIG_CDNS_DEFAULT)
     protected readonly BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
     protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
@@ -107,8 +84,8 @@ export default class APIRoute extends OpenAPIRoute {
     }
 
     protected md5String(string: string) {
-            return crypto.createHash('md5').update(string).digest('hex')
-        }
+        return crypto.createHash('md5').update(string).digest('hex')
+    }
 
     protected async setCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAtCall: number | ((data: Data) => number), validate?: (data: Data) => boolean): Promise<void> {
         try {
@@ -176,22 +153,7 @@ export default class APIRoute extends OpenAPIRoute {
             cdnHostname = this.CDNS[cdn]
         }
         else {
-            //LPM
-            const priorityStrategies: CDNStrategyWithPriority[] = this.CDNS_DEFAULT.map(i => {
-                let priority = 2
-                if (i.area === '*') {
-                    priority--
-                }
-                if (i.continent === '*') {
-                    priority--
-                }
-                return {
-                    priority,
-                    ...i
-                }
-            }).sort((a, b) => b.priority - a.priority)
-
-            for (const strategy of priorityStrategies) {
+            for (const strategy of Config.VideoCDNStrategy) {
                 const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
                 if (isMatch) {
                     const cdnName = strategy.cdn
@@ -210,40 +172,48 @@ export default class APIRoute extends OpenAPIRoute {
         return url
     }
 
-    protected async getBvParamsFromUrl(biliurl: string | URL): Promise<{bvid:string,p:number} | null> {
-
-        let url: URL = new URL(biliurl)
-        if (this.BILI_B23TV_PATTERN.test(url)) {
-            const rawURL = await b23Parser(url.toString())
-            url = new URL(rawURL)
-        }
-
-        if (this.BILI_VIDEO_PATTERN.test(url)) {
-            const pathname = url.pathname
-            const bvid = z.string().regex(/^(BV[a-zA-Z0-9]{10})$/).trim().nullable().default(null).safeParse(pathname.match(/(BV[a-zA-Z0-9]{10})/)?.[1]).data
-            const p = z.coerce.number().default(1).safeParse(url.searchParams.get("p")).data
-            if(bvid && p){
-                return {bvid:bvid,p:p}
+    protected async getBvParamsFromUrl(biliurl: string | URL): Promise<{ bvid: string, p: number } | null> {
+        try {
+            let url: URL = new URL(biliurl)
+            if (this.BILI_B23TV_PATTERN.test(url)) {
+                const rawURL = await b23Parser(url.toString())
+                url = new URL(rawURL)
             }
+
+            if (this.BILI_VIDEO_PATTERN.test(url)) {
+                const pathname = url.pathname
+                const bvpart = pathname.match(/(BV[a-zA-Z0-9]{10})/)?.[1]
+                const part = url.searchParams.get("p") || undefined
+                const bvid = z.string().trim().nullable().default(null).safeParse(bvpart).data
+                const p = z.coerce.number().default(1).safeParse(part).data
+                if (bvid && p) {
+                    return { bvid: bvid, p: p }
+                }
+            }
+            return null
+        } catch (error) {
+            return null
         }
-        return null
     }
 
     protected readonly CacheKey = {
-        videoInfo:(bvid:string)=>{
+        videoInfo: (bvid: string) => {
             return `${this.CACHE_DATA_VERSION}:videoInfo:${bvid}`
         },
-        videoPlayUrl:(cid: number, qn: number, platform: BiliTypes.BVideoPlatform)=>{
+        videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.BVideoPlatform) => {
             return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${cid}:${qn}:${platform}`
         },
         userArchieves: (mid: number, seasonId: number, page: number, pageSize: number) => {
             return `${this.CACHE_DATA_VERSION}:userArchieves:${mid}:${seasonId}:${page}:${pageSize}`
         },
-        bangumiInfo: (id: number, idType: BangumiIdType) => {
-            return `${this.CACHE_DATA_VERSION}:bangumiInfo:${idType}:${id}`
+        bangumiInfo: (seasonId?: number, episodeId?: number) => {
+            if (seasonId) {
+                return `${this.CACHE_DATA_VERSION}:bangumiInfo:season:${seasonId}`
+            }
+            return `${this.CACHE_DATA_VERSION}:bangumiInfo:episode:${episodeId}`
         },
-        bangumiEpisodes: (id: number, idType: Omit<BangumiIdType, 'epid'>) => {
-            return `${this.CACHE_DATA_VERSION}:bangumiEpisodes:${idType}:${id}`
+        bangumiEpisodes: (seasonId?: number) => {
+            return `${this.CACHE_DATA_VERSION}:bangumiEpisodes:season:${seasonId}`
         },
         bangumiPlayUrl: (epid: number, qn: number) => {
             return `${this.CACHE_DATA_VERSION}:bangumiPlayUrl:${epid}:${qn}`

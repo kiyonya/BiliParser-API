@@ -3,16 +3,19 @@ import { Config } from "../config";
 export async function proxyFetch(
     url: string | URL,
     init?: RequestInit,
+    useProxy: boolean = Config.UseProxyFetch,
     options?: {
         retries?: number;
         initialDelay?: number;
         maxDelay?: number;
         backoffFactor?: number;
+        timeout?: number;
         retryCondition?: (error: any) => boolean;
     }
 ) {
     const {
         retries = Config.ProxyFetchMaxRetries,
+        timeout = Config.ProxyFetchTimeout,
         initialDelay = 1000,
         maxDelay = 30000,
         backoffFactor = 2,
@@ -29,16 +32,32 @@ export async function proxyFetch(
 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            const headers = new Headers(init?.headers);
-            headers.append('Authorization', `Bearer ${process.env.CONFIG_VERCEL_PROXY_TOKEN}`);
+            const signal = init?.signal ?? AbortSignal.timeout(timeout);
 
-            const proxyFetchUrl = new URL(`${process.env.CONFIG_VERCEL_PROXY_URL}`);
-            proxyFetchUrl.searchParams.set('url', url.toString());
+            const response = await (useProxy
+                ? (() => {
+                    const token = Config.ProxyToken
+                    const proxyServerUrl = Config.ProxyServerUrl
+                    if(!proxyServerUrl){
+                        throw new Error("no proxy server added")
+                    }
+                    const proxyUrl = new URL(proxyServerUrl);
+                    const headers = new Headers(init?.headers);
+                    if (token) {
+                        headers.append('Authorization', `Bearer ${token}`);
+                    }
 
-            const response = await fetch(proxyFetchUrl, {
-                ...init,
-                headers: headers
-            }); 
+                    proxyUrl.searchParams.set('url', url.toString());
+                    return fetch(proxyUrl, {
+                        ...init,
+                        headers: headers,
+                        signal: signal
+                    });
+                })()
+                : fetch(url, {
+                    ...init,
+                    signal: signal
+                }));
 
             if (!response.ok && retryCondition(response)) {
                 throw response;
@@ -51,7 +70,7 @@ export async function proxyFetch(
             if (attempt === retries) {
                 throw error;
             }
-            const jitter = Math.random() * 0.3 * delay; // 随机抖动
+            const jitter = Math.random() * 0.3 * delay;
             await new Promise(resolve => setTimeout(resolve, delay + jitter));
             delay = Math.min(delay * backoffFactor, maxDelay);
         }

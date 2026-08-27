@@ -1,5 +1,5 @@
 import { AppContext, BiliTypes } from "../types";
-import z from "zod";
+import z, { json } from "zod";
 import BiliLiveParser from "../services/live-parser";
 import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
@@ -16,6 +16,10 @@ export class BiliLiveRoute extends APIRoute {
         ov: z.coerce.boolean().optional(),
         roomId: z.coerce.number().optional(),
         url: z.url("*://live.bilibili.com/*").optional()
+    }).superRefine((args, ctx) => {
+        if (!args.roomId && !args.url) {
+            ctx.addIssue("roomId or url needed to parse")
+        }
     })
 
     private readonly formatNumberMap: Record<'fmp4' | 'flv' | 'ts', number> = {
@@ -32,7 +36,7 @@ export class BiliLiveRoute extends APIRoute {
         hls: 1
     }
 
-    private getRoomIdFromURL(url: string): number | undefined {
+    private getRoomIdFromURL(url: string): number | null {
         try {
             const u = new URL(url)
             const BILI_LIVE_PATTERN = new URLPattern('*://live.bilibili.com/*')
@@ -41,9 +45,9 @@ export class BiliLiveRoute extends APIRoute {
                 const roomId = pathname.substring(1).split("/").shift() as string
                 return parseInt(roomId)
             }
-            return undefined
+            return null
         } catch (error) {
-            return undefined
+            return null
         }
     }
 
@@ -97,14 +101,15 @@ export class BiliLiveRoute extends APIRoute {
             })
 
             if (!params.success) {
-                return
+                return this.jsonResponse(ctx, params.error.message, 400, null)
             }
             let { roomId, type, codec, format, protocol, ov, url: urlProvided, platform } = params.data
             if (!roomId && urlProvided) {
-                roomId = this.getRoomIdFromURL(urlProvided)
+                const roomIdFromUrl = this.getRoomIdFromURL(urlProvided)
+                if (roomIdFromUrl) { roomId = roomIdFromUrl }
             }
             if (!roomId) {
-                return
+                return this.jsonResponse(ctx, "cannot found roomId to parse", 400, null)
             }
             const cacheKey = this.CacheKey.live(roomId)
             //edgeonly

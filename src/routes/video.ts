@@ -12,9 +12,9 @@ export class BiliVideoRoute extends APIRoute {
         platform: z.enum(["web", "app"]).default('web'),
         cdn: z.enum(Object.keys(this.CDNS)).optional(),
         qn: z.coerce.number().pipe(z.literal(64)).default(64),
-        url: z.url("*.bilibili.com/video/*").optional(),
+        url: z.url().optional(),
         bvid: z.string().optional(),
-        p: z.coerce.number().nonnegative().int().default(1).transform((p)=>p === 0 ? 1 : p)
+        p: z.coerce.number().nonnegative().int().default(1).transform((p) => p === 0 ? 1 : p)
     }).superRefine((args, ctx) => {
         if (!args.bvid && !args.url) {
             ctx.addIssue("must provided url or bvid to parse video")
@@ -31,7 +31,7 @@ export class BiliVideoRoute extends APIRoute {
             videoInfo = await parser.getVideoInfo(bvid)
             await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.validVideoInfo)
         }
-        if(p > videoInfo.parts.length){
+        if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
         }
         const targetPart = videoInfo.parts.filter((w) => w.page === p)[0]
@@ -87,7 +87,7 @@ export class BiliVideoRoute extends APIRoute {
                 qn: reqUrl.searchParams.get('qn') || undefined,
                 bvid: ctx.req.param('bvid') || reqUrl.searchParams.get('bvid') || undefined,
                 url: reqUrl.searchParams.get('url') || undefined,
-                p:ctx.req.param("p")|| reqUrl.searchParams.get('p') || undefined
+                p: ctx.req.param("p") || reqUrl.searchParams.get('p') || undefined
             })
 
             if (!parmas.success) {
@@ -96,7 +96,7 @@ export class BiliVideoRoute extends APIRoute {
             let { type, platform, cdn, qn, bvid, url, p: page } = parmas.data
             if (!bvid && url) {
                 const processed = await this.getBvParamsFromUrl(url)
-                if(processed){
+                if (processed) {
                     bvid = processed.bvid
                     page = processed.p
                 }

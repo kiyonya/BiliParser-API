@@ -1,18 +1,20 @@
 import z from "zod";
 import BiliBangumiParser from "../services/bangumi-parser";
 import { AppContext, BiliTypes } from "../types";
-import APIRoute, { BangumiIdType } from "../utils/api-route";
+import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
 import { Config } from "../config";
-
-export { BangumiIdType }
 
 export class BiliBangumiInfoRoute extends APIRoute {
 
     private readonly PARAMS = z.object({
-        ssid: z.string().optional(),
-        mdid: z.string().optional(),
-        epid: z.string().optional()
+        ssid: z.coerce.number().optional(),
+        mdid: z.coerce.number().optional(),
+        epid: z.coerce.number().optional()
+    }).superRefine((args, ctx) => {
+        if (!args.epid && !args.mdid && !args.ssid) {
+            ctx.addIssue("cannot find id to parse")
+        }
     })
 
     public override async handle(ctx: AppContext) {
@@ -31,33 +33,20 @@ export class BiliBangumiInfoRoute extends APIRoute {
 
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
+                return this.jsonResponse(ctx, params.error.message, 400, null)
             }
             const { ssid, mdid, epid } = params.data
 
-            let id: number
-            let type: BangumiIdType
-            if (ssid) {
-                id = parseInt(ssid)
-                type = 'ssid'
-            }
-            else if (mdid) {
-                id = parseInt(mdid)
-                type = 'mdid'
-            }
-            else if (epid) {
-                id = parseInt(epid)
-                type = 'epid'
-            }
-            else {
+            let seasonId: number | undefined = ssid || mdid
+            let episodeId: number | undefined = epid
+            if(!seasonId && !episodeId){
                 return this.jsonResponse(ctx, 'invalid params', 400, null)
             }
-
-            const key = this.CacheKey.bangumiInfo(id, type)
+            const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
             let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.validBangumiInfo)
             if (!result) {
                 const parser = new BiliBangumiParser()
-                result = await parser.getBangumiInfo(id, type)
+                result = await parser.getBangumiInfo(seasonId, episodeId)
                 await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiInfoCacheTime, Validation.validBangumiInfo)
             }
             return this.jsonResponse(ctx, 'Success', 200, result)
@@ -71,8 +60,12 @@ export class BiliBangumiInfoRoute extends APIRoute {
 export class BiliBangumiEpisodesRoute extends APIRoute {
 
     private PARAMS = z.object({
-        ssid: z.string().optional(),
-        mdid: z.string().optional()
+        ssid: z.coerce.number().optional(),
+        mdid: z.coerce.number().optional()
+    }).superRefine((args, ctx) => {
+        if (!args.mdid && !args.ssid) {
+            ctx.addIssue("cannot find id to parse")
+        }
     })
 
     public override async handle(ctx: AppContext) {
@@ -88,30 +81,18 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
                 mdid: url.searchParams.get('mdid')?.replace('md', '') || undefined,
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
+                return this.jsonResponse(ctx, params.error.message, 400, null)
             }
             const { ssid, mdid } = params.data
-            let id: number
-            let type: Omit<BangumiIdType, 'epid'>
-            if (ssid) {
-                id = parseInt(ssid)
-                type = 'ssid'
-            }
-            else if (mdid) {
-                id = parseInt(mdid)
-                type = 'mdid'
-
-            }
-            else {
+            let seasonId: number | undefined = ssid || mdid
+            if (!seasonId) {
                 return this.jsonResponse(ctx, 'invalid params', 400, null)
             }
-            this.resHeaders.set('X-Bangumi-Id-Type', type as string)
-
-            const key = this.CacheKey.bangumiEpisodes(id, type)
+            const key = this.CacheKey.bangumiEpisodes(seasonId)
             let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.validBangumiEpisode)
             if (!result) {
                 const parser = new BiliBangumiParser()
-                result = await parser.getBangumiEpisodes(id, type as 'mdid' | 'ssid')
+                result = await parser.getBangumiEpisodes(seasonId)
                 await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiEpisodesCacheTime, Validation.validBangumiEpisode)
             }
 

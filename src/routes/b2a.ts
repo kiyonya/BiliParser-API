@@ -4,6 +4,9 @@ import APIRoute from "../utils/api-route";
 import { avToBv, bvToAv } from "../services/b2a";
 
 // !?blue archieve?!
+/**
+ * @deprecated
+ */
 export class BARoute extends APIRoute {
 
     private readonly PARAMS = z.object({
