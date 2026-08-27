@@ -11,6 +11,7 @@
 > [!IMPORTANT]
 > `bili.nekocha.top`为测试站点，不保证随时有效，请勿频繁请求或者用于批量爬虫
 
+- 信息: [https://bili.nekocha.top](https://bili.nekocha.top)
 - 视频播放: [https://bili.nekocha.top/video/BV1UT42167xb](https://bili.nekocha.top/video/BV1UT42167xb)
 - 视频信息: [https://bili.nekocha.top/video/BV1UT42167xb?type=json](https://bili.nekocha.top/video/BV1UT42167xb?type=json)
 - 直播播放: [https://bili.nekocha.top/live/5055636](https://bili.nekocha.top/live/5055636)
@@ -33,14 +34,14 @@
 ## 遇到的已知问题和建议
 
 1. **部署后访问速度慢或者超时**
-请考虑对您的Cloudflare Workers进行IP优选或者域名优选
+   请考虑对您的Cloudflare Workers进行IP优选或者域名优选
 
 2. **视频播放速度慢,加载不出来**
-请确认是否使用海外的视频cdn,例如aliov,cosov等以ov结尾的cdn为海外服务器,您可以在视频解析连接后使用cdn参数指定cdn,或者通过配置服务器环境变量为特定地区分配默认cdn *(使用Vercel等代理服务器时因为请求的IP在海外,b站默认会分配海外的CDN服务器)*
+   请确认是否使用海外的视频cdn,例如aliov,cosov等以ov结尾的cdn为海外服务器,您可以在视频解析连接后使用cdn参数指定cdn,或者通过配置服务器环境变量为特定地区分配默认cdn _(使用Vercel等代理服务器时因为请求的IP在海外,b站默认会分配海外的CDN服务器)_
 
 3. **在VRCHAT里播放后拖动进度条视频卡住**
-请确保您的播放器能够正确解码视频 (推荐使用AVPro)
-不同CDN对于VRCHAT发起的包含Range字段请求响应可能不同,推荐使用alib或cos,国外推荐aliov
+   请确保您的播放器能够正确解码视频 (推荐使用AVPro)
+   不同CDN对于VRCHAT发起的包含Range字段请求响应可能不同,推荐使用alib或cos,国外推荐aliov
 
 ## 快速开始
 
@@ -203,15 +204,15 @@ curl -I "https://your.workers.domain/live/5055636?ov=true"
 
 解析视频播放链接或视频信息。
 
-| 参数 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `bvid` | string | - | BV 号,如 `BV1UT42167xb` |
-| `p` | number | `1` | 分 P 序号,`0` 等价于 `1` |
-| `type` | `video` \| `json` \| `url` | `video` | `video`:302 重定向到直链;`json`:返回解析结果;`url`:仅返回播放地址文本 |
-| `platform` | `web` \| `app` | `web` | `web`:Web 播放源,无需 Referer;`app`:iOS/TV 播放源,播放时需携带 Referer,否则 403 |
-| `cdn` | string | 自动 | 强制换源,查看 `/video-cdn` 获取可用 CDN 名称 |
-| `qn` | number | `64` | 清晰度(当前固定为 64) |
-| `url` | string | - | bilibili 视频链接,自动提取 BV 号与分 P,支持 `b23.tv` 短链 |
+| 参数       | 类型                       | 默认    | 说明                                                                            |
+| ---------- | -------------------------- | ------- | ------------------------------------------------------------------------------- |
+| `bvid`     | string                     | -       | BV 号,如 `BV1UT42167xb`                                                         |
+| `p`        | number                     | `1`     | 分 P 序号,`0` 等价于 `1`                                                        |
+| `type`     | `video` \| `json` \| `url` | `video` | `video`:302 重定向到直链;`json`:返回解析结果;`url`:仅返回播放地址文本           |
+| `platform` | `web` \| `app`             | `web`   | `web`:Web 播放源,无需 Referer;`app`:iOS/TV 播放源,播放时需携带 Referer,否则 403 |
+| `cdn`      | string                     | 自动    | 强制换源,查看 `/video-cdn` 获取可用 CDN 名称                                    |
+| `qn`       | number                     | `64`    | 清晰度(当前固定为 64)                                                           |
+| `url`      | string                     | -       | bilibili 视频链接,自动提取 BV 号与分 P,支持 `b23.tv` 短链                       |
 
 ```bash
 # url 参数传参,等价于 /video/{bvid}
@@ -222,10 +223,10 @@ curl "https://your.workers.domain/video?url=https://www.bilibili.com/video/BV1mN
 
 获取视频封面。
 
-| 参数 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `bvid` | string | - | BV 号 |
-| `url` | string | - | bilibili 视频链接 |
+| 参数   | 类型                         | 默认  | 说明                                                                          |
+| ------ | ---------------------------- | ----- | ----------------------------------------------------------------------------- |
+| `bvid` | string                       | -     | BV 号                                                                         |
+| `url`  | string                       | -     | bilibili 视频链接                                                             |
 | `type` | `img` \| `url` \| `redirect` | `img` | `img`:代理图片(带 Referer);`url`:返回封面直链文本;`redirect`:302 重定向到封面 |
 
 ```bash
@@ -236,11 +237,11 @@ curl "https://your.workers.domain/cover/BV1UT42167xb?type=url"
 
 获取视频弹幕。
 
-| 参数 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `bvid` | string | - | BV 号 |
-| `cid` | number | - | 视频 cid(提供时优先,免去解析 BV 号) |
-| `url` | string | - | bilibili 视频链接 |
+| 参数   | 类型            | 默认  | 说明                                                                                                          |
+| ------ | --------------- | ----- | ------------------------------------------------------------------------------------------------------------- |
+| `bvid` | string          | -     | BV 号                                                                                                         |
+| `cid`  | number          | -     | 视频 cid(提供时优先,免去解析 BV 号)                                                                           |
+| `url`  | string          | -     | bilibili 视频链接                                                                                             |
 | `type` | `xml` \| `json` | `xml` | `xml`:返回标准 XML;`json`:返回结构化 JSON(含 `danmakus[]`,字段含时间/模式/字号/颜色/发送时间/类型/用户哈希等) |
 
 ```bash
@@ -248,7 +249,7 @@ curl "https://your.workers.domain/danmaku/BV1UT42167xb"
 curl "https://your.workers.domain/danmaku/BV1UT42167xb?type=json"
 ```
 
-#### `GET /video-cdn`
+#### `GET /cdn`
 
 返回可用的视频 CDN 列表(upos 系列):
 
@@ -271,16 +272,16 @@ curl "https://your.workers.domain/danmaku/BV1UT42167xb?type=json"
 
 获取直播间信息并解析直播流。
 
-| 参数 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `roomId` | number | - | 房间号(支持短号别名) |
-| `url` | string | - | `live.bilibili.com` 直播链接 |
-| `type` | `stream` \| `json` | `stream` | `stream`:302 重定向到直播流;`json`:返回直播间信息 + 流地址 |
-| `platform` | `xlive` \| `h5` | `xlive` | 解析平台,`xlive` 支持更多格式 |
-| `codec` | `avc` \| `hevc` | `avc` | 编码(仅 xlive) |
-| `format` | `fmp4` \| `flv` \| `ts` | `fmp4` | 封装格式(仅 xlive) |
-| `protocol` | `hls` \| `stream` | `hls` | 拉流协议(仅 xlive) |
-| `ov` | boolean | 自动 | `true`:强制使用海外(ov)流;`false`:强制国内(cn)流;默认按请求地区自动选择 |
+| 参数       | 类型                    | 默认     | 说明                                                                    |
+| ---------- | ----------------------- | -------- | ----------------------------------------------------------------------- |
+| `roomId`   | number                  | -        | 房间号(支持短号别名)                                                    |
+| `url`      | string                  | -        | `live.bilibili.com` 直播链接                                            |
+| `type`     | `stream` \| `json`      | `stream` | `stream`:302 重定向到直播流;`json`:返回直播间信息 + 流地址              |
+| `platform` | `xlive` \| `h5`         | `xlive`  | 解析平台,`xlive` 支持更多格式                                           |
+| `codec`    | `avc` \| `hevc`         | `avc`    | 编码(仅 xlive)                                                          |
+| `format`   | `fmp4` \| `flv` \| `ts` | `fmp4`   | 封装格式(仅 xlive)                                                      |
+| `protocol` | `hls` \| `stream`       | `hls`    | 拉流协议(仅 xlive)                                                      |
+| `ov`       | boolean                 | 自动     | `true`:强制使用海外(ov)流;`false`:强制国内(cn)流;默认按请求地区自动选择 |
 
 ```bash
 curl "https://your.workers.domain/live?url=https://live.bilibili.com/5055636"
@@ -310,12 +311,12 @@ curl "https://your.workers.domain/bangumi/episodes?ssid=37498"
 
 解析单集播放地址。
 
-| 参数 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `epid` | number | - | 剧集号(可带 `ep` 前缀) |
+| 参数   | 类型              | 默认    | 说明                                                     |
+| ------ | ----------------- | ------- | -------------------------------------------------------- |
+| `epid` | number            | -       | 剧集号(可带 `ep` 前缀)                                   |
 | `type` | `video` \| `json` | `video` | `video`:307 跳转到 `/pplay` 代理播放;`json`:返回解析结果 |
-| `qn` | number | `64` | 清晰度(当前固定为 64) |
-| `cdn` | string | `ali` | 指定 CDN |
+| `qn`   | number            | `64`    | 清晰度(当前固定为 64)                                    |
+| `cdn`  | string            | `ali`   | 指定 CDN                                                 |
 
 ```bash
 curl "https://your.workers.domain/bangumi/play/ep378374?type=json"
@@ -327,11 +328,11 @@ curl "https://your.workers.domain/bangumi/play/ep378374?type=json"
 
 获取 UP 主某个 UGC 合集下的视频列表。
 
-| 参数 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `mid` | number | - | 用户 mid |
-| `sid` | number | - | 合集 id |
-| `page` | number | `1` | 页码 |
+| 参数       | 类型   | 默认 | 说明     |
+| ---------- | ------ | ---- | -------- |
+| `mid`      | number | -    | 用户 mid |
+| `sid`      | number | -    | 合集 id  |
+| `page`     | number | `1`  | 页码     |
 | `pageSize` | number | `30` | 每页数量 |
 
 ```bash
@@ -347,27 +348,23 @@ curl "https://your.workers.domain/user/archieve/296909317/3091395?page=1&pageSiz
 ```bash
 curl "https://your.workers.domain/ipregion"
 ```
-### 其他
 
-#### `GET /`
-
-导航页面,包含接口说明与示例入口。`GET /doc` 为 OpenAPI 文档。
 
 ### 响应头
 
-| 头 | 说明 |
-| --- | --- |
-| `X-Cache-Edge-Hit` | 命中的 Edge Cache key(MD5),未命中为 `MISS` |
-| `X-Cache-KV-Hit` | 命中的 KV Cache key(MD5),未使用 KV 为 `NOTUSE` |
-| `X-Bili-CDN` | 实际使用的播放 CDN 域名 |
-| `X-CDN-Strategy` | 命中的 CDN 策略(地区,地区,CDN 名) |
-| `X-Stream-Server` | 直播流服务器(`cn` / `ov`) |
-| `X-Stream-Parse-Platform` | 直播解析平台(`xlive` / `h5`) |
-| `X-Stream-Format` / `X-Stream-Codec` / `X-Stream-Protocol` | 直播流格式/编码/协议(xlive) |
-| `X-URL-CID` / `X-URL-Vpart` | 视频播放地址对应的 cid / 分 P |
-| `Server-Version` | 服务端版本 |
+| 头                                                         | 说明                                           |
+| ---------------------------------------------------------- | ---------------------------------------------- |
+| `X-Cache-Edge-Hit`                                         | 命中的 Edge Cache key(MD5),未命中为 `MISS`     |
+| `X-Cache-KV-Hit`                                           | 命中的 KV Cache key(MD5),未使用 KV 为 `NOTUSE` |
+| `X-Bili-CDN`                                               | 实际使用的播放 CDN 域名                        |
+| `X-CDN-Strategy`                                           | 命中的 CDN 策略(地区,地区,CDN 名)              |
+| `X-Stream-Server`                                          | 直播流服务器(`cn` / `ov`)                      |
+| `X-Stream-Parse-Platform`                                  | 直播解析平台(`xlive` / `h5`)                   |
+| `X-Stream-Format` / `X-Stream-Codec` / `X-Stream-Protocol` | 直播流格式/编码/协议(xlive)                    |
+| `X-URL-CID` / `X-URL-Vpart`                                | 视频播放地址对应的 cid / 分 P                  |
+| `Server-Version`                                           | 服务端版本                                     |
 
-## 部署
+## 部署解析站
 
 ### 1. 部署代理服务器
 
@@ -383,6 +380,10 @@ npm install
 ### 3. 配置 `wrangler.jsonc`
 
 参考 [Wrangler 配置文档](https://developers.cloudflare.com/workers/wrangler/configuration/)。
+
+> [!Tip]
+> 您可以查看项目根目录下的`warngler.example.jsonc`的配置示范,或者您可以重命名删除`.example`后填入信息直接部署
+
 
 绑定 Workers KV 存储库:
 
@@ -412,40 +413,48 @@ npm install
 
 ### 4. 配置环境变量
 
-在 `wrangler.jsonc` 的 `vars` 中填写(也可以使用 `.env.dev` 配合本地开发):
+在 `wrangler.jsonc` 的 `vars` 中配置环境变量:
+
+#### 环境变量
+
+| 变量                                  | 默认值   | 说明                                                                                                   |
+| ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `CONFIG_CacheValidation`              | `true`   | 启用缓存校验                                                                                           |
+| `CONFIG_UseProxyFetch`                | `true`   | 使用代理服务器                                                                                         |
+| `CONFIG_ProxyToken`                   | -        | 代理服务器 Token(Bearer 认证)                                                                          |
+| `CONFIG_ProxyServerUrl`               | -        | 代理服务器地址                                                                                         |
+| `CONFIG_ProxyFetchTimeout`            | `10000`  | 代理超时时间(毫秒)                                                                                     |
+| `CONFIG_ProxyFetchMaxRetries`         | `3`      | 代理请求失败最大重试次数(指数退避)                                                                     |
+| `CONFIG_BiliVideoPlayUrlCacheTime`    | `5400`   | 视频播放地址最大缓存时间(秒)                                                                           |
+| `CONFIG_BiliBangumiPlayUrlCacheTime`  | `5400`   | 番剧播放地址最大缓存时间(秒)                                                                           |
+| `CONFIG_BiliLiveCacheTime`            | `60`     | 直播信息缓存时间(秒)                                                                                   |
+| `CONFIG_BiliVideoInfoCacheTime`       | `86400`  | 视频信息缓存时间(秒)                                                                                   |
+| `CONFIG_BiliBangumiEpisodesCacheTime` | `604800` | 番剧分集缓存时间(秒)                                                                                   |
+| `CONFIG_BiliBangumiInfoCacheTime`     | `604800` | 番剧信息缓存时间(秒)                                                                                   |
+| `CONFIG_UGCSeasonArchieveCacheTime`   | `86400`  | 用户合集缓存时间(秒)                                                                                   |
+| `CONFIG_BiliDanmakuCacheTime`         | `1800`   | 弹幕缓存时间(秒)                                                                                       |
+| `CONFIG_CDNS_DEFAULT`                 | -        | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
+| `SERVER_VERSION`                      | -        | 服务端版本号,会写入 `Server-Version` 响应头                                                            |
 
 ```jsonc
 "vars": {
-    "CONFIG_VERCEL_PROXY_TOKEN": "VERCEL代理Token",
-    "CONFIG_VERCEL_PROXY_URL": "https://proxy-vercel.example.com/api/proxy",
-    "SERVER_VERSION": "3.2.0.20260825",
-    "MOTD": "playing VRChat improves your programming skills"
-}
+    "CONFIG_UseProxyFetch": true,
+    "CONFIG_ProxyToken": "Your Proxy Token",
+    "CONFIG_ProxyServerUrl": "Your Proxy Server URL",
+    "CONFIG_ProxyFetchMaxRetries": 3,
+    "CONFIG_ProxyFetchTimeout":10000,
+    "CONFIG_CacheValidation":true,
+    "CONFIG_BiliVideoPlayUrlCacheTime": 5400,
+    "CONFIG_BiliBangumiPlayUrlCacheTime": 5400,
+    "CONFIG_BiliLiveCacheTime": 60,
+    "CONFIG_BiliVideoInfoCacheTime": 86400,
+    "CONFIG_BiliBangumiEpisodesCacheTime": 604800,
+    "CONFIG_BiliBangumiInfoCacheTime": 604800,
+    "CONFIG_UGCSeasonArchieveCacheTime": 86400,
+    "CONFIG_BiliDanmakuCacheTime": 1800,
+    "CONFIG_VideoCDNStrategy": "AS,CN,alib;*,*,aliov",
+  },
 ```
-
-### 环境变量说明
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `CONFIG_VERCEL_PROXY_TOKEN` | - | Vercel 代理 Token(Bearer 认证) |
-| `CONFIG_VERCEL_PROXY_URL` | - | Vercel 代理地址 |
-| `CONFIG_ProxyFetchMaxRetries` | `3` | 代理请求失败最大重试次数(指数退避) |
-| `CONFIG_BiliVideoPlayUrlCacheTime` | `5400` | 视频播放地址最大缓存时间(秒) |
-| `CONFIG_BiliBangumiPlayUrlCacheTime` | `5400` | 番剧播放地址最大缓存时间(秒) |
-| `CONFIG_BiliLiveCacheTime` | `60` | 直播信息缓存时间(秒) |
-| `CONFIG_BiliVideoInfoCacheTime` | `86400` | 视频信息缓存时间(秒) |
-| `CONFIG_BiliBangumiEpisodesCacheTime` | `604800` | 番剧分集缓存时间(秒) |
-| `CONFIG_BiliBangumiInfoCacheTime` | `604800` | 番剧信息缓存时间(秒) |
-| `CONFIG_UGCSeasonArchieveCacheTime` | `86400` | 用户合集缓存时间(秒) |
-| `CONFIG_BiliDanmakuCacheTime` | `1800` | 弹幕缓存时间(秒) |
-| `CONFIG_CDNS_DEFAULT` | - | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
-| `SERVER_VERSION` | - | 服务端版本号,会写入 `Server-Version` 响应头 |
-
-
-> [!IMPORTANT]
-> 请确保您配置了默认访问策略`CONFIG_CDNS_DEFAULT`,否则自动CDN换源将不会生效,推荐使用`AS,CN,alib;*,*,aliov`
-
-
 
 ### 5. 本地开发
 
@@ -461,7 +470,7 @@ npm run dev
 npm run deploy
 ```
 
-部署完成后,`https://your.workers.domain/video/BV1UT42167xb` 等接口即可访问。
+部署完成后访问,`https://your.workers.domain/` 如果可以显示信息页面即部署完成。
 
 ## 声明
 

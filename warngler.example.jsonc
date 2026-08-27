@@ -1,0 +1,49 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bili-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-04",
+  "observability": {
+    "enabled": true,
+  },
+  "upload_source_maps": true,
+  "compatibility_flags": ["nodejs_compat"],
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "100",
+      "simple": {
+        "limit": "<Limit>",
+        "period": "<Period>",
+      },
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "BILI_API_CACHE",
+      "id": "<KV namespace Id>",
+    },
+  ],
+  "vars": {
+    "CONFIG_UseProxyFetch": true,
+    "CONFIG_ProxyToken": "...",
+    "CONFIG_ProxyServerUrl": "...",
+    "CONFIG_ProxyFetchMaxRetries": 3,
+    "CONFIG_ProxyFetchTimeout":10000,
+    "CONFIG_CacheValidation":true,
+    "CONFIG_BiliVideoPlayUrlCacheTime": 5400,
+    "CONFIG_BiliBangumiPlayUrlCacheTime": 5400,
+    "CONFIG_BiliLiveCacheTime": 60,
+    "CONFIG_BiliVideoInfoCacheTime": 86400,
+    "CONFIG_BiliBangumiEpisodesCacheTime": 604800,
+    "CONFIG_BiliBangumiInfoCacheTime": 604800,
+    "CONFIG_UGCSeasonArchieveCacheTime": 86400,
+    "CONFIG_BiliDanmakuCacheTime": 1800,
+    "CONFIG_VideoCDNStrategy": "AS,CN,alib;*,*,aliov",
+    "SERVER_VERSION": "3.2.5.20260826",
+  },
+}
