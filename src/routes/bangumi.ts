@@ -11,8 +11,14 @@ export class BiliBangumiInfoRoute extends APIRoute {
         ssid: z.coerce.number().optional(),
         mdid: z.coerce.number().optional(),
         epid: z.coerce.number().optional()
+    }).transform((args) => {
+        return {
+            ...args,
+            seasonId: args.ssid || args.mdid,
+            episodeId: args.epid
+        }
     }).superRefine((args, ctx) => {
-        if (!args.epid && !args.mdid && !args.ssid) {
+        if (!args.seasonId && !args.episodeId) {
             ctx.addIssue("cannot find id to parse")
         }
     })
@@ -33,15 +39,10 @@ export class BiliBangumiInfoRoute extends APIRoute {
 
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.message, 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            const { ssid, mdid, epid } = params.data
+            const { seasonId, episodeId } = params.data
 
-            let seasonId: number | undefined = ssid || mdid
-            let episodeId: number | undefined = epid
-            if(!seasonId && !episodeId){
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
-            }
             const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
             let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.bangumiInfoSchema)
             if (!result) {
@@ -62,8 +63,13 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
     private PARAMS = z.object({
         ssid: z.coerce.number().optional(),
         mdid: z.coerce.number().optional()
+    }).transform((args) => {
+        return {
+            ...args,
+            seasonId: args.ssid || args.mdid
+        }
     }).superRefine((args, ctx) => {
-        if (!args.mdid && !args.ssid) {
+        if (!args.seasonId) {
             ctx.addIssue("cannot find id to parse")
         }
     })
@@ -81,13 +87,9 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
                 mdid: url.searchParams.get('mdid')?.replace('md', '') || undefined,
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.message, 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            const { ssid, mdid } = params.data
-            let seasonId: number | undefined = ssid || mdid
-            if (!seasonId) {
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
-            }
+            const { seasonId } = params.data
             const key = this.CacheKey.bangumiEpisodes(seasonId)
             let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.bangumiEpisodeSchema)
             if (!result) {
@@ -127,13 +129,9 @@ export class BiliBangumiPlayRoute extends APIRoute {
                 cdn: url.searchParams.get('cdn') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            let { epid, type, qn, cdn } = params.data
-
-            if (!epid) {
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
-            }
+            const { epid, type, qn, cdn } = params.data
 
             const key = this.CacheKey.bangumiPlayUrl(epid, qn)
             let bangumi = await this.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.bangumiPlayUrlSchema)

@@ -30,7 +30,7 @@ export class BiliArchieveRoute extends APIRoute {
                 pageSize: url.searchParams.get('pageSize') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, 'invalid params', 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
 
             const { mid, seasonId, page, pageSize } = params.data

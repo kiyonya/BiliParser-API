@@ -14,27 +14,22 @@ export class BiliVideoRoute extends APIRoute {
         qn: z.coerce.number().pipe(z.literal(64)).default(64),
         url: z.url().optional(),
         bvid: z.string().optional(),
-        p: z.coerce.number().nonnegative().int().optional()
-    }).superRefine((args, ctx) => {
-        if (!args.bvid && !args.url) {
-            ctx.addIssue("must provided url or bvid to parse video")
-        }
+        p: z.coerce.number().nonnegative().int().default(1).transform(p => p === 0 ? 1 : p)
     }).transform(async (args) => {
-        //优先级永远是
-        // 路径参数 > 用户输入的query参数 > 从用户输入的query中的url解析而来的参数
         let { bvid, p, url } = args
-        let fp = p ?? 1
-        if (fp === 0) fp = 1
-        if (!bvid && url) {
+        if (url) {
             const processed = await this.getBvParamsFromUrl(url)
-            if (processed) {
-                bvid = processed.bvid
-                if (p === undefined && processed.p) {
-                    fp = processed.p
-                }
+            if (!processed) {
+                throw new Error("cannot get bvid from url")
             }
+            bvid = processed.bvid
+            p = processed.p
         }
-        return { ...args,p:fp,bvid:bvid }
+        return { ...args, p: p, bvid: bvid }
+    }).superRefine((args, ctx) => {
+        if (!args.bvid) {
+            ctx.addIssue("cannot find bvid to parse")
+        }
     })
 
     private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.BVideoPlatform): Promise<BiliTypes.RES.Video.Video> {
@@ -107,12 +102,10 @@ export class BiliVideoRoute extends APIRoute {
             })
 
             if (!parmas.success) {
-                return this.jsonResponse(ctx, "invalid params", 400, null)
+                return this.jsonResponse(ctx, parmas.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            let { type, platform, cdn, qn, bvid, p: page } = parmas.data
-            if (!bvid) {
-                return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
-            }
+            const { type, platform, cdn, qn, p: page } = parmas.data
+            const bvid = parmas.data.bvid!
 
             const result = await this.parseBiliVideo(ctx, bvid, page, qn, platform)
             result.url = this.autoSwitchBiliCdn(ctx, result.url, cdn as any)

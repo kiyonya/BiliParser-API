@@ -10,27 +10,24 @@ export class SubtitleRoute extends APIRoute {
     private readonly PARAMS = z.object({
         url: z.url().optional(),
         bvid: z.string().optional(),
-        p: z.coerce.number().nonnegative().int().optional(),
+        p: z.coerce.number().nonnegative().int().optional().default(1).transform(p => p === 0 ? 1 : p),
         lang: z.string().optional(),
         type: z.enum(["srt", "json", "info"]).optional().default("info")
-    }).superRefine((args, ctx) => {
-        if (!args.bvid && !args.url) {
-            ctx.addIssue("must provided url or bvid to parse video")
-        }
     }).transform(async (args) => {
         let { bvid, p, url } = args
-        let fp = p ?? 1
-        if (fp === 0) fp = 1
-        if (!bvid && url) {
+        if (url) {
             const processed = await this.getBvParamsFromUrl(url)
-            if (processed) {
-                bvid = processed.bvid
-                if (p === undefined && processed.p) {
-                    fp = processed.p
-                }
+            if (!processed) {
+                throw new Error("cannot get bvid from url")
             }
+            bvid = processed.bvid
+            p = processed.p
         }
-        return { bvid, p: fp, url, lang: args.lang, type: args.type }
+        return { ...args, bvid, p }
+    }).superRefine((args, ctx) => {
+        if (!args.bvid) {
+            ctx.addIssue("cannot find bvid to parse")
+        }
     })
 
     protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
@@ -108,19 +105,10 @@ export class SubtitleRoute extends APIRoute {
                 type: url.searchParams.get('type') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.message, 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            let { bvid, url: providedUrl, p, lang, type } = params.data
-            if (!bvid && providedUrl) {
-                const processed = await this.getBvParamsFromUrl(providedUrl)
-                if (processed) {
-                    bvid = processed.bvid
-                    p = processed.p
-                }
-            }
-            if (!bvid) {
-                return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
-            }
+            const { p, lang, type } = params.data
+            const bvid = params.data.bvid!
             const subtitles = await this.parseSubtitle(ctx, bvid, p)
 
             if (lang) {

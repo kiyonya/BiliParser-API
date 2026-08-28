@@ -10,19 +10,20 @@ export class BiliCoverRoute extends APIRoute {
         url: z.url().optional(),
         bvid: z.string().optional(),
         type: z.enum(['img', 'url', 'redirect']).default('img').optional()
-    }).superRefine((args, ctx) => {
-        if (!args.bvid && !args.url) {
-            ctx.addIssue("must provided url or bvid to parse video")
-        }
     }).transform(async (args) => {
         let { bvid, url } = args
-        if (!bvid && url) {
+        if (url) {
             const processed = await this.getBvParamsFromUrl(url)
-            if (processed) {
-                bvid = processed.bvid
+            if (!processed) {
+                throw new Error("cannot get bvid from url")
             }
+            bvid = processed.bvid
         }
-        return { ...args, bvid: bvid }
+        return { ...args, bvid }
+    }).superRefine((args, ctx) => {
+        if (!args.bvid) {
+            ctx.addIssue("cannot find bvid to parse")
+        }
     })
 
     public override async handle(ctx: AppContext) {
@@ -38,12 +39,10 @@ export class BiliCoverRoute extends APIRoute {
                 type: url.searchParams.get('type') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, "invalid params", 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            let { type, bvid } = params.data
-            if (!bvid) {
-                return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
-            }
+            const { type } = params.data
+            const bvid = params.data.bvid!
 
             const key = this.CacheKey.videoInfo(bvid)
             let videoInfo = await this.getCache<BiliTypes.RES.Video.VideoInfo>(ctx, key)

@@ -12,25 +12,22 @@ export class BiliDanmakuRoute extends APIRoute {
         bvid: z.string().optional(),
         type: z.enum(['xml', 'json']).optional().default('xml'),
         url: z.url().optional(),
-        p: z.coerce.number().nonnegative().int().optional()
-    }).superRefine((args, ctx) => {
-        if (!args.bvid && !args.url) {
-            ctx.addIssue("must provided url or bvid to parse danmaku")
-        }
+        p: z.coerce.number().nonnegative().int().optional().default(1).transform(p => p === 0 ? 1 : p)
     }).transform(async (args) => {
         let { bvid, p, url } = args
-        let finalP = p ?? 1
-        if (finalP === 0) finalP = 1
-        if (!bvid && url) {
+        if (url) {
             const processed = await this.getBvParamsFromUrl(url)
-            if (processed) {
-                bvid = processed.bvid
-                if (p === undefined && processed.p) {
-                    finalP = processed.p
-                }
+            if (!processed) {
+                throw new Error("cannot get bvid from url")
             }
+            bvid = processed.bvid
+            p = processed.p
         }
-        return { ...args,bvid, p: finalP}
+        return { ...args, bvid, p }
+    }).superRefine((args, ctx) => {
+        if (!args.bvid) {
+            ctx.addIssue("cannot find bvid to parse")
+        }
     })
 
     private _parser: BiliVideoParser | null = null
@@ -125,7 +122,7 @@ export class BiliDanmakuRoute extends APIRoute {
                 return ctx.text(`429 Too Many Requests`, 429)
             }
 
-            const params =await this.PARAMS.safeParseAsync({
+            const params = await this.PARAMS.safeParseAsync({
                 bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
                 type: url.searchParams.get('type') || undefined,
                 url: url.searchParams.get('url') || undefined,
@@ -133,19 +130,10 @@ export class BiliDanmakuRoute extends APIRoute {
             })
 
             if (!params.success) {
-                return this.jsonResponse(ctx, "invalid params", 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            let { type, bvid, url: provideUrl, p: page } = params.data
-            if (!bvid && provideUrl) {
-                const processed = await this.getBvParamsFromUrl(provideUrl)
-                if (processed) {
-                    bvid = processed.bvid
-                    page = processed.p
-                }
-            }
-            if (!bvid) {
-                return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
-            }
+            const { type, p: page } = params.data
+            const bvid = params.data.bvid!
             const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
             if (!danmakuXML) {
                 throw new Error('failed to parse danmaku via cid')
