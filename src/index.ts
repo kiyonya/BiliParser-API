@@ -11,10 +11,10 @@ import { BARoute } from "./routes/b2a";
 import { BiliCoverRoute } from "./routes/cover";
 import { BaseRoute } from "./routes/base";
 import { BiliDanmakuRoute } from "./routes/danmaku";
-import z from "zod";
 import { SubtitleRoute } from "./routes/subtitle";
 
 const app = new Hono<{ Bindings: Env }>();
+app.get('/opensource',(c)=>c.redirect("https://github.com/kiyonya/BiliParser-API"))
 const openapi = fromHono(app, {
 	docs_url: "/doc"
 });

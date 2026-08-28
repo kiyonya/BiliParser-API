@@ -46,26 +46,7 @@
 ## 快速开始
 
 > [!IMPORTANT]
-> ##### 关于传递 ?url= 的注意事项
->部分路由支持输入url自动解析所需参数，同时支持BV号,分P和url输入,它们的优先级保持为 
-> **`路径参数 > 用户输入的query参数 > 从用户输入的query中的url解析而来的参数`**
->
-> *并不建议您在使用url参数时同时使用bvid或者p参数,因为这可能会造成意想不到的问题,即使程序对此做了兼容*
-> *传递url时url本身携带的一些参数可能会与需要的参数冲突,推荐您将整个url进行URIComponent编码*
->
-> ##### 以下为程序兼容的优先级例子
-> `/video/BV1LCzTByEBY/2` bv是 `BV1LCzTByEBY` 分p是 `2` 因为两者都是路径参数
->
-> `/video/BV1LCzTByEBY/2?p=4` bv是 `BV1LCzTByEBY` 分p是 `2` 因为虽然query传递了4,但是路径参数优先级高于query
->
->`/video?bvid=BV1LCzTByEBY&p=4` bv是 `BV1LCzTByEBY` 分p是 `4` 两者都为query参数
->
->`/video?bvid=BV1LCzTByEBY&p=4&url=https://www.bilibili.com/video/BV1obZjBSEpT` bv是 `BV1LCzTByEBY` 分p是 `4` 即使传递了url,但是因为query参数优先级高于从query.url解析,仍然读取query
->
->`/video?p=2&url=https://www.bilibili.com/video/BV1obZjBSEpT?p=8` bv是 `BV1obZjBSEpT` 分p是 `2` 因为query参数优先级高于从query.url解析
->
->`/video?url=https://www.bilibili.com/video/BV1obZjBSEpT?p=8`
-bv是 `BV1obZjBSEpT` 分p是 `8`
+> 部分路由支持从url参数自动解析所需要的参数,当提供url参数时,其余路径参数和query参数(bvid,p)将会被忽略
 
 ### 视频播放
 
@@ -371,7 +352,6 @@ curl "https://your.workers.domain/user/archieve/296909317/3091395?page=1&pageSiz
 curl "https://your.workers.domain/ipregion"
 ```
 
-
 ### 响应头
 
 | 头                                                         | 说明                                           |
@@ -405,7 +385,6 @@ npm install
 
 > [!Tip]
 > 您可以查看项目根目录下的`warngler.example.jsonc`的配置示范,或者您可以重命名删除`.example`后填入信息直接部署
-
 
 绑定 Workers KV 存储库:
 
