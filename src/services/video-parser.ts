@@ -27,13 +27,13 @@ export default class BiliVideoParser extends Parser {
             const title = headData.title || ""
             const desc = headData.desc || ""
             const owner = headData.owner || { mid: 0, name: "", face: "" }
-            const parts:BiliTypes.RES.Video.VideoPart[] = (headData.pages || []).map(i=>({
-                partTitle:i.part,
-                page:i.page,
-                firstFrame:i.first_frame || cover,
-                duration:i.duration,
-                cid:i.cid,
-                ctime:i.ctime
+            const parts: BiliTypes.RES.Video.VideoPart[] = (headData.pages || []).map(i => ({
+                partTitle: i.part,
+                page: i.page,
+                firstFrame: i.first_frame || cover,
+                duration: i.duration,
+                cid: i.cid,
+                ctime: i.ctime
             }))
             const info: BiliTypes.RES.Video.VideoInfo = {
                 bvid: bvid,
@@ -46,9 +46,9 @@ export default class BiliVideoParser extends Parser {
                 owner: owner,
                 info_source: 'view',
                 infoSource: 'view',
-                parts:parts
+                parts: parts
             }
-            if(Validation.validVideoInfo(info)){
+            if (Validation.videoInfoSchema.safeParse(info).success) {
                 return info
             }
         }
@@ -62,7 +62,7 @@ export default class BiliVideoParser extends Parser {
         if (videoCidData.code === 0 && videoCidData.data.length && videoCidData.data[0]) {
 
             const pageData = videoCidData.data[0]
-            if(!pageData){
+            if (!pageData) {
                 throw new Error(`cannot get page data`)
             }
             const cid = pageData.cid as number
@@ -72,13 +72,13 @@ export default class BiliVideoParser extends Parser {
             const title = pageData.part || ""
             const desc = ""
             const owner = { mid: 0, name: "", face: "" }
-            const parts:BiliTypes.RES.Video.VideoPart[] = (videoCidData.data|| []).map(i=>({
-                partTitle:i.part,
-                page:i.page,
-                firstFrame:i.first_frame || cover,
-                duration:i.duration,
-                cid:i.cid,
-                ctime:i.ctime
+            const parts: BiliTypes.RES.Video.VideoPart[] = (videoCidData.data || []).map(i => ({
+                partTitle: i.part,
+                page: i.page,
+                firstFrame: i.first_frame || cover,
+                duration: i.duration,
+                cid: i.cid,
+                ctime: i.ctime
             }))
             const info: BiliTypes.RES.Video.VideoInfo = {
                 bvid: bvid,
@@ -91,10 +91,10 @@ export default class BiliVideoParser extends Parser {
                 owner: owner,
                 info_source: 'fallback',
                 infoSource: 'fallback',
-                parts:parts
+                parts: parts
             }
-            
-            if(Validation.validVideoInfo(info)){
+
+            if (Validation.videoInfoSchema.safeParse(info).success) {
                 return info
             }
         }
@@ -140,7 +140,9 @@ export default class BiliVideoParser extends Parser {
                     platform: platform,
                     urlExpirationAt: urlExpirationAt
                 }
-                return data
+                if(Validation.videoPlayUrlSchema.safeParse(data)){
+                    return data
+                }
             } catch (error) {
                 continue
             }
@@ -275,5 +277,41 @@ export default class BiliVideoParser extends Parser {
             return xmlText
         }
         return null
+    }
+
+    public async getVideoSubtitles(bvid: string, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
+        const cookie = await this.BCrypto.getBiliAntiCookie(true)
+        const url = new URL(this.BILI_PLAYERV2_API)
+        const params = {
+            bvid: bvid,
+            cid: cid
+        }
+        const sign = await this.BCrypto.signWbi(params)
+        for (const [key, value] of sign.entries()) {
+            url.searchParams.append(key, value)
+        }
+        const req = await proxyFetch(url, {
+            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+        });
+        const data = await req.json() as BiliTypes.BAPI.BiliPlayerV2
+        if (data.code === 0) {
+            const s: BiliTypes.RES.Subtitle.SubtitleItem[] = []
+            const subtitles = data.data.subtitle.subtitles || []
+            const urlProtocol = "https:"
+            for (const subtitle of subtitles) {
+                const item: BiliTypes.RES.Subtitle.SubtitleItem = {
+                    originalJsonUrl: subtitle.subtitle_url ? `${urlProtocol}${subtitle.subtitle_url}` : "",
+                    originalJsonUrlV2: subtitle.subtitle_url_v2 ? `${urlProtocol}${subtitle.subtitle_url_v2}` : "",
+                    lang: subtitle.lan,
+                    langName: subtitle.lan_doc,
+                    id: subtitle.id_str
+                }
+                if( Validation.videoSubtitleItemSchema.safeParse(item).success){
+                    s.push(item)
+                }
+            }
+            return s
+        }
+        throw new Error("cannot get subtitles")
     }
 }

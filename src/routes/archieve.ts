@@ -36,13 +36,13 @@ export class BiliArchieveRoute extends APIRoute {
             const { mid, seasonId, page, pageSize } = params.data
 
             const resultCacheKey = this.CacheKey.userArchieves(mid, seasonId, page, pageSize)
-            let result = await this.getCache<BiliTypes.RES.User.UserArchieves>(ctx, resultCacheKey, Validation.validUserArchieves)
+            let result = await this.getCache<BiliTypes.RES.User.UserArchieves>(ctx, resultCacheKey, Validation.userArchievesSchema)
             if (!result) {
                 const parser = new BiliUserParser()
                 result = await parser.getUserSeasonArchieves(mid, seasonId, false, page, pageSize)
-                await this.setCache(ctx, resultCacheKey, result, this.nowS + Config.UGCSeasonArchieveCacheTime, Validation.validUserArchieves)
+                await this.setCache(ctx, resultCacheKey, result, this.nowS + Config.UGCSeasonArchieveCacheTime, Validation.userArchievesSchema)
             }
-            return this.jsonResponse(ctx, 'Success', 200, result)
+            return this.jsonResponse(ctx, 'Success', 200, result, Validation.userArchievesSchema)
         } catch (error) {
             return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
         }

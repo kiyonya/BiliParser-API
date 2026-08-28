@@ -17,12 +17,12 @@ export namespace BiliTypes {
         export namespace Video {
 
             export interface VideoPart {
-                page:number,
-                firstFrame:string,
-                duration:number,
-                partTitle:string,
-                cid:number,
-                ctime:number
+                page: number,
+                firstFrame: string,
+                duration: number,
+                partTitle: string,
+                cid: number,
+                ctime: number
             }
 
             export interface VideoInfo {
@@ -40,7 +40,7 @@ export namespace BiliTypes {
                     face: string,
                 },
                 desc: string,
-                parts:VideoPart[]
+                parts: VideoPart[]
             }
 
             export interface PlayURL {
@@ -51,7 +51,7 @@ export namespace BiliTypes {
                 urlExpirationAt: number
             }
 
-            export type Video = VideoInfo & PlayURL & {urlVideoPart:number,urlCid:number}
+            export type Video = VideoInfo & PlayURL & { urlVideoPart: number, urlCid: number }
         }
 
         export namespace User {
@@ -189,6 +189,21 @@ export namespace BiliTypes {
                 danmakus: Danmaku[]
             }
         }
+
+        export namespace Subtitle {
+
+            export interface SubtitleItem {
+                lang: string,
+                langName: string,
+                id: string,
+                originalJsonUrl:string,
+                originalJsonUrlV2:string
+            }
+
+            export interface SubtitleItemWithTransfer extends SubtitleItem {
+                srt:string
+            }
+        }
     }
 
     export namespace BAPI {
@@ -225,8 +240,6 @@ export namespace BiliTypes {
 
 
 
-
-
         export interface FingerSPI extends Response<{
             b_3: string,
             b_4: string
@@ -254,8 +267,8 @@ export namespace BiliTypes {
                 page: number,
                 part: string,
                 duration: number,
-                first_frame:string,
-                ctime:number
+                first_frame: string,
+                ctime: number
             }[]
         }> { }
 
@@ -374,6 +387,26 @@ export namespace BiliTypes {
             }[],
             quality: number,
             timelength: number
+        }> { }
+
+        export interface BiliPlayerV2 extends Response<{
+            aid: number,
+            bvid: string,
+            cid: number,
+            subtitle: {
+                subtitles: {
+                    id: number;
+                    lan: string;
+                    lan_doc: string;
+                    is_lock: boolean;
+                    subtitle_url: string;
+                    subtitle_url_v2: string;
+                    type: number;
+                    id_str: string;
+                    ai_type: number;
+                    ai_status: number;
+                }[]
+            }
         }> { }
 
     }

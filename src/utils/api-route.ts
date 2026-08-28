@@ -87,7 +87,7 @@ export default class APIRoute extends OpenAPIRoute {
         return crypto.createHash('md5').update(string).digest('hex')
     }
 
-    protected async setCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAtCall: number | ((data: Data) => number), validate?: (data: Data) => boolean): Promise<void> {
+    protected async setCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAtCall: number | ((data: Data) => number), validate?: z.ZodType<Data>): Promise<void> {
         try {
             const expirationAt: number = typeof expirationAtCall === 'function' ? expirationAtCall(data) : expirationAtCall
             await Promise.allSettled([
@@ -99,7 +99,7 @@ export default class APIRoute extends OpenAPIRoute {
         }
     }
 
-    protected async getCache<Data = any>(ctx: AppContext, key: string, validate?: (data: Data) => boolean): Promise<Data | null> {
+    protected async getCache<Data = any>(ctx: AppContext, key: string, validate?: z.ZodType<Data>): Promise<Data | null> {
         try {
             const edgeCache = await this.EdgeCache.getEdgeCache<Data>(ctx, key, validate)
             if (edgeCache) {
@@ -122,7 +122,14 @@ export default class APIRoute extends OpenAPIRoute {
         }
     }
 
-    protected jsonResponse<Data = any>(ctx: AppContext, message: string, code: number, data: Data, headers?: Record<string, string>): Response {
+    protected jsonResponse<Data = any>(ctx: AppContext, message: string, code: number, data: Data, validateSchema?: z.ZodType<Data>, headers?: Record<string, string>): Response {
+        if (validateSchema) {
+            const parsed = validateSchema.safeParse(data)
+            if (!parsed.success) {
+                throw new Error(`response validation failed: ${parsed.error.message}`)
+            }
+            data = parsed.data as Data
+        }
         headers = {
             "Content-Type": "application/json",
             ...this.headers,
@@ -202,6 +209,9 @@ export default class APIRoute extends OpenAPIRoute {
         },
         videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.BVideoPlatform) => {
             return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${cid}:${qn}:${platform}`
+        },
+        videoSubtitles: (cid: number) => {
+            return `${this.CACHE_DATA_VERSION}:subtitle:${cid}`
         },
         userArchieves: (mid: number, seasonId: number, page: number, pageSize: number) => {
             return `${this.CACHE_DATA_VERSION}:userArchieves:${mid}:${seasonId}:${page}:${pageSize}`

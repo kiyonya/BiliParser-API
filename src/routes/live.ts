@@ -1,5 +1,5 @@
 import { AppContext, BiliTypes } from "../types";
-import z, { json } from "zod";
+import z from "zod";
 import BiliLiveParser from "../services/live-parser";
 import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
@@ -20,6 +20,15 @@ export class BiliLiveRoute extends APIRoute {
         if (!args.roomId && !args.url) {
             ctx.addIssue("roomId or url needed to parse")
         }
+    }).transform((args) => {
+        let {roomId,url} = args
+        if(!roomId && url){
+            const processed = this.getRoomIdFromURL(url)
+            if(processed){
+                roomId = processed
+            }
+        }
+        return {...args,roomId}
     })
 
     private readonly formatNumberMap: Record<'fmp4' | 'flv' | 'ts', number> = {
@@ -103,17 +112,13 @@ export class BiliLiveRoute extends APIRoute {
             if (!params.success) {
                 return this.jsonResponse(ctx, params.error.message, 400, null)
             }
-            let { roomId, type, codec, format, protocol, ov, url: urlProvided, platform } = params.data
-            if (!roomId && urlProvided) {
-                const roomIdFromUrl = this.getRoomIdFromURL(urlProvided)
-                if (roomIdFromUrl) { roomId = roomIdFromUrl }
-            }
+            let { roomId, type, codec, format, protocol, ov, platform } = params.data
             if (!roomId) {
                 return this.jsonResponse(ctx, "cannot found roomId to parse", 400, null)
             }
             const cacheKey = this.CacheKey.live(roomId)
             //edgeonly
-            let cached = await this.EdgeCache.getEdgeCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.validLive)
+            let cached = await this.EdgeCache.getEdgeCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.liveSchema)
             let result = cached?.data
             if (!result) {
                 const parser = new BiliLiveParser()
@@ -131,13 +136,13 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
                 //edgeonly
-                await this.EdgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + Config.BiliLiveCacheTime, Validation.validLive)
+                await this.EdgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + Config.BiliLiveCacheTime, Validation.liveSchema)
             }
             else {
                 this.cacheHits.edge.add(cacheKey)
             }
 
-            if (result.stream && Validation.validLiveStream(result.stream)) {
+            if (result.stream && Validation.liveStreamSchema.safeParse(result.stream).success) {
                 this.resHeaders.set('X-Stream-Parse-Platform', result.stream.platform)
                 if (result.stream.platform === 'xlive') {
                     this.resHeaders.set('X-Stream-Format', format)
@@ -149,7 +154,7 @@ export class BiliLiveRoute extends APIRoute {
 
             switch (type) {
                 case "json":
-                    return this.jsonResponse(ctx, 'Success', 200, result)
+                    return this.jsonResponse(ctx, 'Success', 200, result, Validation.liveSchema)
                 case "stream":
                 default:
                     //选取流

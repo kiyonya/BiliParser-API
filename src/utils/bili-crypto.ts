@@ -18,7 +18,11 @@ export default class BiliCrypto {
     public biliAntiCookie: string | null = null
     public biliWbiMixinKey: string | null = null
 
-    public async getBiliAntiCookie(): Promise<string> {
+    public async getBiliAntiCookie(sessdata:boolean = false): Promise<string> {
+        if(sessdata){
+            //不缓存sessdata
+            return await this.createBiliAntiCookie(sessdata)
+        }
         if (!this.biliAntiCookie) {
             this.biliAntiCookie = await this.createBiliAntiCookie()
         }
@@ -41,7 +45,7 @@ export default class BiliCrypto {
         return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    private async createBiliAntiCookie(): Promise<string> {
+    private async createBiliAntiCookie(sessdata:boolean = false): Promise<string> {
 
         let buvid3 = "5EF0C718-3378-71FB-C2E2-A2978FA3248369236infoc";
         let buvid4 = null;
@@ -77,6 +81,12 @@ export default class BiliCrypto {
         const parts = [`buvid3=${buvid3}`];
         if (buvid4) parts.push(`buvid4=${buvid4}`);
         if (ticket) parts.push(`bili_ticket=${ticket}`);
+        if(sessdata){
+            const envSESSDATA = process.env.CONFIG_SESSDATA
+            if(envSESSDATA){
+                parts.push(`SESSDATA=${envSESSDATA}`)
+            }
+        }
         return parts.join('; ');
     }
 

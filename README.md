@@ -45,6 +45,28 @@
 
 ## 快速开始
 
+> [!IMPORTANT]
+> ##### 关于传递 ?url= 的注意事项
+>部分路由支持输入url自动解析所需参数，同时支持BV号,分P和url输入,它们的优先级保持为 
+> **`路径参数 > 用户输入的query参数 > 从用户输入的query中的url解析而来的参数`**
+>
+> *并不建议您在使用url参数时同时使用bvid或者p参数,因为这可能会造成意想不到的问题,即使程序对此做了兼容*
+> *传递url时url本身携带的一些参数可能会与需要的参数冲突,推荐您将整个url进行URIComponent编码*
+>
+> ##### 以下为程序兼容的优先级例子
+> `/video/BV1LCzTByEBY/2` bv是 `BV1LCzTByEBY` 分p是 `2` 因为两者都是路径参数
+>
+> `/video/BV1LCzTByEBY/2?p=4` bv是 `BV1LCzTByEBY` 分p是 `2` 因为虽然query传递了4,但是路径参数优先级高于query
+>
+>`/video?bvid=BV1LCzTByEBY&p=4` bv是 `BV1LCzTByEBY` 分p是 `4` 两者都为query参数
+>
+>`/video?bvid=BV1LCzTByEBY&p=4&url=https://www.bilibili.com/video/BV1obZjBSEpT` bv是 `BV1LCzTByEBY` 分p是 `4` 即使传递了url,但是因为query参数优先级高于从query.url解析,仍然读取query
+>
+>`/video?p=2&url=https://www.bilibili.com/video/BV1obZjBSEpT?p=8` bv是 `BV1obZjBSEpT` 分p是 `2` 因为query参数优先级高于从query.url解析
+>
+>`/video?url=https://www.bilibili.com/video/BV1obZjBSEpT?p=8`
+bv是 `BV1obZjBSEpT` 分p是 `8`
+
 ### 视频播放
 
 将 BV 号拼接在 `/video/{bvid}` 后,请求会 **302 重定向** 到视频直链接,可直接用于 VRChat 播放器或任意视频播放器:

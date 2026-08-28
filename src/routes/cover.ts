@@ -14,6 +14,15 @@ export class BiliCoverRoute extends APIRoute {
         if (!args.bvid && !args.url) {
             ctx.addIssue("must provided url or bvid to parse video")
         }
+    }).transform(async (args) => {
+        let { bvid, url } = args
+        if (!bvid && url) {
+            const processed = await this.getBvParamsFromUrl(url)
+            if (processed) {
+                bvid = processed.bvid
+            }
+        }
+        return { ...args, bvid: bvid }
     })
 
     public override async handle(ctx: AppContext) {
@@ -23,7 +32,7 @@ export class BiliCoverRoute extends APIRoute {
             if (!success) {
                 return ctx.text(`429 Too Many Requests`, 429)
             }
-            const params = this.PARAMS.safeParse({
+            const params = await this.PARAMS.safeParseAsync({
                 url: url.searchParams.get('url') || undefined,
                 bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
                 type: url.searchParams.get('type') || undefined
@@ -31,13 +40,7 @@ export class BiliCoverRoute extends APIRoute {
             if (!params.success) {
                 return this.jsonResponse(ctx, "invalid params", 400, null)
             }
-            let { type, bvid, url: purl } = params.data
-            if (!bvid && purl) {
-                const processed = await this.getBvParamsFromUrl(purl)
-                if(processed){
-                    bvid = processed.bvid
-                }
-            }
+            let { type, bvid } = params.data
             if (!bvid) {
                 return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
             }

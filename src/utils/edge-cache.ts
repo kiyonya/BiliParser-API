@@ -2,6 +2,7 @@
 import { Config } from "../config";
 import { AppContext, CacheResult, CacheWarp } from "../types";
 import crypto from 'crypto'
+import z from "zod";
 
 export default class EdgeCache {
 
@@ -17,7 +18,7 @@ export default class EdgeCache {
         return keyUrl
     }
 
-    public async getEdgeCache<Data = any>(ctx: AppContext, key: string, validate?: (data: Data) => boolean): Promise<CacheResult | null> {
+    public async getEdgeCache<Data = any>(ctx: AppContext, key: string, validate?: z.ZodType<Data>): Promise<CacheResult | null> {
         try {
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cached = await caches.default.match(vCacheKey)
@@ -33,7 +34,7 @@ export default class EdgeCache {
                     return null
                 }
                 const warp = await cached.json<CacheWarp>()
-                const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate(warp.data) : true) : true
+                const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate.safeParse(warp.data).success : true) : true
                 if (isDataValid) {
                     return {
                         data: warp.data,
@@ -52,9 +53,9 @@ export default class EdgeCache {
         }
     }
 
-    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: (data: Data) => boolean) {
+    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: z.ZodType<Data>) {
         try {
-            const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate(data) : true) : true
+            const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate.safeParse(data).success : true) : true
             if (!isDataValid) { return }
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cacheHeaders = new Headers()

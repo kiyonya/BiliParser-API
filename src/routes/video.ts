@@ -14,22 +14,38 @@ export class BiliVideoRoute extends APIRoute {
         qn: z.coerce.number().pipe(z.literal(64)).default(64),
         url: z.url().optional(),
         bvid: z.string().optional(),
-        p: z.coerce.number().nonnegative().int().default(1).transform((p) => p === 0 ? 1 : p)
+        p: z.coerce.number().nonnegative().int().optional()
     }).superRefine((args, ctx) => {
         if (!args.bvid && !args.url) {
             ctx.addIssue("must provided url or bvid to parse video")
         }
+    }).transform(async (args) => {
+        //优先级永远是
+        // 路径参数 > 用户输入的query参数 > 从用户输入的query中的url解析而来的参数
+        let { bvid, p, url } = args
+        let fp = p ?? 1
+        if (fp === 0) fp = 1
+        if (!bvid && url) {
+            const processed = await this.getBvParamsFromUrl(url)
+            if (processed) {
+                bvid = processed.bvid
+                if (p === undefined && processed.p) {
+                    fp = processed.p
+                }
+            }
+        }
+        return { ...args,p:fp,bvid:bvid }
     })
 
     private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.BVideoPlatform): Promise<BiliTypes.RES.Video.Video> {
 
         const parser = new BiliVideoParser()
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.getCache(ctx, infoKey, Validation.validVideoInfo)
+        let videoInfo = await this.getCache(ctx, infoKey, Validation.videoInfoSchema)
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.validVideoInfo)
+            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -40,7 +56,7 @@ export class BiliVideoRoute extends APIRoute {
         }
         const targetCid = targetPart.cid
         const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform)
-        let playUrl = await this.getCache<BiliTypes.RES.Video.PlayURL>(ctx, urlKey, Validation.validPlayUrl)
+        let playUrl = await this.getCache<BiliTypes.RES.Video.PlayURL>(ctx, urlKey, Validation.videoPlayUrlSchema)
         if (!playUrl) {
             const duration = videoInfo.duration
             playUrl = await parser.getVideoPlayUrl(bvid, targetCid, qn, platform)
@@ -59,7 +75,7 @@ export class BiliVideoRoute extends APIRoute {
                 const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
                 const expiration: number = Math.min(videoExpirationS, userExpirationS)
                 return expiration
-            }, Validation.validPlayUrl)
+            }, Validation.videoPlayUrlSchema)
 
         }
         this.resHeaders.set("x-url-cid", String(targetCid))
@@ -80,7 +96,7 @@ export class BiliVideoRoute extends APIRoute {
             if (!success) {
                 return ctx.text(`429 Too Many Requests`, 429)
             }
-            const parmas = this.PARAMS.safeParse({
+            const parmas = await this.PARAMS.safeParseAsync({
                 type: reqUrl.searchParams.get('type') || undefined,
                 platform: reqUrl.searchParams.get('platform') || undefined,
                 cdn: reqUrl.searchParams.get('cdn') || undefined,
@@ -93,14 +109,7 @@ export class BiliVideoRoute extends APIRoute {
             if (!parmas.success) {
                 return this.jsonResponse(ctx, "invalid params", 400, null)
             }
-            let { type, platform, cdn, qn, bvid, url, p: page } = parmas.data
-            if (!bvid && url) {
-                const processed = await this.getBvParamsFromUrl(url)
-                if (processed) {
-                    bvid = processed.bvid
-                    page = processed.p
-                }
-            }
+            let { type, platform, cdn, qn, bvid, p: page } = parmas.data
             if (!bvid) {
                 return this.jsonResponse(ctx, "cannot get bvid to parse", 400, null)
             }
@@ -110,7 +119,7 @@ export class BiliVideoRoute extends APIRoute {
 
             switch (type) {
                 case "json":
-                    return this.jsonResponse<BiliTypes.RES.Video.Video>(ctx, "Success", 200, result)
+                    return this.jsonResponse<BiliTypes.RES.Video.Video>(ctx, "Success", 200, result, Validation.videoSchema)
                 case "url":
                     return ctx.text(result.url, 200)
                 case "video":

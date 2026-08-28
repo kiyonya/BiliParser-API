@@ -1,5 +1,6 @@
 import { AppContext, BiliTypes } from "../types";
 import APIRoute from "../utils/api-route";
+import { Validation } from "../validation";
 import { proxyFetch } from "../utils/proxy-fetch";
 
 export class BiliIpRegionRoute extends APIRoute {
@@ -22,7 +23,7 @@ export class BiliIpRegionRoute extends APIRoute {
             const ipRegion = res.data.ip_region
             return this.jsonResponse(ctx, 'Success', 200, {
                 ipRegion: ipRegion
-            })
+            }, Validation.ipRegionSchema)
         } catch (error) {
             return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
         }

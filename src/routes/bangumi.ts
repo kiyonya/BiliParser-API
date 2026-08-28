@@ -43,13 +43,13 @@ export class BiliBangumiInfoRoute extends APIRoute {
                 return this.jsonResponse(ctx, 'invalid params', 400, null)
             }
             const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
-            let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.validBangumiInfo)
+            let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.bangumiInfoSchema)
             if (!result) {
                 const parser = new BiliBangumiParser()
                 result = await parser.getBangumiInfo(seasonId, episodeId)
-                await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiInfoCacheTime, Validation.validBangumiInfo)
+                await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiInfoCacheTime, Validation.bangumiInfoSchema)
             }
-            return this.jsonResponse(ctx, 'Success', 200, result)
+            return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiInfoSchema)
 
         } catch (error) {
             return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
@@ -89,14 +89,14 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
                 return this.jsonResponse(ctx, 'invalid params', 400, null)
             }
             const key = this.CacheKey.bangumiEpisodes(seasonId)
-            let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.validBangumiEpisode)
+            let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.bangumiEpisodeSchema)
             if (!result) {
                 const parser = new BiliBangumiParser()
                 result = await parser.getBangumiEpisodes(seasonId)
-                await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiEpisodesCacheTime, Validation.validBangumiEpisode)
+                await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiEpisodesCacheTime, Validation.bangumiEpisodeSchema)
             }
 
-            return this.jsonResponse(ctx, 'Success', 200, result)
+            return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiEpisodeSchema)
         } catch (error) {
             return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
         }
@@ -136,7 +136,7 @@ export class BiliBangumiPlayRoute extends APIRoute {
             }
 
             const key = this.CacheKey.bangumiPlayUrl(epid, qn)
-            let bangumi = await this.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.validBangumiPlayUrl)
+            let bangumi = await this.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.bangumiPlayUrlSchema)
             if (!bangumi) {
                 const parser = new BiliBangumiParser()
                 bangumi = await parser.getBangumiPlayUrl(epid, qn)
@@ -157,7 +157,7 @@ export class BiliBangumiPlayRoute extends APIRoute {
                     const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
                     const userExpirationS = Math.floor(Date.now() / 1000) + Config.BiliBangumiPlayUrlCacheTime
                     return Math.min(videoExpirationS, userExpirationS)
-                }, Validation.validBangumiPlayUrl)
+                }, Validation.bangumiPlayUrlSchema)
             }
             bangumi.url = this.autoSwitchBiliCdn(ctx, bangumi.url, cdn as any)
             switch (type) {
@@ -165,7 +165,7 @@ export class BiliBangumiPlayRoute extends APIRoute {
                     const url = bangumi.url
                     return ctx.redirect(`/pplay?url=${url}`, 307)
                 case "json":
-                    return this.jsonResponse(ctx, 'Success', 200, bangumi)
+                    return this.jsonResponse(ctx, 'Success', 200, bangumi, Validation.bangumiPlayUrlSchema)
             }
 
         } catch (error) {

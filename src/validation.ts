@@ -3,21 +3,21 @@ import { BiliTypes } from "./types";
 
 export abstract class Validation {
 
-    protected static videoPartSchema:z.ZodType<BiliTypes.RES.Video.VideoPart> = z.object({
-        page:z.coerce.number(),
-        firstFrame:z.union([z.url(),z.string()]).default(""),
-        duration:z.coerce.number(),
-        partTitle:z.string(),
-        ctime:z.number(),
-        cid:z.number()
+    public static videoPartSchema: z.ZodType<BiliTypes.RES.Video.VideoPart> = z.object({
+        page: z.coerce.number(),
+        firstFrame: z.union([z.url(), z.string()]).default(""),
+        duration: z.coerce.number(),
+        partTitle: z.string(),
+        ctime: z.number(),
+        cid: z.number()
     })
 
-    protected static videoInfoSchema: z.ZodType<BiliTypes.RES.Video.VideoInfo> = z.object({
+    public static videoInfoSchema: z.ZodType<BiliTypes.RES.Video.VideoInfo> = z.object({
         bvid: z.string(),
         cid: z.number(),
         aid: z.number(),
         title: z.string(),
-        pic: z.union([z.url(),z.string()]).default(""),
+        pic: z.union([z.url(), z.string()]).default(""),
         duration: z.number().nonnegative(),
         info_source: z.enum(["fallback", "view"]),
         infoSource: z.enum(["fallback", "view"]),
@@ -27,10 +27,10 @@ export abstract class Validation {
             face: z.string(),
         }),
         desc: z.string(),
-        parts:z.array(this.videoPartSchema)
+        parts: z.array(this.videoPartSchema)
     });
 
-    protected static videoPlayUrlSchema: z.ZodType<BiliTypes.RES.Video.PlayURL> = z.object({
+    public static videoPlayUrlSchema: z.ZodType<BiliTypes.RES.Video.PlayURL> = z.object({
         url: z.url(),
         originalCdnHostname: z.string(),
         quality: z.number().int().nonnegative(),
@@ -38,7 +38,7 @@ export abstract class Validation {
         urlExpirationAt: z.number().int().positive(),
     });
 
-    protected static liveStreamSchema: z.ZodType<BiliTypes.RES.Live.LiveStream> = z.object({
+    public static liveStreamSchema: z.ZodType<BiliTypes.RES.Live.LiveStream> = z.object({
         urls: z.array(z.object({
             qn: z.number().nonnegative(),
             url: z.url(),
@@ -48,7 +48,7 @@ export abstract class Validation {
         platform: z.enum(['xlive', 'h5'])
     })
 
-    protected static liveSchema: z.ZodType<BiliTypes.RES.Live.Live> = z.object({
+    public static liveSchema: z.ZodType<BiliTypes.RES.Live.Live> = z.object({
         isLiving: z.boolean(),
         uid: z.number(),
         roomId: z.number().int().positive(),
@@ -59,7 +59,7 @@ export abstract class Validation {
         areaId: z.number().int().positive(),
         areaName: z.string(),
         background: z.string(),
-        cover:z.string(),
+        cover: z.string(),
         keyframe: z.string(),
         title: z.string(),
         liveTime: z.string(),
@@ -68,7 +68,7 @@ export abstract class Validation {
         ])
     });
 
-    protected static bangumiInfoSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiInfo> = z.object({
+    public static bangumiInfoSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiInfo> = z.object({
         title: z.string(),
         cover: z.string(),
         actors: z.string(),
@@ -81,7 +81,7 @@ export abstract class Validation {
         })),
     });
 
-    protected static bangumiEpisodeSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiEpisode> = z.object({
+    public static bangumiEpisodeSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiEpisode> = z.object({
         episodes: z.array(z.object({
             aid: z.number(),
             cid: z.number(),
@@ -93,7 +93,7 @@ export abstract class Validation {
         }))
     })
 
-    protected static bangumiPlayUrlSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiPlayURL> = z.object({
+    public static bangumiPlayUrlSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiPlayURL> = z.object({
         quality: z.number(),
         duration: z.number().nonnegative(),
         url: z.url(),
@@ -101,7 +101,7 @@ export abstract class Validation {
         urlExpirationAt: z.number()
     })
 
-    protected static userArchievesSchema: z.ZodType<BiliTypes.RES.User.UserArchieves> = z.object({
+    public static userArchievesSchema: z.ZodType<BiliTypes.RES.User.UserArchieves> = z.object({
         mid: z.number().int().positive(),
         seasonId: z.number().int().positive(),
         archieves: z.array(z.object({
@@ -118,32 +118,66 @@ export abstract class Validation {
         }),
     });
 
-    public static validVideoInfo(data: BiliTypes.RES.Video.VideoInfo) {
-        return Validation.videoInfoSchema.safeParse(data).success;
-    }
-    public static validPlayUrl(data: BiliTypes.RES.Video.PlayURL) {
-        return Validation.videoPlayUrlSchema.safeParse(data).success
-    }
-    public static validLiveStream(data: BiliTypes.RES.Live.LiveStream) {
-        return Validation.liveStreamSchema.safeParse(data).success
-    }
-    public static validLive(data: BiliTypes.RES.Live.Live) {
-        return Validation.liveSchema.safeParse(data).success
-    }
-    public static validBangumiInfo(data: BiliTypes.RES.Bangumi.BangumiInfo) {
-        return Validation.bangumiInfoSchema.safeParse(data).success
-    }
-    public static validBangumiEpisode(data: BiliTypes.RES.Bangumi.BangumiEpisode) {
-        return Validation.bangumiEpisodeSchema.safeParse(data).success
-    }
-    public static validBangumiPlayUrl(data: BiliTypes.RES.Bangumi.BangumiPlayURL) {
-        return Validation.bangumiPlayUrlSchema.safeParse(data).success
-    }
-    public static validUserArchieves(data: BiliTypes.RES.User.UserArchieves) {
-        return Validation.userArchievesSchema.safeParse(data).success
-    }
-    public static validDanmaku(data:string){
-        return z.string().safeParse(data).success
-    }
+    public static videoSubtitleItemSchema: z.ZodType<BiliTypes.RES.Subtitle.SubtitleItem> = z.object({
+        lang: z.string(),
+        langName: z.string(),
+        originalJsonUrl: z.string(),
+        originalJsonUrlV2: z.string(),
+        id: z.string()
+    })
+
+    public static videoSubtitleItemWithTransferSchema: z.ZodType<BiliTypes.RES.Subtitle.SubtitleItemWithTransfer> = z.object({
+        lang: z.string(),
+        langName: z.string(),
+        originalJsonUrl: z.string(),
+        originalJsonUrlV2: z.string(),
+        id: z.string(),
+        srt: z.url()
+    })
+
+    public static danmakuSchema: z.ZodType<string> = z.string()
+
+    public static danmakuJSONSchema: z.ZodType<BiliTypes.RES.Danmaku.DanmakuJSON> = z.object({
+        chatServer: z.string(),
+        chatId: z.string(),
+        maxLimit: z.number(),
+        source: z.string(),
+        danmakus: z.array(z.object({
+            text: z.string(),
+            params: z.object({
+                time: z.number(),
+                mode: z.number(),
+                fontSize: z.number(),
+                color: z.number(),
+                colorHex: z.string(),
+                sendTime: z.number(),
+                type: z.number(),
+                userHash: z.string(),
+                dbId: z.string()
+            })
+        }))
+    })
+
+    public static videoSchema: z.ZodType<BiliTypes.RES.Video.Video> = z.intersection(
+        Validation.videoInfoSchema,
+        z.intersection(
+            Validation.videoPlayUrlSchema,
+            z.object({
+                urlVideoPart: z.number().int().positive(),
+                urlCid: z.number().int().positive()
+            })
+        )
+    )
+
+    public static bAvidSchema: z.ZodType<BiliTypes.RES.BAvid> = z.object({
+        bvid: z.string(),
+        avid: z.number().int().nonnegative()
+    })
+
+    public static ipRegionSchema: z.ZodType<{ ipRegion: string }> = z.object({
+        ipRegion: z.string()
+    })
+
+    public static videoCDNSchema: z.ZodType<BiliTypes.BiliVideoCDN> = z.record(z.string(), z.string()) as unknown as z.ZodType<BiliTypes.BiliVideoCDN>
 
 }

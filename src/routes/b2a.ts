@@ -1,6 +1,7 @@
 import z from "zod";
 import { AppContext, BiliTypes } from "../types";
 import APIRoute from "../utils/api-route";
+import { Validation } from "../validation";
 import { avToBv, bvToAv } from "../services/b2a";
 
 // !?blue archieve?!
@@ -41,14 +42,14 @@ export class BARoute extends APIRoute {
                 return this.jsonResponse<BiliTypes.RES.BAvid>(ctx, 'Success', 200, {
                     avid: avid,
                     bvid: bvid
-                })
+                }, Validation.bAvidSchema)
             }
             else if (avid) {
                 const bvid = avToBv(avid)
                 return this.jsonResponse<BiliTypes.RES.BAvid>(ctx, 'Success', 200, {
                     avid: avid,
                     bvid: bvid
-                })
+                }, Validation.bAvidSchema)
             }
             else {
                 return this.jsonResponse(ctx, 'invalid params', 400, null)

@@ -39,6 +39,8 @@ export abstract class Config {
 
     public static readonly BiliVideoInfoCacheTime: number = z.coerce.number().default(60 * 60 * 24).safeParse(process.env.CONFIG_BiliVideoInfoCacheTime).data ?? 60 * 60 * 24
 
+    public static readonly BiliVideoSubtitlesCacheTime:number = z.coerce.number().default(1800).safeParse(process.env.CONFIG_BiliVideoSubtitlesCacheTime).data ?? 1800
+
     //live
     public static readonly BiliLiveCacheTime: number = z.coerce.number().default(60).safeParse(process.env.CONFIG_BiliLiveCacheTime).data ?? 60
 
