@@ -92,7 +92,6 @@ export default class BiliCrypto {
                 ...this.parseCookiesMap(process.env.CONFIG_CustomCookies)
             }
         }
-        console.log(Config.EnableCustomCookies)
         let parts: string[] = []
         for (const [k, v] of Object.entries(cookies)) {
             parts.push(`${k}=${v}`)

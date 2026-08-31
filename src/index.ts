@@ -32,6 +32,4 @@ openapi.get('/bangumi/episodes', BiliBangumiEpisodesRoute)
 openapi.get('/bangumi/play/:epid?', BiliBangumiPlayRoute)
 openapi.get('/ipregion', BiliIpRegionRoute)
 openapi.get('/user/archieve/:mid?/:sid?', BiliArchieveRoute)
-
-console.log(z.coerce.boolean().safeParse("false"))
 export default app
