@@ -223,13 +223,15 @@ export default class BiliVideoParser extends Parser {
         url.searchParams.append('high_quality', '1')
         url.searchParams.append('try_look', '1')
         url.searchParams.append('fnval', String(this.formatFnvalMap[format]))
+        url.searchParams.append('fourk',"1")
+        url.searchParams.append("fnver","0")
         return url
     }
 
     private async createWbiReqUrl(bvid: string, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
         const wbiUrl = new URL(this.BILI_VIDEO_WBI_PLAYURL_API)
         const params: Record<string, any> = {
-            bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format]
+            bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format],fourk:1,fnver:0
         }
         const signed = await this.BCrypto.signWbi(params)
         for (const [key, value] of signed.entries()) {
@@ -246,7 +248,9 @@ export default class BiliVideoParser extends Parser {
             platform: platform.platform,
             ts: String(Math.floor(Date.now() / 1000)),
             otype: "json",
-            fnval: this.formatFnvalMap[format]
+            fnval: this.formatFnvalMap[format],
+            fourk:1,
+            fnver:0
         };
         const signed: URLSearchParams = await this.BCrypto.signApp(params, platform);
         const url = new URL(this.BILI_VIDEO_PLAYURL_API)
@@ -290,7 +294,6 @@ export default class BiliVideoParser extends Parser {
             const req = await proxyFetch(url, {
                 headers: headers,
             })
-
             switch (format) {
                 case "mp4":
                 default:
@@ -305,7 +308,7 @@ export default class BiliVideoParser extends Parser {
                     }
             }
         }
-        throw new Error("cannot get video stream by web")
+        throw new Error(`cannot get video stream by web with format:${format},platform:${platform};if your platform is html5 and format is dash,it requires the server login,or an error will be throw like this;retry platform:pc with format:dash`)
     }
 
     protected async getStreamAppLike(
@@ -356,7 +359,7 @@ export default class BiliVideoParser extends Parser {
      */
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "mp4"): Promise<BiliTypes.RES.Video.PlayURL>
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "dash"): Promise<BiliTypes.RES.Video.PlayDash>
-    public async getVideoPlayUrl(bvid: string, cid: number, qn: number = 64, platform: BiliTypes.RES.Video.VideoPlayPlatform = 'html5', format: BiliTypes.RES.Video.VideoPlayFormat = 'mp4'): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
+    public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform = 'html5', format: BiliTypes.RES.Video.VideoPlayFormat = 'mp4'): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
         try {
             const cookie = await this.BCrypto.getBiliAntiCookie();
             switch (platform) {
