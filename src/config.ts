@@ -7,6 +7,10 @@ export interface CDNStrategy {
 
 export abstract class Config {
 
+    public static get isServerLogin(){
+        return this.EnableCustomCookies && process.env.CONFIG_CustomCookies !== undefined
+    }
+
     protected static parseCDNStrategy(strategies?: string): CDNStrategy[] {
         const raw = strategies?.trim()
         if (!raw) { return [] }

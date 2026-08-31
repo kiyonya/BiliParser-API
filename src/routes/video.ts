@@ -37,6 +37,9 @@ export class BiliVideoRoute extends APIRoute {
         if (!args.bvid) {
             ctx.addIssue("cannot find bvid to parse")
         }
+        if (args.format === 'dash' && args.platform === 'html5' && !Config.isServerLogin) {
+            ctx.addIssue("Your request is fine, but when the platform is html5 and the format is dash, the server must be logged in. The current server is running offline, so please try changing the platform to app or pc.")
+        }
     })
 
     private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
@@ -60,27 +63,40 @@ export class BiliVideoRoute extends APIRoute {
         const targetCid = targetPart.cid
         const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format)
 
-        let playUrl = await this.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, urlKey, Validation.videoPlaySchema)
-        if (!playUrl) {
+        let videoPlay = await this.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, urlKey, Validation.videoPlaySchema)
+        if (!videoPlay) {
             const duration = videoInfo.duration
             //overload
-            playUrl = await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any)
-            await this.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, urlKey, playUrl, (data) => {
-                let videoBufferTimeS: number
-                if (duration < 60 * 10) {
-                    videoBufferTimeS = 60
+            videoPlay = await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL
+            //以真实qn进行缓存
+            let realQn: number | null = null
+            if (videoPlay.isDash) {
+                if (videoPlay.dash.video) {
+                    realQn = Math.max(...videoPlay.dash.video.map(i => i.quality))
                 }
-                else if (duration < 3600) {
-                    videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
-                }
-                else {
-                    videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
-                }
-                const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
-                const expiration: number = Math.min(videoExpirationS, userExpirationS)
-                return expiration
-            }, Validation.videoPlaySchema)
+            }
+            else {
+                realQn = videoPlay.quality
+            }
+            if (realQn) {
+                const setUrlKey = this.CacheKey.videoPlayUrl(targetCid, realQn, platform, format)
+                await this.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, setUrlKey, videoPlay, (data) => {
+                    let videoBufferTimeS: number
+                    if (duration < 60 * 10) {
+                        videoBufferTimeS = 60
+                    }
+                    else if (duration < 3600) {
+                        videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
+                    }
+                    else {
+                        videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
+                    }
+                    const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
+                    const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
+                    const expiration: number = Math.min(videoExpirationS, userExpirationS)
+                    return expiration
+                }, Validation.videoPlaySchema)
+            }
         }
         this.resHeaders.set("x-url-cid", String(targetCid))
         this.resHeaders.set("x-url-vpart", String(p))
@@ -88,7 +104,7 @@ export class BiliVideoRoute extends APIRoute {
         const video: BiliTypes.RES.Video.Video = {
             ...videoInfo,
             play: {
-                ...playUrl
+                ...videoPlay
             }
         }
         return video
@@ -96,8 +112,8 @@ export class BiliVideoRoute extends APIRoute {
 
     protected switchDashCDN(ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: keyof BiliTypes.BiliVideoCDN) {
         const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
-            dashItem.baseUrl = this.autoSwitchBiliCdn(ctx, dashItem.baseUrl, cdn)
-            dashItem.backupUrl = dashItem.backupUrl.map(u => this.autoSwitchBiliCdn(ctx, u, cdn))
+            dashItem.baseUrl = this.autoSwitchCDN(ctx, dashItem.baseUrl, cdn)
+            dashItem.backupUrl = dashItem.backupUrl.map(u => this.autoSwitchCDN(ctx, u, cdn))
             return dashItem
         }
         dash.video = dash.video ? dash.video.map(replaceHost) : dash.video
@@ -137,8 +153,8 @@ export class BiliVideoRoute extends APIRoute {
                 result.play.dash = this.switchDashCDN(ctx, result.play.dash, cdn)
             }
             else {
-                result.play.url = this.autoSwitchBiliCdn(ctx, result.play.url, cdn)
-                result.play.backupUrl = result.play.backupUrl.map(i => this.autoSwitchBiliCdn(ctx, i, cdn))
+                result.play.url = this.autoSwitchCDN(ctx, result.play.url, cdn)
+                result.play.backupUrl = result.play.backupUrl.map(i => this.autoSwitchCDN(ctx, i, cdn))
             }
 
             if (result.play.isDash) {

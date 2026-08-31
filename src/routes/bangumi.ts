@@ -157,7 +157,7 @@ export class BiliBangumiPlayRoute extends APIRoute {
                     return Math.min(videoExpirationS, userExpirationS)
                 }, Validation.bangumiPlayUrlSchema)
             }
-            bangumi.url = this.autoSwitchBiliCdn(ctx, bangumi.url, cdn as any)
+            bangumi.url = this.autoSwitchCDN(ctx, bangumi.url, cdn as any)
             switch (type) {
                 case "video":
                     const url = bangumi.url

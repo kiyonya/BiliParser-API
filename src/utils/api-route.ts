@@ -153,7 +153,7 @@ export default class APIRoute extends OpenAPIRoute {
         }
     }
 
-    protected autoSwitchBiliCdn(ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
+    protected autoSwitchCDN(ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
         const cf = ctx.req.raw.cf
         let cdnHostname: string | undefined = undefined
         if (cdn && this.CDNS[cdn]) {

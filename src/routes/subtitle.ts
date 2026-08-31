@@ -28,6 +28,9 @@ export class SubtitleRoute extends APIRoute {
         if (!args.bvid) {
             ctx.addIssue("cannot find bvid to parse")
         }
+        if(!Config.isServerLogin){
+            ctx.addIssue("This API can be used and your request is fine, but getting subtitles requires the server to be logged in. Right now the server is offline, so sorry, we can't handle your request this time.")
+        }
     })
 
     protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
