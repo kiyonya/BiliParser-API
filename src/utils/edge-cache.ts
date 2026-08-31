@@ -34,7 +34,7 @@ export default class EdgeCache {
                     return null
                 }
                 const warp = await cached.json<CacheWarp>()
-                const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate.safeParse(warp.data).success : true) : true
+                const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (validate ? validate.safeParse(warp.data).success : true) : true
                 if (isDataValid) {
                     return {
                         data: warp.data,
@@ -55,7 +55,7 @@ export default class EdgeCache {
 
     public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: z.ZodType<Data>) {
         try {
-            const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate.safeParse(data).success : true) : true
+            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (validate ? validate.safeParse(data).success : true) : true
             if (!isDataValid) { return }
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cacheHeaders = new Headers()

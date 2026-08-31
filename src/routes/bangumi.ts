@@ -48,7 +48,7 @@ export class BiliBangumiInfoRoute extends APIRoute {
             if (!result) {
                 const parser = new BiliBangumiParser()
                 result = await parser.getBangumiInfo(seasonId, episodeId)
-                await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiInfoCacheTime, Validation.bangumiInfoSchema)
+                await this.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME, Validation.bangumiInfoSchema)
             }
             return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiInfoSchema)
 
@@ -95,7 +95,7 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
             if (!result) {
                 const parser = new BiliBangumiParser()
                 result = await parser.getBangumiEpisodes(seasonId)
-                await this.setCache(ctx, key, result, this.nowS + Config.BiliBangumiEpisodesCacheTime, Validation.bangumiEpisodeSchema)
+                await this.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME, Validation.bangumiEpisodeSchema)
             }
 
             return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiEpisodeSchema)
@@ -153,7 +153,7 @@ export class BiliBangumiPlayRoute extends APIRoute {
                         videoBufferTimeS = Math.min(videoDuration * 0.05, 20 * 60)
                     }
                     const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                    const userExpirationS = Math.floor(Date.now() / 1000) + Config.BiliBangumiPlayUrlCacheTime
+                    const userExpirationS = Math.floor(Date.now() / 1000) + Config.BILI_BANGUMI_PLAYUEL_CACHE_TIME
                     return Math.min(videoExpirationS, userExpirationS)
                 }, Validation.bangumiPlayUrlSchema)
             }

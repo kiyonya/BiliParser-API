@@ -160,7 +160,7 @@ export default class APIRoute extends OpenAPIRoute {
             cdnHostname = this.CDNS[cdn]
         }
         else {
-            for (const strategy of Config.VideoCDNStrategy) {
+            for (const strategy of Config.VIDEO_CDN_STRATEGE) {
                 const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
                 if (isMatch) {
                     const cdnName = strategy.cdn

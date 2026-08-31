@@ -50,7 +50,7 @@ export class BiliVideoRoute extends APIRoute {
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.videoInfoSchema)
+            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -102,7 +102,7 @@ export class BiliVideoRoute extends APIRoute {
                             videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
                         }
                         const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                        const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
+                        const userExpirationS = this.nowS + Config.BILI_VIDEO_PLAYURL_CACHE_TIME
                         const expiration: number = Math.min(videoExpirationS, userExpirationS)
                         return expiration
                     }, Validation.videoPlaySchema)

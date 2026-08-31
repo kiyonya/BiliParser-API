@@ -86,7 +86,7 @@ export default class BiliCrypto {
         if (ticket) {
             cookies['bili_ticket'] = ticket
         }
-        if (Config.EnableCustomCookies && process.env.CONFIG_CustomCookies) {
+        if (Config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {
             cookies = {
                 ...cookies,
                 ...this.parseCookiesMap(process.env.CONFIG_CustomCookies)

@@ -40,7 +40,7 @@ export class SubtitleRoute extends APIRoute {
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.videoInfoSchema)
+            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -56,7 +56,7 @@ export class SubtitleRoute extends APIRoute {
         if (!subtitles) {
             subtitles = await parser.getVideoSubtitles(bvid, targetCid)
             if (subtitles.length) {
-                await this.setCache(ctx, subtitlesKey, subtitles, this.nowS + Config.BiliVideoSubtitlesCacheTime)
+                await this.setCache(ctx, subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
             }
         }
         return subtitles

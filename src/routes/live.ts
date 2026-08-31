@@ -136,7 +136,7 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
                 //edgeonly
-                await this.EdgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + Config.BiliLiveCacheTime, Validation.liveSchema)
+                await this.EdgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema)
             }
             else {
                 this.cacheHits.edge.add(cacheKey)

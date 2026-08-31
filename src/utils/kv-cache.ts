@@ -8,7 +8,7 @@ export default class KVCache {
         this.kvnamespace = kvbind
     }
     public async setKVCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: z.ZodType<Data>): Promise<void> {
-        const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate.safeParse(data).success : true) : true
+        const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (validate ? validate.safeParse(data).success : true) : true
         if (!isDataValid) { return }
         //@ts-ignore
         const ns: KVNamespace | undefined = ctx.env[this.kvnamespace]
@@ -35,7 +35,7 @@ export default class KVCache {
                 return null
             }
             const data = cached.data
-            const isDataValid = Config.EnableCacheDataValidation ? (validate ? validate.safeParse(data).success : true) : true
+            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (validate ? validate.safeParse(data).success : true) : true
             if (isDataValid) {
                 return {
                     data: data,

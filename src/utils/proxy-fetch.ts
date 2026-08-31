@@ -3,7 +3,7 @@ import { Config } from "../config";
 export async function proxyFetch(
     url: string | URL,
     init?: RequestInit,
-    useProxy: boolean = Config.UseProxyFetch,
+    useProxy: boolean = Config.ENABLE_PROXY_SERVER,
     options?: {
         retries?: number;
         initialDelay?: number;
@@ -14,8 +14,8 @@ export async function proxyFetch(
     }
 ) {
     const {
-        retries = Config.ProxyFetchMaxRetries,
-        timeout = Config.ProxyFetchTimeout,
+        retries = Config.PROXY_SERVER_FETCH_MAX_RETRIES,
+        timeout = Config.PROXY_SERVER_TIMEOUT,
         initialDelay = 1000,
         maxDelay = 30000,
         backoffFactor = 2,
@@ -36,8 +36,8 @@ export async function proxyFetch(
 
             const response = await (useProxy
                 ? (() => {
-                    const token = Config.ProxyToken
-                    const proxyServerUrl = Config.ProxyServerUrl
+                    const token = Config.PROXY_SERVER_TOKEN
+                    const proxyServerUrl = Config.PROXY_SERVER_URL
                     if(!proxyServerUrl){
                         throw new Error("no proxy server added")
                     }

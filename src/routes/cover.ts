@@ -49,7 +49,7 @@ export class BiliCoverRoute extends APIRoute {
             if (!videoInfo) {
                 const parser = new BiliVideoParser()
                 videoInfo = await parser.getVideoInfo(bvid)
-                await this.setCache(ctx, key, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime)
+                await this.setCache(ctx, key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
             }
             const imgUrl = videoInfo.pic
             switch (type) {

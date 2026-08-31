@@ -43,7 +43,7 @@ export class BiliDanmakuRoute extends APIRoute {
         let videoInfo = await this.getCache(ctx, infoKey, Validation.videoInfoSchema)
         if (!videoInfo) {
             videoInfo = await this.parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BiliVideoInfoCacheTime, Validation.videoInfoSchema)
+            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -61,7 +61,7 @@ export class BiliDanmakuRoute extends APIRoute {
         if (!danmakuXML) {
             danmakuXML = await this.parser.getVideoDanmakuXML(cid)
             if (danmakuXML) {
-                await this.setCache<string>(ctx, key, danmakuXML, this.nowS + Config.BiliDanmakuCacheTime, Validation.danmakuSchema)
+                await this.setCache<string>(ctx, key, danmakuXML, this.nowS + Config.BILI_DANMAKU_CACHE_TIME, Validation.danmakuSchema)
             }
         }
         return danmakuXML
