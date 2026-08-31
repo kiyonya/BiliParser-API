@@ -16,7 +16,7 @@ export interface APIResponse<Data = any> {
 export default class APIRoute extends OpenAPIRoute {
 
     public SERVER_VERSION = process.env.SERVER_VERSION
-    public CACHE_DATA_VERSION = 3
+    public CACHE_DATA_VERSION = process.env.CONFIG_CacheDataVersion ?? 5
     protected CF_CACHE_BASEURL = "https://bili.internal/cache"
     protected BILI_REFERER = "https://www.bilibili.com"
     protected BILI_VIDEO_PATTERN = new URLPattern("*://*bilibili.com/video/*")
