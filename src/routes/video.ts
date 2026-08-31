@@ -79,23 +79,34 @@ export class BiliVideoRoute extends APIRoute {
                 realQn = videoPlay.quality
             }
             if (realQn) {
-                const setUrlKey = this.CacheKey.videoPlayUrl(targetCid, realQn, platform, format)
-                await this.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, setUrlKey, videoPlay, (data) => {
-                    let videoBufferTimeS: number
-                    if (duration < 60 * 10) {
-                        videoBufferTimeS = 60
-                    }
-                    else if (duration < 3600) {
-                        videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
-                    }
-                    else {
-                        videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
-                    }
-                    const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                    const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
-                    const expiration: number = Math.min(videoExpirationS, userExpirationS)
-                    return expiration
-                }, Validation.videoPlaySchema)
+                const setKeys: string[] = []
+                if (qn === 64 && realQn === 80) {
+                    //try look 存两份
+                    //解析端设置trylook 当qn为64时也会提供qn=80的流,如果qn是64且80的时候存两份,并不代表qn=80时一定会有qn=64
+                    setKeys.push(this.CacheKey.videoPlayUrl(targetCid, 64, platform, format),
+                        this.CacheKey.videoPlayUrl(targetCid, 80, platform, format))
+                }
+                else {
+                    setKeys.push(this.CacheKey.videoPlayUrl(targetCid, realQn, platform, format))
+                }
+                for (const key of setKeys) {
+                    await this.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, key, videoPlay, (data) => {
+                        let videoBufferTimeS: number
+                        if (duration < 60 * 10) {
+                            videoBufferTimeS = 60
+                        }
+                        else if (duration < 3600) {
+                            videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
+                        }
+                        else {
+                            videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
+                        }
+                        const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
+                        const userExpirationS = this.nowS + Config.BiliVideoPlayUrlCacheTime
+                        const expiration: number = Math.min(videoExpirationS, userExpirationS)
+                        return expiration
+                    }, Validation.videoPlaySchema)
+                }
             }
         }
         this.resHeaders.set("x-url-cid", String(targetCid))
