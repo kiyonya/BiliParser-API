@@ -127,9 +127,7 @@ curl "https://your.workers.domain/video/BV1UT42167xb?type=json"
       "platform": "html5",
       "format": "mp4",
       "url": "https://upos-sz-mirrorali.bilivideo....",
-      "backupUrl": [
-        "https://upos-sz-mirroraliov.bilivideo...."
-      ],
+      "backupUrl": ["https://upos-sz-mirroraliov.bilivideo...."],
       "quality": 64
     }
   },
@@ -267,16 +265,16 @@ curl -I "https://your.workers.domain/live/5055636?ov=true"
 
 解析视频播放链接或视频信息。
 
-| 参数       | 类型                       | 默认     | 说明                                                                                                    |
-| ---------- | -------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| `bvid`     | string                     | -        | BV 号,如 `BV1UT42167xb`                                                                                 |
-| `p`        | number                     | `1`      | 分 P 序号,`0` 等价于 `1`                                                                                |
-| `type`     | `video` \| `json`          | `video`  | `video`:302 重定向到直链;`json`:返回解析结果(仅 `format=mp4` 时生效,`format=dash` 恒返回 JSON)         |
-| `format`   | `mp4` \| `dash`            | `mp4`    | `mp4`:单文件视频直链(支持 302 重定向);`dash`:DASH 多音视频流(视频/音频/杜比/无损,仅返回 JSON)          |
-| `platform` | `html5` \| `pc` \| `app`   | `html5`  | `html5`/`pc`:Web 播放源,无需 Referer;`app`:iOS/TV 播放源,播放时需携带对应 UA/Referer,否则 403           |
-| `cdn`      | string                     | 自动     | 强制换源,查看 `/cdn` 获取可用 CDN 名称                                                                  |
-| `qn`       | number                     | `64`     | 清晰度,支持 `6/16/32/64/74/80/100/112/116/120/125/126/127/129`                                          |
-| `url`      | string                     | -        | bilibili 视频链接,自动提取 BV 号与分 P,支持 `b23.tv` 短链                                               |
+| 参数       | 类型                     | 默认    | 说明                                                                                           |
+| ---------- | ------------------------ | ------- | ---------------------------------------------------------------------------------------------- |
+| `bvid`     | string                   | -       | BV 号,如 `BV1UT42167xb`                                                                        |
+| `p`        | number                   | `1`     | 分 P 序号,`0` 等价于 `1`                                                                       |
+| `type`     | `video` \| `json`        | `video` | `video`:302 重定向到直链;`json`:返回解析结果(仅 `format=mp4` 时生效,`format=dash` 恒返回 JSON) |
+| `format`   | `mp4` \| `dash`          | `mp4`   | `mp4`:单文件视频直链(支持 302 重定向);`dash`:DASH 多音视频流(视频/音频/杜比/无损,仅返回 JSON)  |
+| `platform` | `html5` \| `pc` \| `app` | `html5` | `html5`/`pc`:Web 播放源,无需 Referer;`app`:iOS/TV 播放源,播放时需携带对应 UA/Referer,否则 403  |
+| `cdn`      | string                   | 自动    | 强制换源,查看 `/cdn` 获取可用 CDN 名称                                                         |
+| `qn`       | number                   | `64`    | 清晰度,支持 `6/16/32/64/74/80/100/112/116/120/125/126/127/129`                                 |
+| `url`      | string                   | -       | bilibili 视频链接,自动提取 BV 号与分 P,支持 `b23.tv` 短链                                      |
 
 ```bash
 # url 参数传参,等价于 /video/{bvid}
@@ -479,24 +477,26 @@ npm install
 
 #### 环境变量
 
-| 变量                                  | 默认值   | 说明                                                                                                   |
-| ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| `CONFIG_CacheValidation`              | `true`   | 启用缓存校验                                                                                           |
-| `CONFIG_UseProxyFetch`                | `true`   | 使用代理服务器                                                                                         |
-| `CONFIG_ProxyToken`                   | -        | 代理服务器 Token(Bearer 认证)                                                                          |
-| `CONFIG_ProxyServerUrl`               | -        | 代理服务器地址                                                                                         |
-| `CONFIG_ProxyFetchTimeout`            | `10000`  | 代理超时时间(毫秒)                                                                                     |
-| `CONFIG_ProxyFetchMaxRetries`         | `3`      | 代理请求失败最大重试次数(指数退避)                                                                     |
-| `CONFIG_BiliVideoPlayUrlCacheTime`    | `5400`   | 视频播放地址最大缓存时间(秒)                                                                           |
-| `CONFIG_BiliBangumiPlayUrlCacheTime`  | `5400`   | 番剧播放地址最大缓存时间(秒)                                                                           |
-| `CONFIG_BiliLiveCacheTime`            | `60`     | 直播信息缓存时间(秒)                                                                                   |
-| `CONFIG_BiliVideoInfoCacheTime`       | `86400`  | 视频信息缓存时间(秒)                                                                                   |
-| `CONFIG_BiliBangumiEpisodesCacheTime` | `604800` | 番剧分集缓存时间(秒)                                                                                   |
-| `CONFIG_BiliBangumiInfoCacheTime`     | `604800` | 番剧信息缓存时间(秒)                                                                                   |
-| `CONFIG_UGCSeasonArchieveCacheTime`   | `86400`  | 用户合集缓存时间(秒)                                                                                   |
-| `CONFIG_BiliDanmakuCacheTime`         | `1800`   | 弹幕缓存时间(秒)                                                                                       |
-| `CONFIG_CDNS_DEFAULT`                 | -        | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
-| `SERVER_VERSION`                      | -        | 服务端版本号,会写入 `Server-Version` 响应头                                                            |
+| 变量 | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `CONFIG_EnableCustomCookies` | `false` | 允许使用配置的自定义cookie(需要填写 CONFIG_CustomCookies) |
+| `CONFIG_CustomCookies` | - | 自定义cookies,例如 `SESSDATA=123456...`,获取高清视频流以及字幕文件需要持有登录状态的cookies |
+| `CONFIG_CacheValidation` | `true` | 启用缓存校验 |
+| `CONFIG_UseProxyFetch` | `true` | 使用代理服务器 |
+| `CONFIG_ProxyToken` | - | 代理服务器 Token(Bearer 认证) |
+| `CONFIG_ProxyServerUrl` | - | 代理服务器地址 |
+| `CONFIG_ProxyFetchTimeout` | `10000` | 代理超时时间(毫秒) |
+| `CONFIG_ProxyFetchMaxRetries` | `3` | 代理请求失败最大重试次数(指数退避) |
+| `CONFIG_BiliVideoPlayUrlCacheTime` | `5400` | 视频播放地址最大缓存时间(秒) |
+| `CONFIG_BiliBangumiPlayUrlCacheTime` | `5400` | 番剧播放地址最大缓存时间(秒) |
+| `CONFIG_BiliLiveCacheTime` | `60` | 直播信息缓存时间(秒) |
+| `CONFIG_BiliVideoInfoCacheTime` | `86400` | 视频信息缓存时间(秒) |
+| `CONFIG_BiliBangumiEpisodesCacheTime` | `604800` | 番剧分集缓存时间(秒) |
+| `CONFIG_BiliBangumiInfoCacheTime` | `604800` | 番剧信息缓存时间(秒) |
+| `CONFIG_UGCSeasonArchieveCacheTime` | `86400` | 用户合集缓存时间(秒) |
+| `CONFIG_BiliDanmakuCacheTime` | `1800` | 弹幕缓存时间(秒) |
+| `CONFIG_CDNS_DEFAULT` | - | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
+| `SERVER_VERSION` | - | 服务端版本号,会写入 `Server-Version` 响应头 |
 
 ```jsonc
 "vars": {
