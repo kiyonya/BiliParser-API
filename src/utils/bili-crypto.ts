@@ -1,3 +1,4 @@
+import { Config } from "../config";
 import { BiliTypes } from "../types";
 import { proxyFetch } from "./proxy-fetch";
 
@@ -18,8 +19,8 @@ export default class BiliCrypto {
     public biliAntiCookie: string | null = null
     public biliWbiMixinKey: string | null = null
 
-    public async getBiliAntiCookie(sessdata:boolean = false): Promise<string> {
-        if(sessdata){
+    public async getBiliAntiCookie(sessdata: boolean = false): Promise<string> {
+        if (sessdata) {
             //不缓存sessdata
             return await this.createBiliAntiCookie(sessdata)
         }
@@ -45,7 +46,7 @@ export default class BiliCrypto {
         return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    private async createBiliAntiCookie(sessdata:boolean = false): Promise<string> {
+    private async createBiliAntiCookie(sessdata: boolean = false): Promise<string> {
 
         let buvid3 = "5EF0C718-3378-71FB-C2E2-A2978FA3248369236infoc";
         let buvid4 = null;
@@ -75,19 +76,54 @@ export default class BiliCrypto {
             if (json.data?.ticket) {
                 ticket = json.data.ticket
             }
-        } catch (e) { 
+        } catch (e) {
         }
-
-        const parts = [`buvid3=${buvid3}`];
-        if (buvid4) parts.push(`buvid4=${buvid4}`);
-        if (ticket) parts.push(`bili_ticket=${ticket}`);
-        if(sessdata){
-            const envSESSDATA = process.env.CONFIG_SESSDATA
-            if(envSESSDATA){
-                parts.push(`SESSDATA=${envSESSDATA}`)
+        let cookies: Record<string, string> = {}
+        cookies['buvid3'] = buvid3
+        if (buvid4) {
+            cookies['buvid4'] = buvid4
+        }
+        if (ticket) {
+            cookies['bili_ticket'] = ticket
+        }
+        if (Config.EnableCustomCookies && process.env.CONFIG_CustomCookies) {
+            cookies = {
+                ...cookies,
+                ...this.parseCookiesMap(process.env.CONFIG_CustomCookies)
             }
         }
-        return parts.join('; ');
+        console.log(Config.EnableCustomCookies)
+        let parts: string[] = []
+        for (const [k, v] of Object.entries(cookies)) {
+            parts.push(`${k}=${v}`)
+        }
+        return parts.join("; ")
+    }
+
+    private parseCookiesMap(cookies: string): Record<string, string> {
+        const cookieMap: Record<string, string> = {};
+        if (!cookies || cookies.trim() === '') {
+            return cookieMap;
+        }
+        const cookiePairs = cookies.split(';');
+
+        for (const pair of cookiePairs) {
+            const trimmedPair = pair.trim();
+            if (trimmedPair === '') continue;
+            const equalIndex = trimmedPair.indexOf('=');
+            if (equalIndex === -1) {
+                cookieMap[trimmedPair] = '';
+            } else {
+                const key = trimmedPair.substring(0, equalIndex).trim();
+                let value = trimmedPair.substring(equalIndex + 1).trim();
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.slice(1, -1);
+                }
+                cookieMap[key] = value;
+            }
+        }
+
+        return cookieMap;
     }
 
     private async createBiliWbiMixinKey(): Promise<string> {

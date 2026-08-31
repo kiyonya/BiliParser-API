@@ -207,8 +207,8 @@ export default class APIRoute extends OpenAPIRoute {
         videoInfo: (bvid: string) => {
             return `${this.CACHE_DATA_VERSION}:videoInfo:${bvid}`
         },
-        videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.BVideoPlatform) => {
-            return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${cid}:${qn}:${platform}`
+        videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform,format:BiliTypes.RES.Video.VideoPlayFormat) => {
+            return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${cid}:${qn}:${platform}:${format}`
         },
         videoSubtitles: (cid: number) => {
             return `${this.CACHE_DATA_VERSION}:subtitle:${cid}`

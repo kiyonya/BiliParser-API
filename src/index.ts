@@ -7,23 +7,23 @@ import { BiliBangumiEpisodesRoute, BiliBangumiInfoRoute, BiliBangumiPlayRoute } 
 import { BiliIpRegionRoute } from "./routes/biliip";
 import { BiliArchieveRoute } from "./routes/archieve";
 import { BiliVideoCDNRoute } from "./routes/cdn";
-import { BARoute } from "./routes/b2a";
 import { BiliCoverRoute } from "./routes/cover";
 import { BaseRoute } from "./routes/base";
 import { BiliDanmakuRoute } from "./routes/danmaku";
 import { SubtitleRoute } from "./routes/subtitle";
+import z from "zod";
 
 const app = new Hono<{ Bindings: Env }>();
-app.get('/opensource',(c)=>c.redirect("https://github.com/kiyonya/BiliParser-API"))
+app.get('/opensource', (c) => c.redirect("https://github.com/kiyonya/BiliParser-API"))
 const openapi = fromHono(app, {
 	docs_url: "/doc"
 });
 
 openapi.all('/', BaseRoute)
-openapi.get('/danmaku/:bvid?/:p?',BiliDanmakuRoute)
+openapi.get('/danmaku/:bvid?/:p?', BiliDanmakuRoute)
 openapi.get('/video/:bvid?/:p?', BiliVideoRoute)
-openapi.get('/subtitle/:bvid?/:p?',SubtitleRoute)
-openapi.get('/cover/:bvid?',BiliCoverRoute)
+openapi.get('/subtitle/:bvid?/:p?', SubtitleRoute)
+openapi.get('/cover/:bvid?', BiliCoverRoute)
 openapi.get('/cdn', BiliVideoCDNRoute)
 openapi.get('/live/:roomId?', BiliLiveRoute)
 openapi.get('/pplay', BiliProxyPlay)
@@ -32,6 +32,6 @@ openapi.get('/bangumi/episodes', BiliBangumiEpisodesRoute)
 openapi.get('/bangumi/play/:epid?', BiliBangumiPlayRoute)
 openapi.get('/ipregion', BiliIpRegionRoute)
 openapi.get('/user/archieve/:mid?/:sid?', BiliArchieveRoute)
-openapi.get('/bvav', BARoute)
 
+console.log(z.coerce.boolean().safeParse("false"))
 export default app

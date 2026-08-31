@@ -14,7 +14,7 @@
 		/* If NOT transpiling with TypeScript: */
 		"moduleResolution": "Bundler",
 		"module": "es2022",
-		"noEmit": true,
+		"noEmit":true,
 		"lib": ["es2024"],
 		"types": [
 			"./worker-configuration.d.ts",

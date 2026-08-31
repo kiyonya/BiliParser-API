@@ -30,13 +30,68 @@ export abstract class Validation {
         parts: z.array(this.videoPartSchema)
     });
 
+    public static videoPlayPlatformSchema: z.ZodType<BiliTypes.RES.Video.VideoPlayPlatform> = z.enum(['html5', 'pc', 'app'])
+    public static videoPlayFormatSchema: z.ZodType<BiliTypes.RES.Video.VideoPlayFormat> = z.enum(["mp4", "dash"])
+
     public static videoPlayUrlSchema: z.ZodType<BiliTypes.RES.Video.PlayURL> = z.object({
+        isDash: z.literal(false),
+        format: this.videoPlayFormatSchema,
+        cid: z.number(),
+        duration: z.number().nonnegative(),
+        urlExpirationAt: z.number(),
+        platform: this.videoPlayPlatformSchema,
         url: z.url(),
-        originalCdnHostname: z.string(),
-        quality: z.number().int().nonnegative(),
-        platform: z.enum(["web", "app"]),
-        urlExpirationAt: z.number().int().positive(),
+        backupUrl: z.array(z.string()),
+        quality: z.number()
     });
+
+    public static videoDashItemSchema: z.ZodType<BiliTypes.RES.Video.VideoDashItem> = z.object({
+        baseUrl: z.url(),
+        backupUrl: z.array(z.string()),
+        bandwidth: z.number(),
+        mime: z.string(),
+        width: z.number(),
+        height: z.number(),
+        frameRate: z.number(),
+        codecid: z.number(),
+        codecs: z.string(),
+        quality: z.number()
+    })
+
+    public static audioDashItemSchema: z.ZodType<BiliTypes.RES.Video.AudioDashItem> = z.object({
+        quality: z.number(),
+        baseUrl: z.url(),
+        backupUrl: z.array(z.string()),
+        bandwidth: z.number(),
+        mime: z.string(),
+        codecs: z.string(),
+        codecid: z.number()
+    })
+
+    public static videoPlayDashSchema: z.ZodType<BiliTypes.RES.Video.PlayDash> = z.object({
+        isDash: z.literal(true),
+        format: this.videoPlayFormatSchema,
+        cid: z.number(),
+        duration: z.number().nonnegative(),
+        urlExpirationAt: z.number(),
+        platform: this.videoPlayPlatformSchema,
+        dash: z.object({
+            minBufferTime: z.number(),
+            video: z.union([z.array(this.videoDashItemSchema), z.null()]),
+            audio: z.union([z.array(this.audioDashItemSchema), z.null()]),
+            dobly: z.union([z.array(this.audioDashItemSchema), z.null()]),
+            flac: z.union([z.array(this.audioDashItemSchema), z.null()])
+        })
+    });
+
+    public static videoPlaySchema: z.ZodType<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> = z.union([
+        this.videoPlayUrlSchema,
+        this.videoPlayDashSchema
+    ]);
+
+    public static videoSchema: z.ZodType<BiliTypes.RES.Video.Video> = z.intersection(this.videoInfoSchema, z.object({
+        play: this.videoPlaySchema
+    }))
 
     public static liveStreamSchema: z.ZodType<BiliTypes.RES.Live.LiveStream> = z.object({
         urls: z.array(z.object({
@@ -157,17 +212,6 @@ export abstract class Validation {
             })
         }))
     })
-
-    public static videoSchema: z.ZodType<BiliTypes.RES.Video.Video> = z.intersection(
-        Validation.videoInfoSchema,
-        z.intersection(
-            Validation.videoPlayUrlSchema,
-            z.object({
-                urlVideoPart: z.number().int().positive(),
-                urlCid: z.number().int().positive()
-            })
-        )
-    )
 
     public static bAvidSchema: z.ZodType<BiliTypes.RES.BAvid> = z.object({
         bvid: z.string(),

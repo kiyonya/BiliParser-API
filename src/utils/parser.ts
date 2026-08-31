@@ -10,8 +10,7 @@ export default abstract class Parser {
 
     protected BILI_CID_BACKUP_API = "https://api.bilibili.com/x/player/pagelist"
     protected BILI_VIDEO_VIEW_API = "https://api.bilibili.com/x/web-interface/view"
-    protected BILI_VIDEO_H5_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
-    protected BILI_VIDEO_APP_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
+    protected BILI_VIDEO_PLAYURL_API = "https://api.bilibili.com/x/player/playurl"
     protected BILI_VIDEO_WBI_PLAYURL_API = "https://api.bilibili.com/x/player/wbi/playurl"
     protected BILI_BANGUMI_INFO_API = "https://api.bilibili.com/pgc/view/web/simple/season"
     protected BILI_BANGUMI_EPISODE_API = "https://api.bilibili.com/pgc/web/season/section"

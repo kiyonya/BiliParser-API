@@ -97,6 +97,12 @@ export class SubtitleRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
+            const pathname = url.pathname
+            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+            if (!success) {
+                return ctx.text(`429 Too Many Requests`, 429)
+            }
+            
             const params = await this.PARAMS.safeParseAsync({
                 url: url.searchParams.get("url") || undefined,
                 bvid: ctx.req.param("bvid") || url.searchParams.get("bvid") || undefined,

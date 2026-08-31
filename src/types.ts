@@ -16,6 +16,9 @@ export namespace BiliTypes {
 
         export namespace Video {
 
+            export type VideoPlayPlatform = "html5" | "pc" | "app"
+            export type VideoPlayFormat = "mp4" | "dash"
+
             export interface VideoPart {
                 page: number,
                 firstFrame: string,
@@ -43,15 +46,59 @@ export namespace BiliTypes {
                 parts: VideoPart[]
             }
 
-            export interface PlayURL {
-                url: string,
-                originalCdnHostname: string,
-                quality: number,
-                platform: BVideoPlatform,
-                urlExpirationAt: number
+            export interface VideoDashItem {
+                baseUrl: string,
+                backupUrl: string[],
+                bandwidth: number,
+                mime: string,
+                width: number,
+                height: number,
+                frameRate: number,
+                codecid: number
+                codecs: string
+                quality: number
             }
 
-            export type Video = VideoInfo & PlayURL & { urlVideoPart: number, urlCid: number }
+            export interface AudioDashItem {
+                quality: number
+                baseUrl: string,
+                backupUrl: string[],
+                bandwidth: number,
+                mime: string,
+                codecs: string,
+                codecid: number
+            }
+
+            export interface VideoPlay {
+                isDash: boolean
+                platform: VideoPlayPlatform,
+                urlExpirationAt: number,
+                cid: number,
+                format: VideoPlayFormat
+                duration: number
+            }
+
+            export interface PlayDash extends VideoPlay {
+                isDash: true,
+                dash: {
+                    minBufferTime: number,
+                    video: VideoDashItem[] | null,
+                    audio: AudioDashItem[] | null,
+                    dobly: AudioDashItem[] | null,
+                    flac: AudioDashItem[] | null
+                }
+            }
+
+            export interface PlayURL extends VideoPlay {
+                isDash: false
+                url: string,
+                backupUrl: string[]
+                quality: number,
+            }
+
+            export interface Video extends VideoInfo {
+                play: PlayURL | PlayDash
+            }
         }
 
         export namespace User {
@@ -196,12 +243,12 @@ export namespace BiliTypes {
                 lang: string,
                 langName: string,
                 id: string,
-                originalJsonUrl:string,
-                originalJsonUrlV2:string
+                originalJsonUrl: string,
+                originalJsonUrlV2: string
             }
 
             export interface SubtitleItemWithTransfer extends SubtitleItem {
-                srt:string
+                srt: string
             }
         }
     }
@@ -291,8 +338,45 @@ export namespace BiliTypes {
                 url: string,
                 length: number,
                 size: number,
-                backup_url: string | null
+                backup_url: string[] | null
             }[]
+        }> { }
+
+        export interface BiliDashItem {
+            id: number;
+            baseUrl: string;
+            backupUrl: null | string[];
+            bandwidth: number;
+            mimeType: string;
+            codecs: string;
+            width: number;
+            height: number;
+            frameRate: string;
+            sar: string;
+            startWithSap: number;
+            segmentBase: {
+                initialization: string;
+                indexRange: string;
+            };
+            codecid: number;
+        }
+
+        export interface BiliPlayDash extends Response<{
+            quality: number,
+            format: string,
+            accept_quality: number[],
+            dash: {
+                duration: number,
+                minBufferTime: number,
+                video: BiliDashItem[],
+                audio: BiliDashItem[] | null,
+                dolby: {
+                    audio: BiliDashItem[]
+                } | null,
+                flac: {
+                    audio: BiliDashItem
+                } | null
+            }
         }> { }
 
         export interface BiliNav extends Response<{

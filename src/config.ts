@@ -32,7 +32,10 @@ export abstract class Config {
     public static readonly VideoCDNStrategy: CDNStrategy[] = this.parseCDNStrategy(process.env.CONFIG_VideoCDNStrategy ?? "AS,CN,alib;*,*,aliov") ?? []
 
     //cache
-    public static EnableCacheDataValidation: boolean = z.coerce.boolean().default(true).safeParse(process.env.CONFIG_CacheValidation).data ?? true
+    public static EnableCacheDataValidation: boolean = process.env.CONFIG_CacheValidation ? process.env.CONFIG_CacheValidation === "true" : true
+    
+    //cookies
+    public static EnableCustomCookies = process.env.CONFIG_EnableCustomCookies ? process.env.CONFIG_EnableCustomCookies === "true" : false
 
     //video
     public static readonly BiliVideoPlayUrlCacheTime: number = z.coerce.number().default(5400).safeParse(process.env.CONFIG_BiliVideoPlayUrlCacheTime).data ?? 5400
@@ -58,7 +61,7 @@ export abstract class Config {
     public static readonly BiliDanmakuCacheTime: number = z.coerce.number().default(1800).safeParse(process.env.CONFIG_BiliDanmakuCacheTime).data ?? 1800
 
     //proxy
-    public static readonly UseProxyFetch = z.coerce.boolean().default(true).safeParse(process.env.CONFIG_UseProxyFetch).data ?? true
+    public static readonly UseProxyFetch = process.env.CONFIG_UseProxyFetch ? process.env.CONFIG_UseProxyFetch === "true" : true
 
     public static readonly ProxyFetchMaxRetries: number = z.coerce.number().default(3).safeParse(process.env.CONFIG_ProxyFetchMaxRetries).data ?? 3
 
