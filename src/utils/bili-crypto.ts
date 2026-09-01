@@ -6,9 +6,9 @@ import { proxyFetch } from "./proxy-fetch";
 
 export default class BiliCrypto {
 
-    protected ctx?:AppContext
-    protected cache:CacheableObject
-    constructor(ctx?:AppContext,cacheableObject?:CacheableObject){
+    protected ctx?: AppContext
+    protected cache: CacheableObject
+    constructor(ctx?: AppContext, cacheableObject?: CacheableObject) {
         this.ctx = ctx
         this.cache = cacheableObject || new CacheableObject()
     }
@@ -75,10 +75,11 @@ export default class BiliCrypto {
     private async createBiliAntiCookie(): Promise<string> {
 
         const cookiesCacheKey = `${Config.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`
-        let cookies = this.ctx ? await this.cache.getCache<Record<string,string>>(this.ctx,cookiesCacheKey,undefined,'kv') : null
-
+        let cookies = this.ctx ? await this.cache.getCache<Record<string, string>>(this.ctx, cookiesCacheKey, undefined, 'kv', false) : null
         if (!cookies) {
             const signTs = Date.now()
+            this.cache.cacheExtraHeaders['x-bcrypto-cookies-cache'] = 'MISS'
+            this.cache.cacheExtraHeaders['x-bcrypto-sign-time'] = String(signTs)
             let buvid3 = this.BILI_DEFAULT_BUVID3;
             let buvid4 = null;
             let ticket: string | null = null
@@ -120,10 +121,13 @@ export default class BiliCrypto {
             }
             if (this.ctx && cookieCacheOk) {
                 const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
-                await this.cache.setCache(this.ctx,cookiesCacheKey,cookies,()=>{
+                await this.cache.setCache(this.ctx, cookiesCacheKey, cookies, () => {
                     return expirationAt
-                },undefined,'kv')
+                }, undefined, 'kv')
             }
+        }
+        else {
+            this.cache.cacheExtraHeaders['x-bcrypto-cookies-cache'] = 'HIT'
         }
 
         if (Config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {

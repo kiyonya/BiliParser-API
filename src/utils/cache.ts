@@ -13,6 +13,7 @@ export default class CacheableObject {
         edge: new Set<string>(),
         kv: new Set<string>()
     }
+    public cacheExtraHeaders:Record<string,string> = {}
     public kvCacheNotUsed: boolean = false
 
     constructor(kvns: string = "BILI_API_CACHE") {
@@ -40,12 +41,12 @@ export default class CacheableObject {
         }
     }
 
-    public async getCache<Data = any>(ctx: AppContext, key: string, validate?: z.ZodType<Data>, mode: CacheMode = "all"): Promise<Data | null> {
+    public async getCache<Data = any>(ctx: AppContext, key: string, validate?: z.ZodType<Data>, mode: CacheMode = "all",addkey:boolean = true): Promise<Data | null> {
         try {
             if (mode === 'edge') {
                 const edgeCache = await this.edgeCache.getEdgeCache<Data>(ctx, key, validate);
                 if (edgeCache) {
-                    this.cacheHits.edge.add(key);
+                    addkey && this.cacheHits.edge.add(key);
                     this.kvCacheNotUsed = true;
                     return edgeCache.data;
                 }
@@ -54,7 +55,7 @@ export default class CacheableObject {
             if (mode === 'kv') {
                 const kvCache = await this.kvCache.getKVCache<Data>(ctx, key, validate);
                 if (kvCache) {
-                    this.cacheHits.kv.add(key);
+                    addkey && this.cacheHits.kv.add(key);
                     this.kvCacheNotUsed = false;
                     return kvCache.data;
                 }
@@ -62,13 +63,13 @@ export default class CacheableObject {
             }
             const edgeCache = await this.edgeCache.getEdgeCache<Data>(ctx, key, validate);
             if (edgeCache) {
-                this.cacheHits.edge.add(key);
+                addkey && this.cacheHits.edge.add(key);
                 this.kvCacheNotUsed = true;
                 return edgeCache.data;
             }
             const kvCache = await this.kvCache.getKVCache<Data>(ctx, key, validate);
             if (kvCache) {
-                this.cacheHits.kv.add(key);
+                addkey && this.cacheHits.kv.add(key);
                 this.kvCacheNotUsed = false;
                 const kvCacheKey = kvCache.raw.key;
                 const expirationAt = kvCache.raw.expirationAt;

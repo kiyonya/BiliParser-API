@@ -58,6 +58,7 @@ export default class APIRoute extends OpenAPIRoute {
         'x-server-version': this.SERVER_VERSION,
         'x-nekocha': process.env.MOTD ?? "is nekocha cute?",
         'x-cache-version': String(this.CACHE_DATA_VERSION),
+        "x-server-online":String(Config.isServerLogin),
         "cache-control": "no-cache, no-store, must-revalidate",
         "pragma": "no-cache",
         "expires": "0",
@@ -66,12 +67,13 @@ export default class APIRoute extends OpenAPIRoute {
     })
 
     get headers() {
-        const headers: Record<string, string> = {}
+        let headers: Record<string, string> = {}
         for (const [k, v] of this.resHeaders) {
             headers[k] = String(v)
         }
         headers['x-cache-edge-hit'] = [...this.cache.cacheHits.edge].map(i => md5String(i)).join(", ") || 'MISS'
         headers['x-cache-kv-hit'] = [...this.cache.cacheHits.kv].map(i => md5String(i)).join(", ") || (this.cache.kvCacheNotUsed ? 'NOTUSE' : 'MISS')
+        headers = {...headers,...this.cache.cacheExtraHeaders}
         return headers
     }
 
