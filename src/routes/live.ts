@@ -118,8 +118,7 @@ export class BiliLiveRoute extends APIRoute {
             }
             const cacheKey = this.CacheKey.live(roomId)
             //edgeonly
-            let cached = await this.cache.edgeCache.getEdgeCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.liveSchema)
-            let result = cached?.data
+            let result = await this.cache.getCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.liveSchema,'edge')
             if (!result) {
                 const parser = new BiliLiveParser()
                 const info = await parser.getLiveInfo(roomId)
@@ -136,10 +135,7 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
                 //edgeonly
-                await this.cache.edgeCache.setEdgeCache(ctx, cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema)
-            }
-            else {
-                this.cache.cacheHits.edge.add(cacheKey)
+                await this.cache.setCache(ctx, cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema,'edge')
             }
 
             if (result.stream && Validation.liveStreamSchema.safeParse(result.stream).success) {
