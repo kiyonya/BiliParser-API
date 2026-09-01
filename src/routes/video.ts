@@ -32,6 +32,9 @@ export class BiliVideoRoute extends APIRoute {
             bvid = processed.bvid
             p = processed.p
         }
+        if (!Config.isServerLogin) {
+            qn = Math.min(qn, 80)
+        }
         return { ...args, p: p, bvid: bvid, platform, qn }
     }).superRefine((args, ctx) => {
         if (!args.bvid) {
@@ -44,13 +47,13 @@ export class BiliVideoRoute extends APIRoute {
 
     private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
 
-        const parser = new BiliVideoParser()
+        const parser = new BiliVideoParser(ctx,this.cache)
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.getCache(ctx, infoKey, Validation.videoInfoSchema)
+        let videoInfo = await this.cache.getCache(ctx, infoKey, Validation.videoInfoSchema)
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            await this.cache.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -61,53 +64,28 @@ export class BiliVideoRoute extends APIRoute {
         }
 
         const targetCid = targetPart.cid
-        const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format)
+        const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format, Config.serverLoginKeyHash)
 
-        let videoPlay = await this.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, urlKey, Validation.videoPlaySchema)
+        let videoPlay = await this.cache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, urlKey, Validation.videoPlaySchema)
         if (!videoPlay) {
             const duration = videoInfo.duration
-            //overload
             videoPlay = await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL
-            //以真实qn进行缓存
-            let realQn: number | null = null
-            if (videoPlay.isDash) {
-                if (videoPlay.dash.video) {
-                    realQn = Math.max(...videoPlay.dash.video.map(i => i.quality))
+            await this.cache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, urlKey, videoPlay, (data) => {
+                let videoBufferTimeS: number
+                if (duration < 60 * 10) {
+                    videoBufferTimeS = 60
                 }
-            }
-            else {
-                realQn = videoPlay.quality
-            }
-            if (realQn) {
-                const setKeys: string[] = []
-                if (qn === 64 && realQn === 80) {
-                    //try look 存两份
-                    //解析端设置trylook 当qn为64时也会提供qn=80的流,如果qn是64且80的时候存两份,并不代表qn=80时一定会有qn=64
-                    setKeys.push(this.CacheKey.videoPlayUrl(targetCid, 64, platform, format),
-                        this.CacheKey.videoPlayUrl(targetCid, 80, platform, format))
+                else if (duration < 3600) {
+                    videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
                 }
                 else {
-                    setKeys.push(this.CacheKey.videoPlayUrl(targetCid, realQn, platform, format))
+                    videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
                 }
-                for (const key of setKeys) {
-                    await this.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(ctx, key, videoPlay, (data) => {
-                        let videoBufferTimeS: number
-                        if (duration < 60 * 10) {
-                            videoBufferTimeS = 60
-                        }
-                        else if (duration < 3600) {
-                            videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
-                        }
-                        else {
-                            videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
-                        }
-                        const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                        const userExpirationS = this.nowS + Config.BILI_VIDEO_PLAYURL_CACHE_TIME
-                        const expiration: number = Math.min(videoExpirationS, userExpirationS)
-                        return expiration
-                    }, Validation.videoPlaySchema)
-                }
-            }
+                const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
+                const userExpirationS = this.nowS + Config.BILI_VIDEO_PLAYURL_CACHE_TIME
+                const expiration: number = Math.min(videoExpirationS, userExpirationS)
+                return expiration
+            }, Validation.videoPlaySchema)
         }
         this.resHeaders.set("x-url-cid", String(targetCid))
         this.resHeaders.set("x-url-vpart", String(p))

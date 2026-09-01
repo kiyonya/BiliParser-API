@@ -76,6 +76,7 @@ export namespace BiliTypes {
                 cid: number,
                 format: VideoPlayFormat
                 duration: number
+                realQuality:number
             }
 
             export interface PlayDash extends VideoPlay {

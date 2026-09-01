@@ -45,11 +45,11 @@ export class BiliCoverRoute extends APIRoute {
             const bvid = params.data.bvid!
 
             const key = this.CacheKey.videoInfo(bvid)
-            let videoInfo = await this.getCache<BiliTypes.RES.Video.VideoInfo>(ctx, key)
+            let videoInfo = await this.cache.getCache<BiliTypes.RES.Video.VideoInfo>(ctx, key)
             if (!videoInfo) {
                 const parser = new BiliVideoParser()
                 videoInfo = await parser.getVideoInfo(bvid)
-                await this.setCache(ctx, key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
+                await this.cache.setCache(ctx, key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
             }
             const imgUrl = videoInfo.pic
             switch (type) {

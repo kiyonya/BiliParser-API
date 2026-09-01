@@ -1,5 +1,6 @@
 import z from "zod"
 import { BiliTypes } from "./types"
+import { md5String } from "./utils/hashlib"
 
 export interface CDNStrategy {
     continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN, priority: number
@@ -12,8 +13,13 @@ const booleanEnv = (raw: string | undefined, def: boolean): boolean =>
 
 export abstract class Config {
 
-    public static get isServerLogin(){
+    public static get isServerLogin() {
         return this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined
+    }
+
+    public static get serverLoginKeyHash() {
+        const key = `${String(this.isServerLogin)}:${process.env.CONFIG_CustomCookies ?? ""}`
+        return md5String(key)
     }
 
     protected static parseCDNStrategy(strategies?: string): CDNStrategy[] {
@@ -46,10 +52,18 @@ export abstract class Config {
     public static get ENABLE_CAHCE_DATA_VALIDATION(): boolean {
         return booleanEnv(process.env.CONFIG_CacheValidation, true)
     }
-    
+
+    public static get CACHE_DATA_VERSION(): number {
+        return numberEnv(5).safeParse(process.env.CONFIG_CacheDataVersion).data ?? 5
+    }
+
     //cookies
     public static get ENABLE_CUSTOM_COOKIES(): boolean {
         return booleanEnv(process.env.CONFIG_EnableCustomCookies, false)
+    }
+
+    public static get COOKIES_SIGN_CACHE_TIME(){
+        return numberEnv(3600).safeParse(process.env.CONFIG_CookiesSignCacheTime).data ?? 3600
     }
 
     //video

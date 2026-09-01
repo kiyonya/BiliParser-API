@@ -42,7 +42,8 @@ export abstract class Validation {
         platform: this.videoPlayPlatformSchema,
         url: z.url(),
         backupUrl: z.array(z.string()),
-        quality: z.number()
+        quality: z.number(),
+        realQuality:z.number()
     });
 
     public static videoDashItemSchema: z.ZodType<BiliTypes.RES.Video.VideoDashItem> = z.object({
@@ -75,6 +76,7 @@ export abstract class Validation {
         duration: z.number().nonnegative(),
         urlExpirationAt: z.number(),
         platform: this.videoPlayPlatformSchema,
+        realQuality:z.number(),
         dash: z.object({
             minBufferTime: z.number(),
             video: z.union([z.array(this.videoDashItemSchema), z.null()]),

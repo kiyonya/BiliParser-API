@@ -36,11 +36,11 @@ export class SubtitleRoute extends APIRoute {
     protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const parser = new BiliVideoParser()
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.getCache(ctx, infoKey, Validation.videoInfoSchema)
+        let videoInfo = await this.cache.getCache(ctx, infoKey, Validation.videoInfoSchema)
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            await this.cache.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -52,11 +52,11 @@ export class SubtitleRoute extends APIRoute {
         const targetCid = targetPart.cid
 
         const subtitlesKey = this.CacheKey.videoSubtitles(targetCid)
-        let subtitles = await this.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(ctx, subtitlesKey)
+        let subtitles = await this.cache.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(ctx, subtitlesKey)
         if (!subtitles) {
             subtitles = await parser.getVideoSubtitles(bvid, targetCid)
             if (subtitles.length) {
-                await this.setCache(ctx, subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
+                await this.cache.setCache(ctx, subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
             }
         }
         return subtitles

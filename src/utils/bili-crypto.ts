@@ -1,8 +1,17 @@
 import { Config } from "../config";
-import { BiliTypes } from "../types";
+import { AppContext, BiliTypes } from "../types";
+import CacheableObject from "./cache";
+import { hmacSha256, md5String } from "./hashlib";
 import { proxyFetch } from "./proxy-fetch";
 
 export default class BiliCrypto {
+
+    protected ctx?:AppContext
+    protected cache:CacheableObject
+    constructor(ctx?:AppContext,cacheableObject?:CacheableObject){
+        this.ctx = ctx
+        this.cache = cacheableObject || new CacheableObject()
+    }
 
     private BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
     private BILI_FINGER_SPI = "https://api.bilibili.com/x/frontend/finger/spi"
@@ -10,6 +19,7 @@ export default class BiliCrypto {
     private BILI_WEB_TICKET_API = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
     private BILI_WEB_NAV = "https://api.bilibili.com/x/web-interface/nav"
     private BILI_MIXIN_KEY_ENC = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]
+    private readonly BILI_DEFAULT_BUVID3 = "0A4418BE-BDC0-7F8C-39DE-3A6BBBB9A04D59416infoc"
 
     public static readonly PLATFORM_KEY: { ios: BiliTypes.PlatformAPPKEY, tv: BiliTypes.PlatformAPPKEY } = {
         ios: { appkey: 'YvirImLGlLANCLvM', appsec: 'JNlZNgfNGKZEpaDTkCdPQVXntXhuiJEM', platform: 'ios', ua: 'Bilibili/8.0.0 (bbcallen@gmail.com)' },
@@ -19,11 +29,7 @@ export default class BiliCrypto {
     public biliAntiCookie: string | null = null
     public biliWbiMixinKey: string | null = null
 
-    public async getBiliAntiCookie(sessdata: boolean = false): Promise<string> {
-        if (sessdata) {
-            //不缓存sessdata
-            return await this.createBiliAntiCookie(sessdata)
-        }
+    public async getBiliAntiCookie(): Promise<string> {
         if (!this.biliAntiCookie) {
             this.biliAntiCookie = await this.createBiliAntiCookie()
         }
@@ -37,55 +43,89 @@ export default class BiliCrypto {
         return this.biliWbiMixinKey
     }
 
-    private async hmacSha256Hex(key: string, message: string): Promise<string> {
-        const enc = new TextEncoder();
-        const cryptoKey = await crypto.subtle.importKey(
-            'raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-        );
-        const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message));
-        return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // private async hmacSha256Hex(key: string, message: string): Promise<string> {
+    //     const enc = new TextEncoder();
+    //     const cryptoKey = await crypto.subtle.importKey(
+    //         'raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    //     );
+    //     const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message));
+    //     return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // }
+
+    // private async computeMd5String(text: string) {
+    //     const hashBuffer = await crypto.subtle.digest('MD5', new TextEncoder().encode(text));
+    //     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // }
+
+    private randomBlsid(tms = Date.now()) {
+        const toHex = (n: number) => Math.ceil(n).toString(16).toUpperCase();
+        let randomPart = '';
+        for (let i = 0; i < 8; i++) {
+            randomPart += Math.floor(Math.random() * 16).toString(16).toUpperCase();
+        }
+        return `${randomPart}_${toHex(tms)}`;
     }
 
-    private async createBiliAntiCookie(sessdata: boolean = false): Promise<string> {
+    private randomUUID(tms = Date.now()) {
+        const uuid = crypto.randomUUID().toUpperCase()
+        const buuid = uuid + String(tms % 1e5).padStart(5, "0") + "infoc"
+        return buuid
+    }
 
-        let buvid3 = "5EF0C718-3378-71FB-C2E2-A2978FA3248369236infoc";
-        let buvid4 = null;
-        let ticket: string | null = null
-        try {
-            const res = await proxyFetch(this.BILI_FINGER_SPI,
-                { headers: { "User-Agent": this.BROWSER_UA } });
-            const json = await res.json<BiliTypes.BAPI.FingerSPI>();
-            if (json.data?.b_3) buvid3 = json.data.b_3;
-            if (json.data?.b_4) buvid4 = json.data.b_4;
+    private async createBiliAntiCookie(): Promise<string> {
 
-        } catch (e) {
+        const cookiesCacheKey = `${Config.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`
+        let cookies = this.ctx ? await this.cache.getCache<Record<string,string>>(this.ctx,cookiesCacheKey,undefined,'kv') : null
 
-        }
+        if (!cookies) {
+            const signTs = Date.now()
+            let buvid3 = this.BILI_DEFAULT_BUVID3;
+            let buvid4 = null;
+            let ticket: string | null = null
+            let cookieCacheOk = true
+            try {
+                const res = await proxyFetch(this.BILI_FINGER_SPI);
+                const json = await res.json<BiliTypes.BAPI.FingerSPI>();
+                if (json.data?.b_3) buvid3 = json.data.b_3;
+                if (json.data?.b_4) buvid4 = json.data.b_4;
 
-        try {
-            const ts = Math.floor(Date.now() / 1000);
-            const hexsign = await this.hmacSha256Hex('XgwSnGZ1p', 'ts' + ts);
-            const webTicketURL = new URL(this.BILI_WEB_TICKET_API)
-            webTicketURL.searchParams.append('key_id', 'ec02')
-            webTicketURL.searchParams.append('hexsign', hexsign)
-            webTicketURL.searchParams.append('context[ts]', String(ts))
-            webTicketURL.searchParams.append('csrf', '')
-
-            const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": this.BROWSER_UA } });
-            const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
-            if (json.data?.ticket) {
-                ticket = json.data.ticket
+            } catch (e) {
+                cookieCacheOk = false
             }
-        } catch (e) {
+            try {
+                const ts = Math.floor(Date.now() / 1000);
+                const hexsign = hmacSha256('XgwSnGZ1p', 'ts' + ts);
+                const webTicketURL = new URL(this.BILI_WEB_TICKET_API)
+                webTicketURL.searchParams.append('key_id', 'ec02')
+                webTicketURL.searchParams.append('hexsign', hexsign)
+                webTicketURL.searchParams.append('context[ts]', String(ts))
+                webTicketURL.searchParams.append('csrf', '')
+
+                const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": this.BROWSER_UA } });
+                const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
+                if (json.data?.ticket) {
+                    ticket = json.data.ticket
+                }
+            } catch (e) {
+                cookieCacheOk = false
+            }
+            cookies = {
+                "enable_web_push": "DISABLE",
+                "b_lsid": this.randomBlsid(signTs),
+                "theme_style": "light",
+                "_uuid": this.randomUUID(signTs),
+                "buvid3": buvid3,
+                ...(ticket ? { "bili_ticket": ticket } : {}),
+                ...(buvid4 ? { "buvid4": buvid4 } : {})
+            }
+            if (this.ctx && cookieCacheOk) {
+                const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
+                await this.cache.setCache(this.ctx,cookiesCacheKey,cookies,()=>{
+                    return expirationAt
+                },undefined,'kv')
+            }
         }
-        let cookies: Record<string, string> = {}
-        cookies['buvid3'] = buvid3
-        if (buvid4) {
-            cookies['buvid4'] = buvid4
-        }
-        if (ticket) {
-            cookies['bili_ticket'] = ticket
-        }
+
         if (Config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {
             cookies = {
                 ...cookies,
@@ -144,11 +184,6 @@ export default class BiliCrypto {
         return key
     }
 
-    private async computeMd5String(text: string) {
-        const hashBuffer = await crypto.subtle.digest('MD5', new TextEncoder().encode(text));
-        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
     public async signApp(params: Record<any, any>, platform: BiliTypes.PlatformAPPKEY): Promise<URLSearchParams> {
 
         const appkey = platform.appkey
@@ -162,7 +197,7 @@ export default class BiliCrypto {
         }
 
         const qstring = uparmas.toString()
-        const sign = await this.computeMd5String(qstring + appsec)
+        const sign = md5String(qstring + appsec)
         uparmas.append('sign', sign)
 
         return uparmas
@@ -179,7 +214,7 @@ export default class BiliCrypto {
             uparmas.append(k, encodeURIComponent(v))
         }
         const qstring = uparmas.toString()
-        const w_rid = await this.computeMd5String(qstring + mixinKey)
+        const w_rid = md5String(qstring + mixinKey)
         uparmas.append('w_rid', w_rid)
         return uparmas
     }

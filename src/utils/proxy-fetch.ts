@@ -33,7 +33,6 @@ export async function proxyFetch(
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const signal = init?.signal ?? AbortSignal.timeout(timeout);
-
             const response = await (useProxy
                 ? (() => {
                     const token = Config.PROXY_SERVER_TOKEN
@@ -46,7 +45,6 @@ export async function proxyFetch(
                     if (token) {
                         headers.append('Authorization', `Bearer ${token}`);
                     }
-
                     proxyUrl.searchParams.set('url', url.toString());
                     return fetch(proxyUrl, {
                         ...init,
@@ -58,11 +56,9 @@ export async function proxyFetch(
                     ...init,
                     signal: signal
                 }));
-
             if (!response.ok && retryCondition(response)) {
                 throw response;
             }
-
             return response;
 
         } catch (error) {

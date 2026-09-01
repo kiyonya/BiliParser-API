@@ -44,11 +44,11 @@ export class BiliBangumiInfoRoute extends APIRoute {
             const { seasonId, episodeId } = params.data
 
             const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
-            let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.bangumiInfoSchema)
+            let result = await this.cache.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.bangumiInfoSchema)
             if (!result) {
                 const parser = new BiliBangumiParser()
                 result = await parser.getBangumiInfo(seasonId, episodeId)
-                await this.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME, Validation.bangumiInfoSchema)
+                await this.cache.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME, Validation.bangumiInfoSchema)
             }
             return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiInfoSchema)
 
@@ -91,11 +91,11 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
             }
             const { seasonId } = params.data
             const key = this.CacheKey.bangumiEpisodes(seasonId)
-            let result = await this.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.bangumiEpisodeSchema)
+            let result = await this.cache.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.bangumiEpisodeSchema)
             if (!result) {
                 const parser = new BiliBangumiParser()
                 result = await parser.getBangumiEpisodes(seasonId)
-                await this.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME, Validation.bangumiEpisodeSchema)
+                await this.cache.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME, Validation.bangumiEpisodeSchema)
             }
 
             return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiEpisodeSchema)
@@ -134,13 +134,13 @@ export class BiliBangumiPlayRoute extends APIRoute {
             const { epid, type, qn, cdn } = params.data
 
             const key = this.CacheKey.bangumiPlayUrl(epid, qn)
-            let bangumi = await this.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.bangumiPlayUrlSchema)
+            let bangumi = await this.cache.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.bangumiPlayUrlSchema)
             if (!bangumi) {
                 const parser = new BiliBangumiParser()
                 bangumi = await parser.getBangumiPlayUrl(epid, qn)
                 const realQn = bangumi.quality
                 const setCacheKey = this.CacheKey.bangumiPlayUrl(epid, realQn)
-                await this.setCache(ctx, setCacheKey, bangumi, (data) => {
+                await this.cache.setCache(ctx, setCacheKey, bangumi, (data) => {
                     const videoDuration = data.duration
                     let videoBufferTimeS: number
                     if (videoDuration < 60 * 10) {

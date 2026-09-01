@@ -1,18 +1,14 @@
 
 import { Config } from "../config";
 import { AppContext, CacheResult, CacheWarp } from "../types";
-import crypto from 'crypto'
 import z from "zod";
+import { md5String } from "./hashlib";
 
 export default class EdgeCache {
 
-    protected md5String(string: string) {
-        return crypto.createHash('md5').update(string).digest('hex')
-    }
-
     protected createVCacheKey(ctx: AppContext, cacheKey: string) {
         const reqUrl = new URL(ctx.req.url);
-        const keyMd5 = this.md5String(cacheKey);
+        const keyMd5 = md5String(cacheKey);
         const keyUrl = new URL(`${reqUrl.protocol}//${reqUrl.hostname}`);
         keyUrl.pathname = `${reqUrl.pathname}/${keyMd5}`;
         return keyUrl

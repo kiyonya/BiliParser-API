@@ -20,8 +20,12 @@ export default class BiliVideoParser extends Parser {
         const videoViewInfoURL = new URL(this.BILI_VIDEO_VIEW_API)
         videoViewInfoURL.searchParams.append('bvid', bvid)
         const videoViewReq = await proxyFetch(videoViewInfoURL, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: new Headers({
+                //headless
+                'cookie': cookie
+            })
         })
+
         const videoViewData = await videoViewReq.json<BiliTypes.BAPI.BiliVideoViewInfo>()
         if (videoViewData.code === 0) {
             const headData = videoViewData.data
@@ -59,7 +63,9 @@ export default class BiliVideoParser extends Parser {
         const videoCidURL = new URL(this.BILI_CID_BACKUP_API)
         videoCidURL.searchParams.append('bvid', bvid)
         const videoCidReq = await proxyFetch(videoCidURL, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: new Headers({
+                'Referer': this.BILI_REFERER, 'Cookie': cookie
+            })
         })
         const videoCidData = await videoCidReq.json<BiliTypes.BAPI.BiliVideoCidInfo>()
         if (videoCidData.code === 0 && videoCidData.data.length && videoCidData.data[0]) {
@@ -183,7 +189,8 @@ export default class BiliVideoParser extends Parser {
             format: format,
             platform: platform,
             cid: cid,
-            urlExpirationAt: this.getUrlExpirationAt(vurl)
+            urlExpirationAt: this.getUrlExpirationAt(vurl),
+            realQuality: Math.max(...dash.video.map(i => i.id))
         }
         return playDash
     }
@@ -209,6 +216,7 @@ export default class BiliVideoParser extends Parser {
             url: url,
             backupUrl: durl.backup_url || [],
             quality: quality,
+            realQuality: quality
         }
         return pUrl;
     }
@@ -223,15 +231,15 @@ export default class BiliVideoParser extends Parser {
         url.searchParams.append('high_quality', '1')
         url.searchParams.append('try_look', '1')
         url.searchParams.append('fnval', String(this.formatFnvalMap[format]))
-        url.searchParams.append('fourk',"1")
-        url.searchParams.append("fnver","0")
+        url.searchParams.append('fourk', "1")
+        url.searchParams.append("fnver", "0")
         return url
     }
 
     private async createWbiReqUrl(bvid: string, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
         const wbiUrl = new URL(this.BILI_VIDEO_WBI_PLAYURL_API)
         const params: Record<string, any> = {
-            bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format],fourk:1,fnver:0
+            bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format], fourk: 1, fnver: 0
         }
         const signed = await this.BCrypto.signWbi(params)
         for (const [key, value] of signed.entries()) {
@@ -249,8 +257,8 @@ export default class BiliVideoParser extends Parser {
             ts: String(Math.floor(Date.now() / 1000)),
             otype: "json",
             fnval: this.formatFnvalMap[format],
-            fourk:1,
-            fnver:0
+            fourk: 1,
+            fnver: 0
         };
         const signed: URLSearchParams = await this.BCrypto.signApp(params, platform);
         const url = new URL(this.BILI_VIDEO_PLAYURL_API)
@@ -413,7 +421,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     public async getVideoSubtitles(bvid: string, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
-        const cookie = await this.BCrypto.getBiliAntiCookie(true)
+        const cookie = await this.BCrypto.getBiliAntiCookie()
         const url = new URL(this.BILI_PLAYERV2_API)
         const params = {
             bvid: bvid,

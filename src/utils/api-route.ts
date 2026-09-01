@@ -3,9 +3,10 @@ import { AppContext, BiliTypes } from "../types";
 import EdgeCache from "./edge-cache";
 import KVCache from "./kv-cache";
 import { b23Parser } from "./b23-parse";
-import crypto from 'crypto'
 import z from "zod";
 import { Config } from "../config";
+import { md5String } from "./hashlib";
+import CacheableObject from "./cache";
 export interface APIResponse<Data = any> {
     code: number,
     message: string,
@@ -15,8 +16,9 @@ export interface APIResponse<Data = any> {
 
 export default class APIRoute extends OpenAPIRoute {
 
+    protected readonly cache = new CacheableObject()
     public SERVER_VERSION = process.env.SERVER_VERSION
-    public CACHE_DATA_VERSION = process.env.CONFIG_CacheDataVersion ?? 5
+    public CACHE_DATA_VERSION = Config.CACHE_DATA_VERSION
     protected CF_CACHE_BASEURL = "https://bili.internal/cache"
     protected BILI_REFERER = "https://www.bilibili.com"
     protected BILI_VIDEO_PATTERN = new URLPattern("*://*bilibili.com/video/*")
@@ -53,29 +55,23 @@ export default class APIRoute extends OpenAPIRoute {
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
 
     protected resHeaders = new Headers({
-        'Server-Version': this.SERVER_VERSION,
-        'X-Nekocha': process.env.MOTD ?? "is nekocha cute?",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        'x-server-version': this.SERVER_VERSION,
+        'x-nekocha': process.env.MOTD ?? "is nekocha cute?",
+        'x-cache-version': String(this.CACHE_DATA_VERSION),
+        "cache-control": "no-cache, no-store, must-revalidate",
+        "pragma": "no-cache",
+        "expires": "0",
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, POST, OPTIONS",
     })
-    protected EdgeCache = new EdgeCache()
-    protected KVCache = new KVCache('BILI_API_CACHE')
-    protected cacheHits = {
-        edge: new Set<string>(),
-        kv: new Set<string>()
-    }
-    protected kvCacheNotUsed: boolean = false
 
     get headers() {
         const headers: Record<string, string> = {}
         for (const [k, v] of this.resHeaders) {
             headers[k] = String(v)
         }
-        headers['X-Cache-Edge-Hit'] = [...this.cacheHits.edge].map(i => this.md5String(i)).join(", ") || 'MISS'
-        headers['X-Cache-KV-Hit'] = [...this.cacheHits.kv].map(i => this.md5String(i)).join(", ") || (this.kvCacheNotUsed ? 'NOTUSE' : 'MISS')
+        headers['x-cache-edge-hit'] = [...this.cache.cacheHits.edge].map(i => md5String(i)).join(", ") || 'MISS'
+        headers['x-cache-kv-hit'] = [...this.cache.cacheHits.kv].map(i => md5String(i)).join(", ") || (this.cache.kvCacheNotUsed ? 'NOTUSE' : 'MISS')
         return headers
     }
 
@@ -83,44 +79,6 @@ export default class APIRoute extends OpenAPIRoute {
         return Math.floor(Date.now() / 1000)
     }
 
-    protected md5String(string: string) {
-        return crypto.createHash('md5').update(string).digest('hex')
-    }
-
-    protected async setCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAtCall: number | ((data: Data) => number), validate?: z.ZodType<Data>): Promise<void> {
-        try {
-            const expirationAt: number = typeof expirationAtCall === 'function' ? expirationAtCall(data) : expirationAtCall
-            await Promise.allSettled([
-                this.EdgeCache.setEdgeCache(ctx, key, data, expirationAt, validate),
-                this.KVCache.setKVCache(ctx, key, data, expirationAt, validate)
-            ])
-        } catch (error) {
-            return
-        }
-    }
-
-    protected async getCache<Data = any>(ctx: AppContext, key: string, validate?: z.ZodType<Data>): Promise<Data | null> {
-        try {
-            const edgeCache = await this.EdgeCache.getEdgeCache<Data>(ctx, key, validate)
-            if (edgeCache) {
-                this.cacheHits.edge.add(key)
-                this.kvCacheNotUsed = true
-                return edgeCache.data
-            }
-            const kvCache = await this.KVCache.getKVCache<Data>(ctx, key, validate)
-            if (kvCache) {
-                this.cacheHits.kv.add(key)
-                this.kvCacheNotUsed = false
-                const kvCacheKey = kvCache.raw.key
-                const expirationAt = kvCache.raw.expirationAt
-                await this.EdgeCache.setEdgeCache(ctx, kvCacheKey, kvCache.data, expirationAt)
-                return kvCache.data
-            }
-            return null
-        } catch (error) {
-            return null
-        }
-    }
 
     protected jsonResponse<Data = any>(ctx: AppContext, message: string, code: number, data: Data, validateSchema?: z.ZodType<Data>, headers?: Record<string, string>): Response {
         if (validateSchema) {
@@ -165,7 +123,7 @@ export default class APIRoute extends OpenAPIRoute {
                 if (isMatch) {
                     const cdnName = strategy.cdn
                     cdnHostname = this.CDNS[cdnName]
-                    this.resHeaders.set('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
+                    this.resHeaders.set('x-cdn-strategy', `${strategy.continent},${strategy.area},${cdnName}`)
                     break
                 }
             }
@@ -174,7 +132,7 @@ export default class APIRoute extends OpenAPIRoute {
             const _ = new URL(url)
             _.hostname = cdnHostname
             url = _.toString()
-            this.resHeaders.set('X-Bili-CDN', cdnHostname)
+            this.resHeaders.set('x-bili-cdn', cdnHostname)
         }
         return url
     }
@@ -207,8 +165,8 @@ export default class APIRoute extends OpenAPIRoute {
         videoInfo: (bvid: string) => {
             return `${this.CACHE_DATA_VERSION}:videoInfo:${bvid}`
         },
-        videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform,format:BiliTypes.RES.Video.VideoPlayFormat) => {
-            return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${cid}:${qn}:${platform}:${format}`
+        videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat, loginKey: string) => {
+            return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${loginKey}:${cid}:${qn}:${platform}:${format}`
         },
         videoSubtitles: (cid: number) => {
             return `${this.CACHE_DATA_VERSION}:subtitle:${cid}`

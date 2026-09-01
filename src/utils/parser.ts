@@ -1,4 +1,6 @@
+import { AppContext } from "../types"
 import BiliCrypto from "./bili-crypto"
+import CacheableObject from "./cache"
 
 export default abstract class Parser {
 
@@ -22,5 +24,13 @@ export default abstract class Parser {
     protected BILI_DANMAKU_API = "https://comment.bilibili.com/"
     protected BILI_PLAYERV2_API = "https://api.bilibili.com/x/player/wbi/v2"
 
-    protected BCrypto = new BiliCrypto()
+    protected BCrypto:BiliCrypto
+    protected ctx?:AppContext
+    protected cache:CacheableObject
+
+    constructor(ctx?:AppContext,cacheableObject?:CacheableObject){
+        this.ctx = ctx
+        this.cache = cacheableObject || new CacheableObject()
+        this.BCrypto = new BiliCrypto(ctx,this.cache)
+    }
 }
