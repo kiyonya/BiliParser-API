@@ -14,6 +14,17 @@ import { SubtitleRoute } from "./routes/subtitle";
 
 const app = new Hono<{ Bindings: Env }>();
 app.get('/opensource', (c) => c.redirect("https://github.com/kiyonya/BiliParser-API"))
+
+app.use("*", async (ctx, next) => {
+	const reqUrl = new URL(ctx.req.url)
+	const pathname = reqUrl.pathname
+	const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
+	if (!success) {
+		return ctx.text(`429 Too Many Requests`, 429)
+	}
+	await next()
+})
+
 const openapi = fromHono(app, {
 	docs_url: "/doc"
 });

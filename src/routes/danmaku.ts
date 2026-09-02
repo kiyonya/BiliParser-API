@@ -33,17 +33,17 @@ export class BiliDanmakuRoute extends APIRoute {
     private _parser: BiliVideoParser | null = null
     protected get parser() {
         if (!this._parser) {
-            this._parser = new BiliVideoParser()
+            this._parser = new BiliVideoParser(this)
         }
         return this._parser
     }
 
     private async getDanmakuXML(ctx: AppContext, bvid: string, p: number = 1): Promise<string | null> {
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.cache.getCache(ctx, infoKey, Validation.videoInfoSchema)
+        let videoInfo = await this.cache?.getCache(infoKey, Validation.videoInfoSchema)
         if (!videoInfo) {
             videoInfo = await this.parser.getVideoInfo(bvid)
-            await this.cache.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            await this.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -53,15 +53,15 @@ export class BiliDanmakuRoute extends APIRoute {
             throw new Error(`cannot get target video part with part ${p}`)
         }
         const cid = targetPart.cid
-        this.resHeaders.set("x-url-cid", String(cid))
-        this.resHeaders.set("x-url-vpart", String(p))
+        this.ctx?.header("x-url-cid", String(cid))
+        this.ctx?.header("x-url-vpart", String(p))
 
         const key = this.CacheKey.danmaku(cid)
-        let danmakuXML = await this.cache.getCache<string>(ctx, key, Validation.danmakuSchema)
+        let danmakuXML = await this.cache?.getCache<string>(key, Validation.danmakuSchema)
         if (!danmakuXML) {
             danmakuXML = await this.parser.getVideoDanmakuXML(cid)
             if (danmakuXML) {
-                await this.cache.setCache<string>(ctx, key, danmakuXML, this.nowS + Config.BILI_DANMAKU_CACHE_TIME, Validation.danmakuSchema)
+                await this.cache?.setCache<string>(key, danmakuXML, this.nowS + Config.BILI_DANMAKU_CACHE_TIME, Validation.danmakuSchema)
             }
         }
         return danmakuXML
@@ -113,15 +113,9 @@ export class BiliDanmakuRoute extends APIRoute {
         }
     }
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
-
             const params = await this.PARAMS.safeParseAsync({
                 bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
                 type: url.searchParams.get('type') || undefined,
@@ -145,13 +139,9 @@ export class BiliDanmakuRoute extends APIRoute {
                     return this.jsonResponse(ctx, 'Success', 200, xmlJson, Validation.danmakuJSONSchema)
                 case "xml":
                 default:
-                    const xmlResponse = new Response(danmakuXML, {
-                        headers: new Headers({
-                            ...this.headers,
-                            'Content-Type': "application/xml"
-                        })
+                    return ctx.body(danmakuXML,200,{
+                        'Content-Type': "application/xml"
                     })
-                    return xmlResponse
             }
         } catch (error) {
             return this.jsonResponse(ctx, (error as Error)?.message, 500, null)

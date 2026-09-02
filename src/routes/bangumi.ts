@@ -23,15 +23,10 @@ export class BiliBangumiInfoRoute extends APIRoute {
         }
     })
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
 
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
             const params = this.PARAMS.safeParse({
                 ssid: url.searchParams.get('ssid')?.replace('ss', '') || undefined,
                 mdid: url.searchParams.get('mdid')?.replace('md', '') || undefined,
@@ -44,11 +39,11 @@ export class BiliBangumiInfoRoute extends APIRoute {
             const { seasonId, episodeId } = params.data
 
             const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
-            let result = await this.cache.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(ctx, key, Validation.bangumiInfoSchema)
+            let result = await this.cache?.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(key, Validation.bangumiInfoSchema)
             if (!result) {
-                const parser = new BiliBangumiParser()
+                const parser: BiliBangumiParser = new BiliBangumiParser(this)
                 result = await parser.getBangumiInfo(seasonId, episodeId)
-                await this.cache.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME, Validation.bangumiInfoSchema)
+                await this.cache?.setCache(key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME, Validation.bangumiInfoSchema)
             }
             return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiInfoSchema)
 
@@ -74,14 +69,9 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
         }
     })
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
             const params = this.PARAMS.safeParse({
                 ssid: url.searchParams.get('ssid')?.replace('ss', '') || undefined,
                 mdid: url.searchParams.get('mdid')?.replace('md', '') || undefined,
@@ -91,11 +81,11 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
             }
             const { seasonId } = params.data
             const key = this.CacheKey.bangumiEpisodes(seasonId)
-            let result = await this.cache.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(ctx, key, Validation.bangumiEpisodeSchema)
+            let result = await this.cache?.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(key, Validation.bangumiEpisodeSchema)
             if (!result) {
-                const parser = new BiliBangumiParser()
+                const parser: BiliBangumiParser = new BiliBangumiParser(this)
                 result = await parser.getBangumiEpisodes(seasonId)
-                await this.cache.setCache(ctx, key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME, Validation.bangumiEpisodeSchema)
+                await this.cache?.setCache(key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME, Validation.bangumiEpisodeSchema)
             }
 
             return this.jsonResponse(ctx, 'Success', 200, result, Validation.bangumiEpisodeSchema)
@@ -114,14 +104,9 @@ export class BiliBangumiPlayRoute extends APIRoute {
         cdn: z.enum(Object.keys(this.CDNS)).default('ali')
     })
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
             const params = this.PARAMS.safeParse({
                 epid: ctx.req.param('epid')?.replaceAll('ep', '') || url.searchParams.get('epid')?.replaceAll('ep', '') || undefined,
                 type: url.searchParams.get('type') || undefined,
@@ -134,13 +119,13 @@ export class BiliBangumiPlayRoute extends APIRoute {
             const { epid, type, qn, cdn } = params.data
 
             const key = this.CacheKey.bangumiPlayUrl(epid, qn)
-            let bangumi = await this.cache.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(ctx, key, Validation.bangumiPlayUrlSchema)
+            let bangumi = await this.cache?.getCache<BiliTypes.RES.Bangumi.BangumiPlayURL>(key, Validation.bangumiPlayUrlSchema)
             if (!bangumi) {
-                const parser = new BiliBangumiParser()
+                const parser: BiliBangumiParser = new BiliBangumiParser(this)
                 bangumi = await parser.getBangumiPlayUrl(epid, qn)
                 const realQn = bangumi.quality
                 const setCacheKey = this.CacheKey.bangumiPlayUrl(epid, realQn)
-                await this.cache.setCache(ctx, setCacheKey, bangumi, (data) => {
+                await this.cache?.setCache(setCacheKey, bangumi, (data) => {
                     const videoDuration = data.duration
                     let videoBufferTimeS: number
                     if (videoDuration < 60 * 10) {
@@ -157,7 +142,7 @@ export class BiliBangumiPlayRoute extends APIRoute {
                     return Math.min(videoExpirationS, userExpirationS)
                 }, Validation.bangumiPlayUrlSchema)
             }
-            bangumi.url = this.autoSwitchCDN(ctx, bangumi.url, cdn as any)
+            bangumi.url = this.autoSwitchCDN(bangumi.url, cdn as any)
             switch (type) {
                 case "video":
                     const url = bangumi.url

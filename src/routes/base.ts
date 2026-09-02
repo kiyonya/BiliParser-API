@@ -3,7 +3,7 @@ import APIRoute from "../utils/api-route";
 
 export class BaseRoute extends APIRoute {
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
 
         const serverVersion = this.SERVER_VERSION
         const url = new URL(ctx.req.url)
@@ -90,7 +90,6 @@ export class BaseRoute extends APIRoute {
         <p>Program by nekocha (${publishYear})</p></body></html>`
 
         return ctx.html(html, 200, {
-            ...this.headers,
             'Cache-Control': "public, max-age=60, must-revalidate",
             'Access-Control-Allow-Origin': "*"
         })

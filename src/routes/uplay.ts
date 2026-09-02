@@ -13,7 +13,7 @@ export class BiliProxyPlay extends APIRoute {
         referer: z.string().optional().default(this.BILI_REFERER)
     })
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             if (ctx.req.method === 'OPTIONS') {
                 return new Response(null, {
@@ -28,12 +28,6 @@ export class BiliProxyPlay extends APIRoute {
             }
 
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
-
             const params = this.PARAMS.safeParse({
                 url: url.searchParams.get('url'),
                 proxy_ua: url.searchParams.get('proxy_ua') || undefined,

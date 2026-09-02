@@ -26,7 +26,7 @@ export class BiliCoverRoute extends APIRoute {
         }
     })
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const { success } = await ctx.env.RATE_LIMITER.limit({ key: url.pathname })
@@ -45,17 +45,18 @@ export class BiliCoverRoute extends APIRoute {
             const bvid = params.data.bvid!
 
             const key = this.CacheKey.videoInfo(bvid)
-            let videoInfo = await this.cache.getCache<BiliTypes.RES.Video.VideoInfo>(ctx, key)
+            let videoInfo = await this.cache?.getCache<BiliTypes.RES.Video.VideoInfo>(key)
             if (!videoInfo) {
-                const parser = new BiliVideoParser()
+                const parser:BiliVideoParser = new BiliVideoParser(this as any) 
                 videoInfo = await parser.getVideoInfo(bvid)
-                await this.cache.setCache(ctx, key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
+                await this.cache?.setCache(key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
             }
             const imgUrl = videoInfo.pic
             switch (type) {
                 case "url":
-                    return ctx.text(imgUrl, 200, { ...this.headers })
+                    return ctx.text(imgUrl, 200)
                 case "img":
+                default:
                     const proxyHeaders = new Headers()
                     proxyHeaders.set('Referer', this.BILI_REFERER)
                     const imgReq = await fetch(imgUrl, {
@@ -65,14 +66,9 @@ export class BiliCoverRoute extends APIRoute {
                     const responseHeaders = new Headers(imgReq.headers)
                     responseHeaders.set('Access-Control-Allow-Origin', '*')
                     responseHeaders.set('Cache-Control', 'max-age=31536000')
-                    for (const [k, v] of Object.entries(this.headers)) {
-                        responseHeaders.append(k, v)
+                    if(imgReq.body){
+                        return ctx.body(imgReq.body,200,{...responseHeaders})
                     }
-                    const response = new Response(imgReq.body, {
-                        status: imgReq.status,
-                        headers: responseHeaders
-                    })
-                    return response
                 case 'redirect':
                     return ctx.redirect(imgUrl, 302)
             }

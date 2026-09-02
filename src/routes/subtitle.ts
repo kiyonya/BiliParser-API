@@ -28,19 +28,19 @@ export class SubtitleRoute extends APIRoute {
         if (!args.bvid) {
             ctx.addIssue("cannot find bvid to parse")
         }
-        if(!Config.isServerLogin){
+        if (!Config.isServerLogin) {
             ctx.addIssue("This API can be used and your request is fine, but getting subtitles requires the server to be logged in. Right now the server is offline, so sorry, we can't handle your request this time.")
         }
     })
 
-    protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
-        const parser = new BiliVideoParser()
+    protected async parseSubtitle(bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
+        const parser = new BiliVideoParser(this)
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.cache.getCache(ctx, infoKey, Validation.videoInfoSchema)
+        let videoInfo = await this.cache?.getCache(infoKey, Validation.videoInfoSchema)
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.cache.setCache(ctx, infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            await this.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -52,11 +52,11 @@ export class SubtitleRoute extends APIRoute {
         const targetCid = targetPart.cid
 
         const subtitlesKey = this.CacheKey.videoSubtitles(targetCid)
-        let subtitles = await this.cache.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(ctx, subtitlesKey)
+        let subtitles = await this.cache?.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(subtitlesKey)
         if (!subtitles) {
             subtitles = await parser.getVideoSubtitles(bvid, targetCid)
             if (subtitles.length) {
-                await this.cache.setCache(ctx, subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
+                await this.cache?.setCache(subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
             }
         }
         return subtitles
@@ -97,15 +97,9 @@ export class SubtitleRoute extends APIRoute {
         return srt.join("\n\n")
     }
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
-            
             const params = await this.PARAMS.safeParseAsync({
                 url: url.searchParams.get("url") || undefined,
                 bvid: ctx.req.param("bvid") || url.searchParams.get("bvid") || undefined,
@@ -118,7 +112,7 @@ export class SubtitleRoute extends APIRoute {
             }
             const { p, lang, type } = params.data
             const bvid = params.data.bvid!
-            const subtitles = await this.parseSubtitle(ctx, bvid, p)
+            const subtitles = await this.parseSubtitle(bvid, p)
 
             if (lang) {
                 const targetLangSubtitle = subtitles.filter(i => i.lang.toLowerCase() === lang.toLowerCase())[0]
@@ -129,14 +123,10 @@ export class SubtitleRoute extends APIRoute {
                             return this.jsonResponse(ctx, 'ok', 200, targetLangSubtitle, Validation.videoSubtitleItemSchema)
                         case "srt":
                             const srt = await this.createSRT(targetLangSubtitle)
-                            return ctx.text(srt, 200, {
-                                ...this.headers,
-                            })
+                            return ctx.text(srt, 200)
                         case "json":
                             const json = await this.fetchSubtitleJson(targetLangSubtitle.originalJsonUrl)
-                            return ctx.json(json, 200, {
-                                ...this.headers
-                            })
+                            return ctx.json(json, 200)
                     }
                 }
                 else {

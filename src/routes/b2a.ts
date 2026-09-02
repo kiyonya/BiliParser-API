@@ -17,14 +17,9 @@ export class BARoute extends APIRoute {
 
     private readonly BV_PATTERN = new RegExp(/(BV[a-zA-Z0-9]{10})/)
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
             const params = this.PARAMS.safeParse({
                 bvid: url.searchParams.get('bvid') || undefined,
                 avid: url.searchParams.get('avid')?.replaceAll('av', '') || undefined

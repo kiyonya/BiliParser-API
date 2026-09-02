@@ -1,4 +1,5 @@
 import { AppContext } from "../types"
+import APIRoute from "./api-route"
 import BiliCrypto from "./bili-crypto"
 import CacheableObject from "./cache"
 
@@ -26,11 +27,13 @@ export default abstract class Parser {
 
     protected BCrypto:BiliCrypto
     protected ctx?:AppContext
-    protected cache:CacheableObject
+    protected cache?:CacheableObject
+    protected route:APIRoute
 
-    constructor(ctx?:AppContext,cacheableObject?:CacheableObject){
-        this.ctx = ctx
-        this.cache = cacheableObject || new CacheableObject()
-        this.BCrypto = new BiliCrypto(ctx,this.cache)
+    constructor(route:APIRoute){
+        this.route = route
+        this.ctx = route.ctx
+        this.cache = route.cache
+        this.BCrypto = new BiliCrypto(this.ctx,this.cache)
     }
 }

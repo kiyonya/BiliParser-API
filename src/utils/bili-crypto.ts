@@ -7,10 +7,10 @@ import { proxyFetch } from "./proxy-fetch";
 export default class BiliCrypto {
 
     protected ctx?: AppContext
-    protected cache: CacheableObject
-    constructor(ctx?: AppContext, cacheableObject?: CacheableObject) {
+    protected cache?: CacheableObject
+    constructor(ctx?:AppContext,cache?: CacheableObject) {
         this.ctx = ctx
-        this.cache = cacheableObject || new CacheableObject()
+        this.cache = cache
     }
 
     private BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
@@ -75,11 +75,11 @@ export default class BiliCrypto {
     private async createBiliAntiCookie(): Promise<string> {
 
         const cookiesCacheKey = `${Config.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`
-        let cookies = this.ctx ? await this.cache.getCache<Record<string, string>>(this.ctx, cookiesCacheKey, undefined, 'kv', false) : null
+        let cookies = await this.cache?.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
         if (!cookies) {
             const signTs = Date.now()
-            this.cache.cacheExtraHeaders['x-bcrypto-cookies-cache'] = 'MISS'
-            this.cache.cacheExtraHeaders['x-bcrypto-sign-time'] = String(signTs)
+            this.ctx?.header('X-Bcrypto-Cookies-Cache', 'MISS')
+            this.ctx?.header('X-Bcrypto-Sign-Time', String(signTs))
             let buvid3 = this.BILI_DEFAULT_BUVID3;
             let buvid4 = null;
             let ticket: string | null = null
@@ -119,15 +119,15 @@ export default class BiliCrypto {
                 ...(ticket ? { "bili_ticket": ticket } : {}),
                 ...(buvid4 ? { "buvid4": buvid4 } : {})
             }
-            if (this.ctx && cookieCacheOk) {
+            if (cookieCacheOk) {
                 const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
-                await this.cache.setCache(this.ctx, cookiesCacheKey, cookies, () => {
+                await this.cache?.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
                 }, undefined, 'kv')
             }
         }
         else {
-            this.cache.cacheExtraHeaders['x-bcrypto-cookies-cache'] = 'HIT'
+            this.ctx?.header('X-Bcrypto-Cookies-Cache', 'HIT')
         }
 
         if (Config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {

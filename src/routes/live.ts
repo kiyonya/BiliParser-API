@@ -21,14 +21,14 @@ export class BiliLiveRoute extends APIRoute {
             ctx.addIssue("roomId or url needed to parse")
         }
     }).transform((args) => {
-        let {roomId,url} = args
-        if(!roomId && url){
+        let { roomId, url } = args
+        if (!roomId && url) {
             const processed = this.getRoomIdFromURL(url)
-            if(processed){
+            if (processed) {
                 roomId = processed
             }
         }
-        return {...args,roomId}
+        return { ...args, roomId }
     })
 
     private readonly formatNumberMap: Record<'fmp4' | 'flv' | 'ts', number> = {
@@ -80,24 +80,19 @@ export class BiliLiveRoute extends APIRoute {
             stream.urls.forEach(ug => {
                 ug.url = ug.url.replace('--cn', '--ov')
             })
-            this.resHeaders.set('X-Stream-Server', 'ov')
+            this.ctx?.header('X-Stream-Server', 'ov')
         }
         else {
             stream.urls.forEach(ug => {
                 ug.url = ug.url.replace('--ov', '--cn')
             })
-            this.resHeaders.set('X-Stream-Server', 'cn')
+            this.ctx?.header('X-Stream-Server', 'cn')
         }
     }
 
-    public override async handle(ctx: AppContext) {
+    public override async Ihandle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const pathname = url.pathname
-            const { success } = await ctx.env.RATE_LIMITER.limit({ key: pathname })
-            if (!success) {
-                return ctx.text(`429 Too Many Requests`, 429)
-            }
             const params = this.PARAMS.safeParse({
                 roomId: ctx.req.param('roomId') || url.searchParams.get('roomId') || undefined,
                 type: url.searchParams.get('type') || undefined,
@@ -110,7 +105,7 @@ export class BiliLiveRoute extends APIRoute {
             })
 
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.message, 400, null)
+                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             let { roomId, type, codec, format, protocol, ov, platform } = params.data
             if (!roomId) {
@@ -118,9 +113,9 @@ export class BiliLiveRoute extends APIRoute {
             }
             const cacheKey = this.CacheKey.live(roomId)
             //edgeonly
-            let result = await this.cache.getCache<BiliTypes.RES.Live.Live>(ctx, cacheKey, Validation.liveSchema,'edge')
+            let result = await this.cache?.getCache<BiliTypes.RES.Live.Live>(cacheKey, Validation.liveSchema, 'edge')
             if (!result) {
-                const parser = new BiliLiveParser()
+                const parser: BiliLiveParser = new BiliLiveParser(this)
                 const info = await parser.getLiveInfo(roomId)
                 result = {
                     ...info,
@@ -135,15 +130,15 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
                 //edgeonly
-                await this.cache.setCache(ctx, cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema,'edge')
+                await this.cache?.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema, 'edge')
             }
 
             if (result.stream && Validation.liveStreamSchema.safeParse(result.stream).success) {
-                this.resHeaders.set('X-Stream-Parse-Platform', result.stream.platform)
+                this.ctx?.header('X-Stream-Parse-Platform', result.stream.platform)
                 if (result.stream.platform === 'xlive') {
-                    this.resHeaders.set('X-Stream-Format', format)
-                    this.resHeaders.set('X-Stream-Codec', codec)
-                    this.resHeaders.set('X-Stream-Protocol', protocol)
+                    this.ctx?.header('X-Stream-Format', format)
+                    this.ctx?.header('X-Stream-Codec', codec)
+                    this.ctx?.header('X-Stream-Protocol', protocol)
                 }
                 this.switchStreamCdn(ctx, result.stream, ov)
             }

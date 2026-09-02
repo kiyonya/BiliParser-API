@@ -1,12 +1,10 @@
 import { OpenAPIRoute } from "chanfana";
 import { AppContext, BiliTypes } from "../types";
-import EdgeCache from "./edge-cache";
-import KVCache from "./kv-cache";
 import { b23Parser } from "./b23-parse";
 import z from "zod";
 import { Config } from "../config";
-import { md5String } from "./hashlib";
 import CacheableObject from "./cache";
+
 export interface APIResponse<Data = any> {
     code: number,
     message: string,
@@ -14,9 +12,8 @@ export interface APIResponse<Data = any> {
     data: Data,
 }
 
-export default class APIRoute extends OpenAPIRoute {
+export default abstract class APIRoute extends OpenAPIRoute {
 
-    protected readonly cache = new CacheableObject()
     public SERVER_VERSION = process.env.SERVER_VERSION
     public CACHE_DATA_VERSION = Config.CACHE_DATA_VERSION
     protected CF_CACHE_BASEURL = "https://bili.internal/cache"
@@ -54,35 +51,42 @@ export default class APIRoute extends OpenAPIRoute {
     protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
 
-    protected resHeaders = new Headers({
-        'x-server-version': this.SERVER_VERSION,
-        'x-nekocha': process.env.MOTD ?? "is nekocha cute?",
-        'x-cache-version': String(this.CACHE_DATA_VERSION),
-        "x-server-online":String(Config.isServerLogin),
-        "cache-control": "no-cache, no-store, must-revalidate",
-        "pragma": "no-cache",
-        "expires": "0",
-        "access-control-allow-origin": "*",
-        "access-control-allow-methods": "GET, POST, OPTIONS",
-    })
+    protected readonly DEFAULT_HEADERS: Record<string, string> = {
+        'X-Server-Version': this.SERVER_VERSION,
+        'X-Nekocha': process.env.MOTD ?? "is nekocha cute?",
+        'X-Cache-Version': String(this.CACHE_DATA_VERSION),
+        'X-Server-Online': String(Config.isServerLogin),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    }
 
-    get headers() {
-        let headers: Record<string, string> = {}
-        for (const [k, v] of this.resHeaders) {
-            headers[k] = String(v)
+    public ctx?: AppContext
+    public cache?: CacheableObject
+    public abstract Ihandle(ctx: AppContext, ...args: any[]): Response | Promise<Response>
+    public override async handle(ctx: AppContext, ...args: any[]) {
+        const requestStart = Date.now()
+        this.ctx = ctx
+        for (const [k, v] of Object.entries(this.DEFAULT_HEADERS)) {
+            ctx.header(k, v)
         }
-        headers['x-cache-edge-hit'] = [...this.cache.cacheHits.edge].map(i => md5String(i)).join(", ") || 'MISS'
-        headers['x-cache-kv-hit'] = [...this.cache.cacheHits.kv].map(i => md5String(i)).join(", ") || (this.cache.kvCacheNotUsed ? 'NOTUSE' : 'MISS')
-        headers = {...headers,...this.cache.cacheExtraHeaders}
-        return headers
+        this.cache = new CacheableObject(ctx)
+        const response = await this.Ihandle(ctx, ...args)
+        const requestEnd = Date.now()
+        for (const [k, v] of Object.entries(this.cache.cacheHeaders)) {
+            response.headers.set(k, v)
+        }
+        response.headers.set('X-Response-Time', String(requestEnd - requestStart))
+        return response
     }
 
     get nowS() {
         return Math.floor(Date.now() / 1000)
     }
 
-
-    protected jsonResponse<Data = any>(ctx: AppContext, message: string, code: number, data: Data, validateSchema?: z.ZodType<Data>, headers?: Record<string, string>): Response {
+    protected jsonResponse<Data = any>(ctx: AppContext, message: string, code: number, data: Data, validateSchema?: z.ZodType<Data>): Response {
         if (validateSchema) {
             const parsed = validateSchema.safeParse(data)
             if (!parsed.success) {
@@ -90,18 +94,13 @@ export default class APIRoute extends OpenAPIRoute {
             }
             data = parsed.data as Data
         }
-        headers = {
-            "Content-Type": "application/json",
-            ...this.headers,
-            ...headers
-        }
         const response: APIResponse<Data> = {
             code: code,
             message: message ?? "",
             data: data,
             time: Date.now()
         }
-        return ctx.json(response, code as any, headers)
+        return ctx.json(response, code as any)
     }
 
     protected async checkRateLimit(ctx: AppContext) {
@@ -113,8 +112,8 @@ export default class APIRoute extends OpenAPIRoute {
         }
     }
 
-    protected autoSwitchCDN(ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
-        const cf = ctx.req.raw.cf
+    protected autoSwitchCDN(url: string, cdn?: keyof BiliTypes.BiliVideoCDN): string {
+        const cf = this.ctx?.req.raw.cf
         let cdnHostname: string | undefined = undefined
         if (cdn && this.CDNS[cdn]) {
             cdnHostname = this.CDNS[cdn]
@@ -125,7 +124,7 @@ export default class APIRoute extends OpenAPIRoute {
                 if (isMatch) {
                     const cdnName = strategy.cdn
                     cdnHostname = this.CDNS[cdnName]
-                    this.resHeaders.set('x-cdn-strategy', `${strategy.continent},${strategy.area},${cdnName}`)
+                    this.ctx?.header('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
                     break
                 }
             }
@@ -134,7 +133,7 @@ export default class APIRoute extends OpenAPIRoute {
             const _ = new URL(url)
             _.hostname = cdnHostname
             url = _.toString()
-            this.resHeaders.set('x-bili-cdn', cdnHostname)
+            this.ctx?.header('X-Bili-CDN', cdnHostname)
         }
         return url
     }
