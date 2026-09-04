@@ -14,7 +14,7 @@ export class BiliArchieveRoute extends APIRoute {
         pageSize: z.coerce.number().default(30)
     })
 
-    public override async Ihandle(ctx: AppContext) {
+    public override async invoke(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = this.PARAMS.safeParse({
@@ -24,21 +24,21 @@ export class BiliArchieveRoute extends APIRoute {
                 pageSize: url.searchParams.get('pageSize') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
+                return ctx.jsonResp( params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
 
             const { mid, seasonId, page, pageSize } = params.data
 
             const resultCacheKey = this.CacheKey.userArchieves(mid, seasonId, page, pageSize)
-            let result = await this.cache?.getCache<BiliTypes.RES.User.UserArchieves>(resultCacheKey, Validation.userArchievesSchema)
+            let result = await ctx.cache.getCache<BiliTypes.RES.User.UserArchieves>(resultCacheKey, Validation.userArchievesSchema)
             if (!result) {
-                const parser: BiliUserParser = new BiliUserParser(this)
+                const parser: BiliUserParser = new BiliUserParser(ctx)
                 result = await parser.getUserSeasonArchieves(mid, seasonId, false, page, pageSize)
-                await this.cache?.setCache(resultCacheKey, result, this.nowS + Config.BILI_USER_ARCHIEVE_CACHE_TIME, Validation.userArchievesSchema)
+                await ctx.cache.setCache(resultCacheKey, result, this.nowS + Config.BILI_USER_ARCHIEVE_CACHE_TIME, Validation.userArchievesSchema)
             }
-            return this.jsonResponse(ctx, 'Success', 200, result, Validation.userArchievesSchema)
+            return ctx.jsonResp( 'Success', 200, result, Validation.userArchievesSchema)
         } catch (error) {
-            return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
+            return ctx.jsonResp( (error as Error)?.message, 500, null)
         }
 
     }

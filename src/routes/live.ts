@@ -80,17 +80,17 @@ export class BiliLiveRoute extends APIRoute {
             stream.urls.forEach(ug => {
                 ug.url = ug.url.replace('--cn', '--ov')
             })
-            this.ctx?.header('X-Stream-Server', 'ov')
+            ctx.header('X-Stream-Server', 'ov')
         }
         else {
             stream.urls.forEach(ug => {
                 ug.url = ug.url.replace('--ov', '--cn')
             })
-            this.ctx?.header('X-Stream-Server', 'cn')
+            ctx.header('X-Stream-Server', 'cn')
         }
     }
 
-    public override async Ihandle(ctx: AppContext) {
+    public override async invoke(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = this.PARAMS.safeParse({
@@ -105,17 +105,17 @@ export class BiliLiveRoute extends APIRoute {
             })
 
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
+                return ctx.jsonResp(params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             let { roomId, type, codec, format, protocol, ov, platform } = params.data
             if (!roomId) {
-                return this.jsonResponse(ctx, "cannot found roomId to parse", 400, null)
+                return ctx.jsonResp("cannot found roomId to parse", 400, null)
             }
             const cacheKey = this.CacheKey.live(roomId)
             //edgeonly
-            let result = await this.cache?.getCache<BiliTypes.RES.Live.Live>(cacheKey, Validation.liveSchema, 'edge')
+            let result = await ctx.cache.getCache<BiliTypes.RES.Live.Live>(cacheKey, Validation.liveSchema, 'edge')
             if (!result) {
-                const parser: BiliLiveParser = new BiliLiveParser(this)
+                const parser: BiliLiveParser = new BiliLiveParser(ctx)
                 const info = await parser.getLiveInfo(roomId)
                 result = {
                     ...info,
@@ -130,22 +130,22 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
                 //edgeonly
-                await this.cache?.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema, 'edge')
+                await ctx.cache.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema, 'edge')
             }
 
             if (result.stream && Validation.liveStreamSchema.safeParse(result.stream).success) {
-                this.ctx?.header('X-Stream-Parse-Platform', result.stream.platform)
+                ctx.header('X-Stream-Parse-Platform', result.stream.platform)
                 if (result.stream.platform === 'xlive') {
-                    this.ctx?.header('X-Stream-Format', format)
-                    this.ctx?.header('X-Stream-Codec', codec)
-                    this.ctx?.header('X-Stream-Protocol', protocol)
+                    ctx.header('X-Stream-Format', format)
+                    ctx.header('X-Stream-Codec', codec)
+                    ctx.header('X-Stream-Protocol', protocol)
                 }
                 this.switchStreamCdn(ctx, result.stream, ov)
             }
 
             switch (type) {
                 case "json":
-                    return this.jsonResponse(ctx, 'Success', 200, result, Validation.liveSchema)
+                    return ctx.jsonResp('Success', 200, result, Validation.liveSchema)
                 case "stream":
                 default:
                     //选取流
@@ -159,7 +159,7 @@ export class BiliLiveRoute extends APIRoute {
                     return ctx.redirect(streamURL, 302)
             }
         } catch (error) {
-            return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
+            return ctx.jsonResp((error as Error)?.message, 500, null)
         }
     }
 }

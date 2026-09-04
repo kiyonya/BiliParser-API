@@ -1,5 +1,10 @@
 import type { Context } from "hono";
-export type AppContext = Context<{ Bindings: Env }>;
+import CacheableObject from "./utils/cache";
+import z from "zod";
+export interface AppContext extends Context<{ Bindings: Env }> {
+    cache: CacheableObject,
+    jsonResp: <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>) => Response,
+};
 export interface CacheWarp<Data = any> {
     data: Data,
     expirationAt: number,
@@ -76,7 +81,7 @@ export namespace BiliTypes {
                 cid: number,
                 format: VideoPlayFormat
                 duration: number
-                realQuality:number
+                realQuality: number
             }
 
             export interface PlayDash extends VideoPlay {

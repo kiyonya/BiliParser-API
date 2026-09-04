@@ -1,7 +1,5 @@
 import { AppContext } from "../types"
-import APIRoute from "./api-route"
 import BiliCrypto from "./bili-crypto"
-import CacheableObject from "./cache"
 
 export default abstract class Parser {
 
@@ -25,15 +23,11 @@ export default abstract class Parser {
     protected BILI_DANMAKU_API = "https://comment.bilibili.com/"
     protected BILI_PLAYERV2_API = "https://api.bilibili.com/x/player/wbi/v2"
 
+    protected ctx:AppContext
     protected BCrypto:BiliCrypto
-    protected ctx?:AppContext
-    protected cache?:CacheableObject
-    protected route:APIRoute
 
-    constructor(route:APIRoute){
-        this.route = route
-        this.ctx = route.ctx
-        this.cache = route.cache
-        this.BCrypto = new BiliCrypto(this.ctx,this.cache)
+    constructor(ctx:AppContext){
+        this.ctx = ctx
+        this.BCrypto = new BiliCrypto(ctx)
     }
 }

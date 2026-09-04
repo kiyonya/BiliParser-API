@@ -5,7 +5,7 @@ import { proxyFetch } from "../utils/proxy-fetch";
 
 export class BiliIpRegionRoute extends APIRoute {
 
-    public override async Ihandle(ctx: AppContext) {
+    public override async invoke(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const headers = new Headers()
@@ -16,11 +16,11 @@ export class BiliIpRegionRoute extends APIRoute {
             })
             const res = await req.json<BiliTypes.BAPI.BiliNav>()
             const ipRegion = res.data.ip_region
-            return this.jsonResponse(ctx, 'Success', 200, {
+            return ctx.jsonResp( 'Success', 200, {
                 ipRegion: ipRegion
             }, Validation.ipRegionSchema)
         } catch (error) {
-            return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
+            return ctx.jsonResp( (error as Error)?.message, 500, null)
         }
     }
 }

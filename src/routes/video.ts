@@ -19,7 +19,7 @@ export class BiliVideoRoute extends APIRoute {
     }).transform(async (args) => {
         let { bvid, p, url, qn, platform } = args
         if (url) {
-            const processed = await this.getBvParamsFromUrl(url)
+            const processed = await this.utils.getUrlBv(url)
             if (!processed) {
                 throw new Error("cannot get bvid from url")
             }
@@ -39,15 +39,15 @@ export class BiliVideoRoute extends APIRoute {
         }
     })
 
-    private async parseBiliVideo(bvid: string, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
+    private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
 
-        const parser = new BiliVideoParser(this)
+        const parser = new BiliVideoParser(ctx)
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.cache?.getCache(infoKey, Validation.videoInfoSchema)
+        let videoInfo = await ctx.cache.getCache(infoKey, Validation.videoInfoSchema)
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            await ctx.cache.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -60,11 +60,11 @@ export class BiliVideoRoute extends APIRoute {
         const targetCid = targetPart.cid
         const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format, Config.serverLoginKeyHash)
 
-        let videoPlay = await this.cache?.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, Validation.videoPlaySchema)
+        let videoPlay = await ctx.cache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, Validation.videoPlaySchema)
         if (!videoPlay) {
             const duration = videoInfo.duration
             videoPlay = await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL
-            await this.cache?.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, videoPlay, (data) => {
+            await ctx.cache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, videoPlay, (data) => {
                 let videoBufferTimeS: number
                 if (duration < 60 * 10) {
                     videoBufferTimeS = 60
@@ -82,8 +82,8 @@ export class BiliVideoRoute extends APIRoute {
             }, Validation.videoPlaySchema)
         }
 
-        this.ctx?.header('X-Url-Cid', String(targetCid))
-        this.ctx?.header('X-Url-Part', String(p))
+        ctx.header('X-Url-Cid', String(targetCid))
+        ctx.header('X-Url-Part', String(p))
 
         const video: BiliTypes.RES.Video.Video = {
             ...videoInfo,
@@ -94,20 +94,7 @@ export class BiliVideoRoute extends APIRoute {
         return video
     }
 
-    protected switchDashCDN(dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: keyof BiliTypes.BiliVideoCDN) {
-        const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
-            dashItem.baseUrl = this.autoSwitchCDN(dashItem.baseUrl, cdn)
-            dashItem.backupUrl = dashItem.backupUrl.map(u => this.autoSwitchCDN(u, cdn))
-            return dashItem
-        }
-        dash.video = dash.video ? dash.video.map(replaceHost) : dash.video
-        dash.audio = dash.audio ? dash.audio.map(replaceHost) : dash.audio
-        dash.dobly = dash.dobly ? dash.dobly.map(replaceHost) : dash.dobly
-        dash.flac = dash.flac ? dash.flac.map(replaceHost) : dash.flac
-        return dash
-    }
-
-    public override async Ihandle(ctx: AppContext): Promise<Response> {
+    public override async invoke(ctx: AppContext): Promise<Response> {
         try {
             const reqUrl = new URL(ctx.req.url)
             const parmas = await this.PARAMS.safeParseAsync({
@@ -122,28 +109,28 @@ export class BiliVideoRoute extends APIRoute {
             })
 
             if (!parmas.success) {
-                return this.jsonResponse(ctx, parmas.error.issues[0]?.message ?? "invalid params", 400, null)
+                return ctx.jsonResp(parmas.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { type, platform, cdn, qn, p: page, format } = parmas.data
             const bvid = parmas.data.bvid!
 
 
-            const result = await this.parseBiliVideo(bvid, page, qn, platform, format)
+            const result = await this.parseBiliVideo(ctx, bvid, page, qn, platform, format)
             if (result.play.isDash) {
-                result.play.dash = this.switchDashCDN(result.play.dash, cdn)
+                result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn)
             }
             else {
-                result.play.url = this.autoSwitchCDN(result.play.url, cdn)
-                result.play.backupUrl = result.play.backupUrl.map(i => this.autoSwitchCDN(i, cdn))
+                result.play.url = this.utils.switchCDN(ctx, result.play.url, cdn)
+                result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchCDN(ctx, i, cdn))
             }
 
             if (result.play.isDash) {
-                return this.jsonResponse<BiliTypes.RES.Video.Video>(ctx, "Success", 200, result, Validation.videoSchema)
+                return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result, Validation.videoSchema)
             }
             else {
                 switch (type) {
                     case "json":
-                        return this.jsonResponse<BiliTypes.RES.Video.Video>(ctx, "Success", 200, result, Validation.videoSchema)
+                        return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result, Validation.videoSchema)
                     case "video":
                     default:
                         ctx.header("X-Bili-Bvid", bvid)
@@ -151,7 +138,7 @@ export class BiliVideoRoute extends APIRoute {
                 }
             }
         } catch (error) {
-            return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
+            return ctx.jsonResp((error as Error)?.message, 500, null)
         }
     }
 }

@@ -6,11 +6,9 @@ import { proxyFetch } from "./proxy-fetch";
 
 export default class BiliCrypto {
 
-    protected ctx?: AppContext
-    protected cache?: CacheableObject
-    constructor(ctx?:AppContext,cache?: CacheableObject) {
+    protected ctx: AppContext
+    constructor(ctx: AppContext) {
         this.ctx = ctx
-        this.cache = cache
     }
 
     private BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
@@ -43,20 +41,6 @@ export default class BiliCrypto {
         return this.biliWbiMixinKey
     }
 
-    // private async hmacSha256Hex(key: string, message: string): Promise<string> {
-    //     const enc = new TextEncoder();
-    //     const cryptoKey = await crypto.subtle.importKey(
-    //         'raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-    //     );
-    //     const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message));
-    //     return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-    // }
-
-    // private async computeMd5String(text: string) {
-    //     const hashBuffer = await crypto.subtle.digest('MD5', new TextEncoder().encode(text));
-    //     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-    // }
-
     private randomBlsid(tms = Date.now()) {
         const toHex = (n: number) => Math.ceil(n).toString(16).toUpperCase();
         let randomPart = '';
@@ -75,11 +59,11 @@ export default class BiliCrypto {
     private async createBiliAntiCookie(): Promise<string> {
 
         const cookiesCacheKey = `${Config.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`
-        let cookies = await this.cache?.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
+        let cookies = await this.ctx.cache.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
         if (!cookies) {
             const signTs = Date.now()
-            this.ctx?.header('X-Bcrypto-Cookies-Cache', 'MISS')
-            this.ctx?.header('X-Bcrypto-Sign-Time', String(signTs))
+            this.ctx.header('X-Bcrypto-Cookies-Cache', 'MISS')
+            this.ctx.header('X-Bcrypto-Sign-Time', String(signTs))
             let buvid3 = this.BILI_DEFAULT_BUVID3;
             let buvid4 = null;
             let ticket: string | null = null
@@ -121,13 +105,13 @@ export default class BiliCrypto {
             }
             if (cookieCacheOk) {
                 const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
-                await this.cache?.setCache(cookiesCacheKey, cookies, () => {
+                await this.ctx.cache.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
                 }, undefined, 'kv')
             }
         }
         else {
-            this.ctx?.header('X-Bcrypto-Cookies-Cache', 'HIT')
+            this.ctx.header('X-Bcrypto-Cookies-Cache', 'HIT')
         }
 
         if (Config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {

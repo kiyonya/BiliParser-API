@@ -13,7 +13,7 @@ export class BiliCoverRoute extends APIRoute {
     }).transform(async (args) => {
         let { bvid, url } = args
         if (url) {
-            const processed = await this.getBvParamsFromUrl(url)
+            const processed = await this.utils.getUrlBv(url)
             if (!processed) {
                 throw new Error("cannot get bvid from url")
             }
@@ -26,7 +26,7 @@ export class BiliCoverRoute extends APIRoute {
         }
     })
 
-    public override async Ihandle(ctx: AppContext) {
+    public override async invoke(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const { success } = await ctx.env.RATE_LIMITER.limit({ key: url.pathname })
@@ -39,17 +39,17 @@ export class BiliCoverRoute extends APIRoute {
                 type: url.searchParams.get('type') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
+                return ctx.jsonResp( params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { type } = params.data
             const bvid = params.data.bvid!
 
             const key = this.CacheKey.videoInfo(bvid)
-            let videoInfo = await this.cache?.getCache<BiliTypes.RES.Video.VideoInfo>(key)
+            let videoInfo = await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(key)
             if (!videoInfo) {
                 const parser:BiliVideoParser = new BiliVideoParser(this as any) 
                 videoInfo = await parser.getVideoInfo(bvid)
-                await this.cache?.setCache(key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
+                await ctx.cache.setCache(key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
             }
             const imgUrl = videoInfo.pic
             switch (type) {
@@ -73,7 +73,7 @@ export class BiliCoverRoute extends APIRoute {
                     return ctx.redirect(imgUrl, 302)
             }
         } catch (error) {
-            return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
+            return ctx.jsonResp( (error as Error)?.message, 500, null)
         }
     }
 }

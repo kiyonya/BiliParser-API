@@ -150,6 +150,9 @@ export abstract class Validation {
         }))
     })
 
+    /**
+     * @deprecated
+     */
     public static bangumiPlayUrlSchema: z.ZodType<BiliTypes.RES.Bangumi.BangumiPlayURL> = z.object({
         quality: z.number(),
         duration: z.number().nonnegative(),

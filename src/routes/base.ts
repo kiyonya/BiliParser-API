@@ -3,7 +3,7 @@ import APIRoute from "../utils/api-route";
 
 export class BaseRoute extends APIRoute {
 
-    public override async Ihandle(ctx: AppContext) {
+    public override async invoke(ctx: AppContext) {
 
         const serverVersion = this.SERVER_VERSION
         const url = new URL(ctx.req.url)

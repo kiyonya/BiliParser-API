@@ -16,7 +16,7 @@ export class SubtitleRoute extends APIRoute {
     }).transform(async (args) => {
         let { bvid, p, url } = args
         if (url) {
-            const processed = await this.getBvParamsFromUrl(url)
+            const processed = await this.utils.getUrlBv(url)
             if (!processed) {
                 throw new Error("cannot get bvid from url")
             }
@@ -33,14 +33,14 @@ export class SubtitleRoute extends APIRoute {
         }
     })
 
-    protected async parseSubtitle(bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
-        const parser = new BiliVideoParser(this)
+    protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
+        const parser = new BiliVideoParser(ctx)
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.cache?.getCache(infoKey, Validation.videoInfoSchema)
+        let videoInfo = await ctx.cache.getCache(infoKey, Validation.videoInfoSchema)
 
         if (!videoInfo) {
             videoInfo = await parser.getVideoInfo(bvid)
-            await this.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            await ctx.cache.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -52,11 +52,11 @@ export class SubtitleRoute extends APIRoute {
         const targetCid = targetPart.cid
 
         const subtitlesKey = this.CacheKey.videoSubtitles(targetCid)
-        let subtitles = await this.cache?.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(subtitlesKey)
+        let subtitles = await ctx.cache.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(subtitlesKey)
         if (!subtitles) {
             subtitles = await parser.getVideoSubtitles(bvid, targetCid)
             if (subtitles.length) {
-                await this.cache?.setCache(subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
+                await ctx.cache.setCache(subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
             }
         }
         return subtitles
@@ -97,7 +97,7 @@ export class SubtitleRoute extends APIRoute {
         return srt.join("\n\n")
     }
 
-    public override async Ihandle(ctx: AppContext) {
+    public override async invoke(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = await this.PARAMS.safeParseAsync({
@@ -108,11 +108,11 @@ export class SubtitleRoute extends APIRoute {
                 type: url.searchParams.get('type') || undefined
             })
             if (!params.success) {
-                return this.jsonResponse(ctx, params.error.issues[0]?.message ?? "invalid params", 400, null)
+                return ctx.jsonResp(params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { p, lang, type } = params.data
             const bvid = params.data.bvid!
-            const subtitles = await this.parseSubtitle(bvid, p)
+            const subtitles = await this.parseSubtitle(ctx, bvid, p)
 
             if (lang) {
                 const targetLangSubtitle = subtitles.filter(i => i.lang.toLowerCase() === lang.toLowerCase())[0]
@@ -120,7 +120,7 @@ export class SubtitleRoute extends APIRoute {
                     switch (type) {
                         case 'info':
                         default:
-                            return this.jsonResponse(ctx, 'ok', 200, targetLangSubtitle, Validation.videoSubtitleItemSchema)
+                            return ctx.jsonResp('ok', 200, targetLangSubtitle, Validation.videoSubtitleItemSchema)
                         case "srt":
                             const srt = await this.createSRT(targetLangSubtitle)
                             return ctx.text(srt, 200)
@@ -130,13 +130,12 @@ export class SubtitleRoute extends APIRoute {
                     }
                 }
                 else {
-                    return this.jsonResponse(ctx, 'not found', 404, null)
+                    return ctx.jsonResp('not found', 404, null)
                 }
             }
-
-            return this.jsonResponse(ctx, 'ok', 200, subtitles, z.array(Validation.videoSubtitleItemSchema))
+            return ctx.jsonResp('ok', 200, subtitles, z.array(Validation.videoSubtitleItemSchema))
         } catch (error) {
-            return this.jsonResponse(ctx, (error as Error)?.message, 500, null)
+            return ctx.jsonResp((error as Error)?.message, 500, null)
         }
     }
 }

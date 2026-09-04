@@ -2,8 +2,7 @@ import { fromHono } from "chanfana";
 import { Hono } from "hono";
 import { BiliVideoRoute } from "./routes/video";
 import { BiliLiveRoute } from "./routes/live";
-import { BiliProxyPlay } from "./routes/uplay";
-import { BiliBangumiEpisodesRoute, BiliBangumiInfoRoute, BiliBangumiPlayRoute } from "./routes/bangumi";
+import { BiliBangumiEpisodesRoute, BiliBangumiInfoRoute } from "./routes/bangumi";
 import { BiliIpRegionRoute } from "./routes/biliip";
 import { BiliArchieveRoute } from "./routes/archieve";
 import { BiliVideoCDNRoute } from "./routes/cdn";
@@ -36,14 +35,9 @@ openapi.get('/subtitle/:bvid?/:p?', SubtitleRoute)
 openapi.get('/cover/:bvid?', BiliCoverRoute)
 openapi.get('/cdn', BiliVideoCDNRoute)
 openapi.get('/live/:roomId?', BiliLiveRoute)
-openapi.get('/pplay', BiliProxyPlay)
 openapi.get('/bangumi/info', BiliBangumiInfoRoute)
 openapi.get('/bangumi/episodes', BiliBangumiEpisodesRoute)
-openapi.get('/bangumi/play/:epid?', BiliBangumiPlayRoute)
 openapi.get('/ipregion', BiliIpRegionRoute)
 openapi.get('/user/archieve/:mid?/:sid?', BiliArchieveRoute)
-
-
-
 
 export default app
