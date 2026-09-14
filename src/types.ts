@@ -125,6 +125,37 @@ export namespace BiliTypes {
                     pageSize: number,
                 }
             }
+
+            export interface UserFavInfo {
+                fid: number,
+                pic: string
+                creator: {
+                    uid: number,
+                    name: string,
+                    face: string,
+                },
+                ctime: number,
+                mtime: number,
+            }
+
+            export interface UserFavMediaItem {
+                aid: number,
+                bvid: string,
+                cid: number
+                duration: number,
+                title: string,
+                desc: string,
+                pic: string
+                owner: {
+                    uid: number,
+                    name: string,
+                    face: string,
+                },
+            }
+
+            export interface UserFav extends UserFavInfo {
+                medias: UserFavMediaItem[]
+            }
         }
 
         export namespace Live {
@@ -257,6 +288,71 @@ export namespace BiliTypes {
                 srt: string
             }
         }
+
+        export namespace Search {
+
+            export type SearchType = "video" | "up" | "live"
+
+            export interface SearchResult<R> {
+                page: number,
+                pageSize: number,
+                numResults: number,
+                numPages: number,
+                results: R[]
+            }
+
+            export interface SearchVideoItem extends SearchResult<{
+                type: "video",
+                aid: number,
+                bvid: string,
+                title: string,
+                desc: string,
+                pic: string,
+                tag: string,
+                duration: number
+                owner: {
+                    mid: number,
+                    name: string,
+                    face: string
+                }
+            }> { }
+
+            export interface SearchLiveItem extends SearchResult<{
+                type: "live"
+                roomId: number,
+                title: string,
+                tag: string,
+                pic: string,
+                liveTime: string,
+                online: number
+                attentions: number
+                liveUser: {
+                    uid: number
+                    name: string,
+                    face: string
+                },
+            }> { }
+
+            export interface SearchUserTopVideo {
+                aid: number,
+                bvid: string,
+                title: string,
+                pic: string,
+            }
+
+            export interface SearchUserItem extends SearchResult<{
+                type: "bili_user",
+                uid: number,
+                name: string,
+                sign: string,
+                fans: number,
+                videos: number,
+                pic: string,
+                level: number,
+                latestVideos: SearchUserTopVideo[]
+            }> { }
+
+        }
     }
 
     export namespace BAPI {
@@ -264,7 +360,7 @@ export namespace BiliTypes {
         interface Response<Data = any> {
             code: number,
             message: string,
-            data: Data
+            data: Data & { v_voucher?: string }
         }
 
         interface ResponseResultLike<Result = any> {
@@ -499,6 +595,203 @@ export namespace BiliTypes {
             }
         }> { }
 
+        export interface BiliSearchItemContainer<Result> extends Response<{
+            page: number,
+            pageSize: number,
+            numResults: number,
+            numPages: number,
+            result: Result[]
+        }> { }
+
+        export interface BiliSearchVideo extends BiliSearchItemContainer<{
+            type: "video";
+            id: number;
+            author: string;
+            mid: number;
+            typeid: number;
+            typename: string;
+            arcurl: string;
+            aid: number;
+            bvid: string;
+            title: string;
+            description: string;
+            pic: string;
+            play: number;
+            video_review: number;
+            favorites: number;
+            tag: string;
+            review: number;
+            pubdate: number;
+            senddate: number;
+            duration: string;
+            badgepay: boolean;
+            hit_columns: string[];
+            view_type: string;
+            is_pay: number;
+            is_union_video: number;
+            rec_tags: any | null;
+            new_rec_tags: any[];
+            like: number;
+            upic: string;
+            corner: string;
+            cover: string;
+            desc: string;
+            url: string;
+            rec_reason: string;
+            danmaku: number;
+            biz_data: any | null;
+            is_charge_video: number;
+            vt: number;
+            enable_vt: number;
+            vt_display: string;
+            subtitle: string;
+            episode_count_text: string;
+            release_status: number;
+            is_intervene: number;
+            area: number;
+            style: number;
+            cate_name: string;
+            is_live_room_inline: number;
+            live_status: number;
+            live_time: string;
+            online: number;
+            rank_index: number;
+            rank_offset: number;
+            roomid: number;
+            short_id: number;
+            spread_id: number;
+            tags: string;
+            uface: string;
+            uid: number;
+            uname: string;
+            user_cover: string;
+            parent_area_id: number;
+            parent_area_name: string;
+            watched_show: any | null;
+            cny_flag: number;
+            card_status: number;
+        }> { }
+
+        export interface BiliSearchLive extends BiliSearchItemContainer<{
+            area: number;
+            attentions: number;
+            cate_name: string;
+            cny_flag: number;
+            cover: string;
+            hit_columns: string[];
+            id: number;
+            inline_title_style: number;
+            is_fold: boolean;
+            is_live_room_inline: number;
+            is_rk1: boolean;
+            live_status: number;
+            live_time: string;
+            online: number;
+            pic: string;
+            rank_index: number;
+            rank_offset: number;
+            roomid: number;
+            short_id: number;
+            spread_id: number;
+            style: number;
+            tags: string;
+            title: string;
+            type: "live_room";
+            uface: string;
+            uid: number;
+            uname: string;
+            user_cover: string;
+        }> { }
+
+        export interface BiliSearchUserTopVideo {
+            aid: number;
+            bvid: string;
+            title: string;
+            pubdate: number;
+            arcurl: string;
+            pic: string;
+            play: string;
+            dm: number;
+            coin: number;
+            fav: number;
+            desc: string;
+            duration: string;
+            is_pay: number;
+            is_union_video: number;
+            is_charge_video: number;
+            vt: number;
+            enable_vt: number;
+            vt_display: string;
+        }
+
+        export interface BiliSearchUser extends BiliSearchItemContainer<{
+            type: "bili_user";
+            mid: number;
+            uname: string;
+            usign: string;
+            fans: number;
+            videos: number;
+            upic: string;
+            face_nft: number;
+            face_nft_type: number;
+            verify_info: string;
+            level: number;
+            gender: number;
+            is_upuser: number;
+            is_live: number;
+            room_id: number;
+            res: BiliSearchUserTopVideo[]
+        }> { }
+
+
+        export interface BiliUserFav extends Response<{
+            info: {
+                id: number;
+                fid: number;
+                mid: number;
+                attr: number;
+                title: string;
+                cover: string;
+                upper: {
+                    mid: number;
+                    name: string;
+                    face: string;
+                };
+                cover_type: number;
+                type: number;
+                intro: string;
+                ctime: number;
+                mtime: number;
+                state: number;
+                fav_state: number;
+                like_state: number;
+                media_count: number;
+                is_top: boolean;
+                is_kid_playlist: boolean;
+                kid_playlist_desc: string;
+            }
+            medias: {
+                id: number;
+                title: string;
+                cover: string;
+                intro: string;
+                page: number;
+                duration: number;
+                upper: {
+                    mid: number;
+                    name: string;
+                    face: string;
+                };
+                ctime: number;
+                pubtime: number;
+                fav_time: number;
+                bvid: string;
+                ugc: {
+                    first_cid: number
+                },
+            }[]
+        }> { }
+
     }
 
     export interface PlatformAPPKEY {
@@ -537,6 +830,7 @@ export namespace BiliTypes {
         rali: string;
         akam: string;
     }
+
 }
 
 export namespace APITypes {

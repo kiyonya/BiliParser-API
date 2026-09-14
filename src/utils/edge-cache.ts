@@ -14,7 +14,7 @@ export default class EdgeCache {
         return keyUrl
     }
 
-    public async getEdgeCache<Data = any>(ctx: AppContext, key: string, validate?: z.ZodType<Data>): Promise<CacheResult | null> {
+    public async getEdgeCache<Data = any>(ctx: AppContext, key: string, schema?: z.ZodType<Data>): Promise<CacheResult | null> {
         try {
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cached = await caches.default.match(vCacheKey)
@@ -30,7 +30,7 @@ export default class EdgeCache {
                     return null
                 }
                 const warp = await cached.json<CacheWarp>()
-                const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (validate ? validate.safeParse(warp.data).success : true) : true
+                const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? schema.safeParse(warp.data).success : true) : true
                 if (isDataValid) {
                     return {
                         data: warp.data,
@@ -49,9 +49,9 @@ export default class EdgeCache {
         }
     }
 
-    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, validate?: z.ZodType<Data>) {
+    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, schema?: z.ZodType<Data>) {
         try {
-            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (validate ? validate.safeParse(data).success : true) : true
+            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? schema.safeParse(data).success : true) : true
             if (!isDataValid) { return }
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cacheHeaders = new Headers()

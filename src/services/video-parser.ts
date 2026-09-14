@@ -55,7 +55,7 @@ export default class BiliVideoParser extends Parser {
                 owner: owner,
                 info_source: 'view',
                 infoSource: 'view',
-                parts: parts
+                parts: parts,
             }
             return info
         }
@@ -241,8 +241,8 @@ export default class BiliVideoParser extends Parser {
         const params: Record<string, any> = {
             bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format], fourk: 1, fnver: 0
         }
-        const signed = await this.BCrypto.signWbi(params)
-        for (const [key, value] of signed.entries()) {
+        const sign = await this.BCrypto.signWbi(params)
+        for (const [key, value] of Object.entries(sign)) {
             wbiUrl.searchParams.append(key, value)
         }
         return wbiUrl
@@ -260,9 +260,9 @@ export default class BiliVideoParser extends Parser {
             fourk: 1,
             fnver: 0
         };
-        const signed: URLSearchParams = await this.BCrypto.signApp(params, platform);
+        const sign = await this.BCrypto.signApp(params, platform);
         const url = new URL(this.BILI_VIDEO_PLAYURL_API)
-        for (const [key, value] of signed.entries()) {
+        for (const [key, value] of Object.entries(sign)) {
             url.searchParams.append(key, value)
         }
         return url
@@ -295,7 +295,7 @@ export default class BiliVideoParser extends Parser {
         for (const urlFunc of urls) {
             const url = await urlFunc()
             const headers = new Headers({
-                'user-agent': this.BROWSER_UA,
+                ...this.FAKE_BROWSER_HEADERS,
                 'referer': this.BILI_REFERER
             })
             headers.append('Cookie', cookie)
@@ -368,19 +368,15 @@ export default class BiliVideoParser extends Parser {
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "mp4"): Promise<BiliTypes.RES.Video.PlayURL>
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "dash"): Promise<BiliTypes.RES.Video.PlayDash>
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform = 'html5', format: BiliTypes.RES.Video.VideoPlayFormat = 'mp4'): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
-        try {
-            const cookie = await this.BCrypto.getBiliAntiCookie();
-            switch (platform) {
-                case "html5":
-                case "pc":
-                default:
-                    // 针对此实现的调用已成功，但重载的实现签名在外部不可见
-                    return this.getStreamWebLike(bvid, cid, cookie, qn, platform, format as any)
-                case "app":
-                    return this.getStreamAppLike(bvid, cid, cookie, qn, platform, format as any)
-            }
-        } catch (error) {
-            throw new Error(`Cannot Get Play URL:${error}`)
+        const cookie = await this.BCrypto.getBiliAntiCookie();
+        switch (platform) {
+            case "html5":
+            case "pc":
+            default:
+                // 针对此实现的调用已成功，但重载的实现签名在外部不可见
+                return this.getStreamWebLike(bvid, cid, cookie, qn, platform, format as any)
+            case "app":
+                return this.getStreamAppLike(bvid, cid, cookie, qn, platform, format as any)
         }
     }
 
@@ -410,7 +406,7 @@ export default class BiliVideoParser extends Parser {
         const url = new URL(this.BILI_DANMAKU_API)
         url.pathname = `${cid}.xml`
         const req = await proxyFetch(url, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
         const isXML = req.headers.get('content-type') === 'text/xml' || req.headers.get('content-type') === 'application/xml'
         if (isXML) {
@@ -423,16 +419,16 @@ export default class BiliVideoParser extends Parser {
     public async getVideoSubtitles(bvid: string, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const cookie = await this.BCrypto.getBiliAntiCookie()
         const url = new URL(this.BILI_PLAYERV2_API)
-        const params = {
+        const params: Record<string, string> = {
             bvid: bvid,
-            cid: cid
+            cid: String(cid)
         }
         const sign = await this.BCrypto.signWbi(params)
-        for (const [key, value] of sign.entries()) {
+        for (const [key, value] of Object.entries(sign)) {
             url.searchParams.append(key, value)
         }
         const req = await proxyFetch(url, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         });
         const data = await req.json() as BiliTypes.BAPI.BiliPlayerV2
         if (data.code === 0) {

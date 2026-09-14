@@ -1,5 +1,6 @@
 import z from "zod"
 import { AppContext } from "../types"
+import { Config } from "../config"
 import EdgeCache from "./edge-cache"
 import KVCache from "./kv-cache"
 import { md5String } from "./hashlib"
@@ -24,10 +25,10 @@ export default class CacheableObject {
 
     public get cacheHeaders(): Record<string, string> {
 
-        const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0,6)).join(",")
-        const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0,6)).join(",")
+        const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
+        const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
 
-        const headers:Record<string,string> = {}
+        const headers: Record<string, string> = {}
         const isCacheHit = Boolean(this.edgeCacheHits.size) || Boolean(this.kvCacheHits.size)
 
         headers['X-Cache-Status'] = isCacheHit ? "HIT" : "MISS"
@@ -37,17 +38,17 @@ export default class CacheableObject {
         return headers
     }
 
-    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), validate?: z.ZodType<Data>, mode: CacheMode = "all"): Promise<void> {
+    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode: CacheMode = "all"): Promise<void> {
         try {
             const expirationAt: number = typeof expirationAtCall === 'function'
                 ? expirationAtCall(data)
                 : expirationAtCall;
             const tasks: Promise<any>[] = [];
             if (mode === 'all' || mode === 'edge') {
-                tasks.push(this.edgeCache.setEdgeCache(this.ctx, key, data, expirationAt, validate));
+                tasks.push(this.edgeCache.setEdgeCache(this.ctx, key, data, expirationAt, schema));
             }
             if (mode === 'all' || mode === 'kv') {
-                tasks.push(this.kvCache.setKVCache(this.ctx, key, data, expirationAt, validate));
+                tasks.push(this.kvCache.setKVCache(this.ctx, key, data, expirationAt, schema));
             }
             if (tasks.length > 0) {
                 await Promise.allSettled(tasks);
@@ -57,10 +58,18 @@ export default class CacheableObject {
         }
     }
 
-    public async getCache<Data = any>(key: string, validate?: z.ZodType<Data>, mode: CacheMode = "all", addkey: boolean = true): Promise<Data | null> {
+    /**
+     * 
+     * @param key 
+     * @param schema schema to validate data, use getSchemaValidData to avoid repeat schema valiation
+     * @param mode 
+     * @param addkey 
+     * @returns 
+     */
+    public async getCache<Data = any>(key: string, schema?: z.ZodType<Data>, mode: CacheMode = "all", addkey: boolean = true): Promise<Data | null> {
         try {
             if (mode === 'edge') {
-                const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key, validate);
+                const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key, schema);
                 if (edgeCache) {
                     addkey && this.edgeCacheHits.add(key)
                     this.kvCacheNotUsed = true;
@@ -69,7 +78,7 @@ export default class CacheableObject {
                 return null;
             }
             if (mode === 'kv') {
-                const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, validate);
+                const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, schema);
                 if (kvCache) {
                     addkey && this.kvCacheHits.add(key)
                     this.kvCacheNotUsed = false;
@@ -77,19 +86,19 @@ export default class CacheableObject {
                 }
                 return null;
             }
-            const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key, validate);
+            const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key, schema);
             if (edgeCache) {
-                addkey &&   this.edgeCacheHits.add(key)
+                addkey && this.edgeCacheHits.add(key)
                 this.kvCacheNotUsed = true;
                 return edgeCache.data;
             }
-            const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, validate);
+            const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, schema);
             if (kvCache) {
                 addkey && this.kvCacheHits.add(key)
                 this.kvCacheNotUsed = false;
                 const kvCacheKey = kvCache.raw.key;
                 const expirationAt = kvCache.raw.expirationAt;
-                await this.edgeCache.setEdgeCache(this.ctx, kvCacheKey, kvCache.data, expirationAt);
+                await this.edgeCache.setEdgeCache(this.ctx, kvCacheKey, kvCache.data, expirationAt, schema);
                 return kvCache.data;
             }
             return null;

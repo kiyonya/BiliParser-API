@@ -12,7 +12,8 @@ export class BaseRoute extends APIRoute {
         const port = url.port
         const demoUrl = ['127.0.0.1', 'localhost'].includes(hostname) ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`
         const cf = ctx.req.raw.cf
-        
+        const ray = ctx.req.header("cf-ray")
+
         const demoBvid = "BV1JTRGBBEy2"
 
         const demoUrls: Record<string, string> = {
@@ -24,6 +25,9 @@ export class BaseRoute extends APIRoute {
             "video subtitle": `${demoUrl}/subtitle/BV1vnbPz4ECg`,
             "video subtitle part": `${demoUrl}/subtitle/BV1vnbPz4ECg/1`,
             "video subtitle advance": `${demoUrl}/subtitle/BV1vnbPz4ECg?lang=zh-Hans&type=srt`,
+            "search video": `${demoUrl}/search/video?keyword=宇多田光`,
+            "search uploader": `${demoUrl}/search/up?keyword=宇多田光`,
+            "search live": `${demoUrl}/search/live?keyword=VRChat`,
             "danmaku xml": ` ${demoUrl}/danmaku/${demoBvid}`,
             "danmaku json": ` ${demoUrl}/danmaku/${demoBvid}?type=json`,
             "live info": `${demoUrl}/live/5055636?type=json`,
@@ -31,7 +35,21 @@ export class BaseRoute extends APIRoute {
             "bangumi info": `${demoUrl}/bangumi/info?epid=ep378374`,
             "bangumi episodes": `${demoUrl}/bangumi/episodes?ssid=37498`,
             "user archieve": ` ${demoUrl}/user/archieve/296909317/3091395`,
+            "user favlist": ` ${demoUrl}/user/fav/220737630`,
         }
+
+        const infos: Record<string, string> = {
+            "server version": serverVersion,
+            "colo": cf?.colo as string,
+            "tcprtt": cf?.clientTcpRtt ? `${cf?.clientTcpRtt}ms` : "",
+        }
+        if (ray) {
+            infos["ray"] = ray
+        }
+
+        const infoText = Object.entries(infos)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join("&nbsp;&nbsp;|&nbsp;&nbsp;")
 
         const rows = Object.entries(demoUrls)
             .map(([type, url]) => `<tr><td>${type}</td><td><a href="${url}">${url}</a></td></tr>`)
@@ -54,7 +72,7 @@ export class BaseRoute extends APIRoute {
         
         <body>
         <h2>Cloudflare BiliParser API</h2>
-        <span>server version: ${serverVersion}&nbsp;&nbsp;|&nbsp;&nbsp;colo: ${cf?.colo}&nbsp;&nbsp;|&nbsp;&nbsp;tcprtt:${cf?.clientTcpRtt}ms</span>
+        <span>${Object.keys(infos).map(k=>`${k}: ${infos[k]}`).join("&nbsp;&nbsp;|&nbsp;&nbsp")}</span>
 
         <br />
         <br />

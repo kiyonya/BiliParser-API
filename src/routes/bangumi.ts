@@ -39,13 +39,13 @@ export class BiliBangumiInfoRoute extends APIRoute {
             const { seasonId, episodeId } = params.data
 
             const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
-            let result = await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(key, Validation.bangumiInfoSchema)
+            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(key), Validation.bangumiInfoSchema)
             if (!result) {
                 const parser: BiliBangumiParser = new BiliBangumiParser(ctx)
-                result = await parser.getBangumiInfo(seasonId, episodeId)
-                await ctx.cache.setCache(key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME, Validation.bangumiInfoSchema)
+                result = await this.getSchemaValidData(await parser.getBangumiInfo(seasonId, episodeId), Validation.bangumiInfoSchema, true)
+                await ctx.cache.setCache(key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME)
             }
-            return ctx.jsonResp('Success', 200, result, Validation.bangumiInfoSchema)
+            return ctx.jsonResp('Success', 200, result)
 
         } catch (error) {
             return ctx.jsonResp((error as Error)?.message, 500, null)
@@ -81,14 +81,14 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
             }
             const { seasonId } = params.data
             const key = this.CacheKey.bangumiEpisodes(seasonId)
-            let result = await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(key, Validation.bangumiEpisodeSchema)
+            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(key), Validation.bangumiEpisodeSchema)
             if (!result) {
                 const parser: BiliBangumiParser = new BiliBangumiParser(ctx)
-                result = await parser.getBangumiEpisodes(seasonId)
-                await ctx.cache.setCache(key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME, Validation.bangumiEpisodeSchema)
+                result = await this.getSchemaValidData(await parser.getBangumiEpisodes(seasonId), Validation.bangumiEpisodeSchema, true)
+                await ctx.cache.setCache(key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME)
             }
 
-            return ctx.jsonResp('Success', 200, result, Validation.bangumiEpisodeSchema)
+            return ctx.jsonResp('Success', 200, result)
         } catch (error) {
             return ctx.jsonResp((error as Error)?.message, 500, null)
         }

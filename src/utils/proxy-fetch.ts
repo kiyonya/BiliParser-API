@@ -42,6 +42,7 @@ export async function proxyFetch(
                     }
                     const proxyUrl = new URL(proxyServerUrl);
                     const headers = new Headers(init?.headers);
+                    
                     if (token) {
                         headers.append('Authorization', `Bearer ${token}`);
                     }

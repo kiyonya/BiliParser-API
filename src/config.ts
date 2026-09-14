@@ -1,6 +1,7 @@
 import z from "zod"
 import { BiliTypes } from "./types"
 import { md5String } from "./utils/hashlib"
+import { MemoObject } from "./memo"
 
 export interface CDNStrategy {
     continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN, priority: number
@@ -11,15 +12,17 @@ const stringEnv = z.coerce.string().optional()
 const booleanEnv = (raw: string | undefined, def: boolean): boolean =>
     raw ? raw === "true" : def
 
-export abstract class Config {
+export abstract class Config extends MemoObject{
 
     public static get isServerLogin() {
-        return this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined
+        return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined)
     }
 
     public static get serverLoginKeyHash() {
-        const key = `${String(this.isServerLogin)}:${process.env.CONFIG_CustomCookies ?? ""}`
-        return md5String(key)
+        return this.memo("serverLoginKeyHash", () => {
+            const key = `${String(this.isServerLogin)}:${process.env.CONFIG_CustomCookies ?? ""}`
+            return md5String(key)
+        })
     }
 
     protected static parseCDNStrategy(strategies?: string): CDNStrategy[] {
@@ -45,86 +48,96 @@ export abstract class Config {
 
     //cdn
     public static get VIDEO_CDN_STRATEGE(): CDNStrategy[] {
-        return this.parseCDNStrategy(process.env.CONFIG_VideoCDNStrategy ?? "AS,CN,alib;*,*,aliov")
+        return this.memo("VIDEO_CDN_STRATEGE", () => this.parseCDNStrategy(process.env.CONFIG_VideoCDNStrategy ?? "AS,CN,alib;*,*,aliov"))
     }
 
     //cache
     public static get ENABLE_CAHCE_DATA_VALIDATION(): boolean {
-        return booleanEnv(process.env.CONFIG_CacheValidation, true)
+        return this.memo("ENABLE_CAHCE_DATA_VALIDATION", () => booleanEnv(process.env.CONFIG_CacheValidation, true))
     }
 
     public static get CACHE_DATA_VERSION(): number {
-        return numberEnv(5).safeParse(process.env.CONFIG_CacheDataVersion).data ?? 5
+        return this.memo("CACHE_DATA_VERSION", () => numberEnv(5).safeParse(process.env.CONFIG_CacheDataVersion).data ?? 5)
     }
 
     //cookies
     public static get ENABLE_CUSTOM_COOKIES(): boolean {
-        return booleanEnv(process.env.CONFIG_EnableCustomCookies, false)
+        return this.memo("ENABLE_CUSTOM_COOKIES", () => booleanEnv(process.env.CONFIG_EnableCustomCookies, false))
     }
 
-    public static get COOKIES_SIGN_CACHE_TIME(){
-        return numberEnv(3600).safeParse(process.env.CONFIG_CookiesSignCacheTime).data ?? 3600
+    public static get COOKIES_SIGN_CACHE_TIME(): number {
+        return this.memo("COOKIES_SIGN_CACHE_TIME", () => numberEnv(3600).safeParse(process.env.CONFIG_CookiesSignCacheTime).data ?? 3600)
     }
 
     //video
     public static get BILI_VIDEO_PLAYURL_CACHE_TIME(): number {
-        return numberEnv(5400).safeParse(process.env.CONFIG_BiliVideoPlayUrlCacheTime).data ?? 5400
+        return this.memo("BILI_VIDEO_PLAYURL_CACHE_TIME", () => numberEnv(5400).safeParse(process.env.CONFIG_BiliVideoPlayUrlCacheTime).data ?? 5400)
     }
 
     public static get BILI_VIDEO_INFO_CAHCE_TIME(): number {
-        return numberEnv(60 * 60 * 24).safeParse(process.env.CONFIG_BiliVideoInfoCacheTime).data ?? 60 * 60 * 24
+        return this.memo("BILI_VIDEO_INFO_CAHCE_TIME", () => numberEnv(60 * 60 * 24).safeParse(process.env.CONFIG_BiliVideoInfoCacheTime).data ?? 60 * 60 * 24)
     }
 
     public static get BILI_VIDEO_SUBTITLES_CACHE_TIME(): number {
-        return numberEnv(1800).safeParse(process.env.CONFIG_BiliVideoSubtitlesCacheTime).data ?? 1800
+        return this.memo("BILI_VIDEO_SUBTITLES_CACHE_TIME", () => numberEnv(1800).safeParse(process.env.CONFIG_BiliVideoSubtitlesCacheTime).data ?? 1800)
     }
 
     //live
     public static get BILI_LIVE_CACHE_TIME(): number {
-        return numberEnv(60).safeParse(process.env.CONFIG_BiliLiveCacheTime).data ?? 60
+        return this.memo("BILI_LIVE_CACHE_TIME", () => numberEnv(60).safeParse(process.env.CONFIG_BiliLiveCacheTime).data ?? 60)
     }
 
     //bangumi
     public static get BILI_BANGUMI_PLAYUEL_CACHE_TIME(): number {
-        return numberEnv(5400).safeParse(process.env.CONFIG_BiliBangumiPlayUrlCacheTime).data ?? 5400
+        return this.memo("BILI_BANGUMI_PLAYUEL_CACHE_TIME", () => numberEnv(5400).safeParse(process.env.CONFIG_BiliBangumiPlayUrlCacheTime).data ?? 5400)
     }
 
     public static get BILI_BANGUMI_EPISODES_CACHE_TIME(): number {
-        return numberEnv(60 * 60 * 24 * 7).safeParse(process.env.CONFIG_BiliBangumiEpisodesCacheTime).data ?? 60 * 60 * 24 * 7
+        return this.memo("BILI_BANGUMI_EPISODES_CACHE_TIME", () => numberEnv(60 * 60 * 24 * 7).safeParse(process.env.CONFIG_BiliBangumiEpisodesCacheTime).data ?? 60 * 60 * 24 * 7)
     }
 
     public static get BILI_BANGUMI_INFO_CACHE_TIME(): number {
-        return numberEnv(60 * 60 * 24 * 7).safeParse(process.env.CONFIG_BiliBangumiInfoCacheTime).data ?? 60 * 60 * 24 * 7
+        return this.memo("BILI_BANGUMI_INFO_CACHE_TIME", () => numberEnv(60 * 60 * 24 * 7).safeParse(process.env.CONFIG_BiliBangumiInfoCacheTime).data ?? 60 * 60 * 24 * 7)
     }
 
     //archieve
     public static get BILI_USER_ARCHIEVE_CACHE_TIME(): number {
-        return numberEnv(86400).safeParse(process.env.CONFIG_UGCSeasonArchieveCacheTime).data ?? 86400
+        return this.memo("BILI_USER_ARCHIEVE_CACHE_TIME", () => numberEnv(86400).safeParse(process.env.CONFIG_UGCSeasonArchieveCacheTime).data ?? 86400)
+    }
+
+    //favlist
+    public static get BILI_USER_FAV_CACHE_TIME(): number {
+        return this.memo("BILI_USER_FAV_CACHE_TIME", () => numberEnv(3600).safeParse(process.env.CONFIG_BiliUserFavCacheTime).data ?? 3600)
     }
 
     //danmaku
     public static get BILI_DANMAKU_CACHE_TIME(): number {
-        return numberEnv(1800).safeParse(process.env.CONFIG_BiliDanmakuCacheTime).data ?? 1800
+        return this.memo("BILI_DANMAKU_CACHE_TIME", () => numberEnv(1800).safeParse(process.env.CONFIG_BiliDanmakuCacheTime).data ?? 1800)
     }
 
     //proxy
     public static get ENABLE_PROXY_SERVER(): boolean {
-        return booleanEnv(process.env.CONFIG_UseProxyFetch, true)
+        return this.memo("ENABLE_PROXY_SERVER", () => booleanEnv(process.env.CONFIG_UseProxyFetch, true))
     }
 
     public static get PROXY_SERVER_FETCH_MAX_RETRIES(): number {
-        return numberEnv(3).safeParse(process.env.CONFIG_ProxyFetchMaxRetries).data ?? 3
+        return this.memo("PROXY_SERVER_FETCH_MAX_RETRIES", () => numberEnv(3).safeParse(process.env.CONFIG_ProxyFetchMaxRetries).data ?? 3)
     }
 
     public static get PROXY_SERVER_TIMEOUT(): number {
-        return numberEnv(10 * 1000).safeParse(process.env.CONFIG_ProxyFetchTimeout).data ?? 10 * 1000
+        return this.memo("PROXY_SERVER_TIMEOUT", () => numberEnv(10 * 1000).safeParse(process.env.CONFIG_ProxyFetchTimeout).data ?? 10 * 1000)
     }
 
     public static get PROXY_SERVER_URL(): string | undefined {
-        return stringEnv.safeParse(process.env.CONFIG_ProxyServerUrl).data
+        return this.memo("PROXY_SERVER_URL", () => stringEnv.safeParse(process.env.CONFIG_ProxyServerUrl).data)
     }
 
     public static get PROXY_SERVER_TOKEN(): string | undefined {
-        return stringEnv.safeParse(process.env.CONFIG_ProxyToken).data
+        return this.memo("PROXY_SERVER_TOKEN", () => stringEnv.safeParse(process.env.CONFIG_ProxyToken).data)
+    }
+
+    //search
+    public static get BILI_SEARCH_CACHE_TIME(): number {
+        return this.memo("BILI_SEARCH_CACHE_TIME", () => numberEnv(360).safeParse(process.env.CONFIG_BiliSearchCacheTime).data ?? 360)
     }
 }

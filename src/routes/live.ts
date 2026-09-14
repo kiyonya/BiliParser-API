@@ -112,11 +112,13 @@ export class BiliLiveRoute extends APIRoute {
                 return ctx.jsonResp("cannot found roomId to parse", 400, null)
             }
             const cacheKey = this.CacheKey.live(roomId)
-            //edgeonly
-            let result = await ctx.cache.getCache<BiliTypes.RES.Live.Live>(cacheKey, Validation.liveSchema, 'edge')
+            //edgeonly Validation.liveSchema
+            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(cacheKey, undefined,'edge'), Validation.liveSchema)
             if (!result) {
                 const parser: BiliLiveParser = new BiliLiveParser(ctx)
+
                 const info = await parser.getLiveInfo(roomId)
+
                 result = {
                     ...info,
                     stream: null
@@ -129,11 +131,12 @@ export class BiliLiveRoute extends APIRoute {
                     const playStream = await parser.getLivePlayStream(realRoomId, platform, formatNumber, codecNumber, protocolNumber)
                     result.stream = playStream
                 }
-                //edgeonly
-                await ctx.cache.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, Validation.liveSchema, 'edge')
+
+                result = await this.getSchemaValidData(result,Validation.liveSchema,true)
+                await ctx.cache.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME,undefined, 'edge')
             }
 
-            if (result.stream && Validation.liveStreamSchema.safeParse(result.stream).success) {
+            if (result.stream) {
                 ctx.header('X-Stream-Parse-Platform', result.stream.platform)
                 if (result.stream.platform === 'xlive') {
                     ctx.header('X-Stream-Format', format)
@@ -145,7 +148,7 @@ export class BiliLiveRoute extends APIRoute {
 
             switch (type) {
                 case "json":
-                    return ctx.jsonResp('Success', 200, result, Validation.liveSchema)
+                    return ctx.jsonResp('Success', 200, result)
                 case "stream":
                 default:
                     //选取流

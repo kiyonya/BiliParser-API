@@ -4,6 +4,7 @@ import { b23Parser } from "./b23-parse";
 import z from "zod";
 import { Config } from "../config";
 import CacheableObject from "./cache";
+import { md5String } from "./hashlib";
 
 export interface APIResponse<Data = any> {
     code: number,
@@ -53,18 +54,13 @@ export default abstract class APIRoute extends OpenAPIRoute {
 
     protected readonly DEFAULT_HEADERS: Record<string, string> = {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     }
 
-    public ctx?: AppContext
     public abstract invoke(ctx: AppContext, ...args: any[]): Response | Promise<Response>
     public override async handle(ctx: AppContext, ...args: any[]) {
-        this.ctx = ctx
         const cache = new CacheableObject(ctx)
-        // inject context
         ctx.cache = cache
         ctx.jsonResp = <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>): Response => {
             if (schema) {
@@ -89,11 +85,41 @@ export default abstract class APIRoute extends OpenAPIRoute {
         for (const [k, v] of Object.entries(cache.cacheHeaders)) {
             response.headers.set(k, v)
         }
-        response.headers.set('X-Cache-Version',String(this.CACHE_DATA_VERSION))
-        response.headers.set('X-Server-Version',this.SERVER_VERSION)
-        response.headers.set('X-Nekocha',process.env.MOTD ?? "is nekocha cute?")
-        response.headers.set('X-Server-Online',String(Config.isServerLogin))
+        response.headers.set('X-Cache-Version', String(this.CACHE_DATA_VERSION))
+        response.headers.set('X-Server-Version', this.SERVER_VERSION)
+        response.headers.set('X-Nekocha', process.env.MOTD ?? "is nekocha cute?")
+        response.headers.set('X-Server-Online', String(Config.isServerLogin))
         return response
+    }
+
+    protected async getSchemaValidData<Data>(
+        data: Data,
+        schema: z.ZodType<Data> | undefined,
+        throwIfNotValid: true
+    ): Promise<Data>;
+    protected async getSchemaValidData<Data>(
+        data: Data,
+        schema?: z.ZodType<Data>,
+        throwIfNotValid?: false
+    ): Promise<Data | null>;
+    protected async getSchemaValidData<Data>(
+        data: Data,
+        schema?: z.ZodType<Data>,
+        throwIfNotValid: boolean = false
+    ): Promise<Data | null> {
+        if (!schema) { return data }
+        const parsed = await schema.safeParseAsync(data)
+        if (parsed.success) {
+            return data
+        }
+        else {
+            if (throwIfNotValid) {
+                throw parsed.error || new Error("data schema validation failed")
+            }
+            else {
+                return null
+            }
+        }
     }
 
     get nowS() {
@@ -113,6 +139,10 @@ export default abstract class APIRoute extends OpenAPIRoute {
         userArchieves: (mid: number, seasonId: number, page: number, pageSize: number) => {
             return `${this.CACHE_DATA_VERSION}:userArchieves:${mid}:${seasonId}:${page}:${pageSize}`
         },
+        userFav: (fid: number, keyword: string | undefined, page: number, pageSize: number) => {
+            const keywordHash = keyword ? md5String(keyword.trim()) : "all"
+            return `${this.CACHE_DATA_VERSION}:userFav:${fid}:${keywordHash}:${page}:${pageSize}`
+        },
         bangumiInfo: (seasonId?: number, episodeId?: number) => {
             if (seasonId) {
                 return `${this.CACHE_DATA_VERSION}:bangumiInfo:season:${seasonId}`
@@ -131,8 +161,16 @@ export default abstract class APIRoute extends OpenAPIRoute {
         danmaku: (cid: number) => {
             return `${this.CACHE_DATA_VERSION}:danmaku:${cid}`
         },
+        danmakuJSON: (bvid: string, p: number) => {
+            return `${this.CACHE_DATA_VERSION}:danmakuJSON:${bvid}:${p}`
+        },
         live: (roomId: number) => {
             return `${this.CACHE_DATA_VERSION}:live:${roomId}`
+        },
+        search: (keyword: string, type: BiliTypes.RES.Search.SearchType, page: number, pageSize: number, order?: string) => {
+            const keywordHash = md5String(keyword.trim())
+            const key = `${this.CACHE_DATA_VERSION}:search:${type}:${keywordHash}:${page}:${pageSize}:${order ? order : "common_order"}`
+            return key
         }
     }
 

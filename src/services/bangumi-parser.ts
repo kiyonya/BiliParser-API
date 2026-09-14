@@ -17,7 +17,7 @@ export default class BiliBangumiParser extends Parser {
         }
         const cookie = await this.BCrypto.getBiliAntiCookie()
         const req = await proxyFetch(url, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
         const data = await req.json<BiliTypes.BAPI.BiliBangumiInfo>()
         if (data.code !== 0 || !data.result) {
@@ -47,7 +47,7 @@ export default class BiliBangumiParser extends Parser {
         url.searchParams.append('season_id', String(seasonId))
         const cookie = await this.BCrypto.getBiliAntiCookie()
         const req = await proxyFetch(url, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
         const data = await req.json<BiliTypes.BAPI.BiliBangumiEpisode>()
         if (data.code !== 0 || !data.result || !data.result?.main_section?.episodes?.length) {
@@ -81,7 +81,7 @@ export default class BiliBangumiParser extends Parser {
 
         const cookie = await this.BCrypto.getBiliAntiCookie()
         const req = await proxyFetch(url, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
 
         const data = await req.json<BiliTypes.BAPI.BiliBangumiPlayURL>()

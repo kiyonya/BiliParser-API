@@ -33,10 +33,13 @@ export class BiliDanmakuRoute extends APIRoute {
     private async getDanmakuXML(ctx: AppContext, bvid: string, p: number = 1): Promise<string | null> {
         const parser = new BiliVideoParser(ctx)
         const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await ctx.cache?.getCache(infoKey, Validation.videoInfoSchema)
+
+        //Validation.videoInfoSchema
+        let videoInfo = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Validation.videoInfoSchema)
+
         if (!videoInfo) {
-            videoInfo = await parser.getVideoInfo(bvid)
-            await ctx.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME, Validation.videoInfoSchema)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Validation.videoInfoSchema, true)
+            await ctx.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -50,11 +53,12 @@ export class BiliDanmakuRoute extends APIRoute {
         this.ctx?.header("x-url-vpart", String(p))
 
         const key = this.CacheKey.danmaku(cid)
-        let danmakuXML = await ctx.cache?.getCache<string>(key, Validation.danmakuSchema)
+
+        let danmakuXML = await this.getSchemaValidData(await ctx.cache?.getCache<string>(key), Validation.danmakuSchema)
         if (!danmakuXML) {
-            danmakuXML = await parser.getVideoDanmakuXML(cid)
+            danmakuXML = await this.getSchemaValidData(await parser.getVideoDanmakuXML(cid), Validation.danmakuSchema, true)
             if (danmakuXML) {
-                await ctx.cache?.setCache<string>(key, danmakuXML, this.nowS + Config.BILI_DANMAKU_CACHE_TIME, Validation.danmakuSchema)
+                await ctx.cache?.setCache<string>(key, danmakuXML, this.nowS + Config.BILI_DANMAKU_CACHE_TIME)
             }
         }
         return danmakuXML
@@ -117,24 +121,36 @@ export class BiliDanmakuRoute extends APIRoute {
             })
 
             if (!params.success) {
-                return ctx.jsonResp( params.error.issues[0]?.message ?? "invalid params", 400, null)
+                return ctx.jsonResp(params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { type, p: page } = params.data
             const bvid = params.data.bvid!
-            const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
-            if (!danmakuXML) {
-                throw new Error('failed to parse danmaku via cid')
-            }
 
             switch (type) {
-                case "json":
-                    const xmlJson = await this.parseXML2JSON(danmakuXML)
-                    return ctx.jsonResp('Success', 200, xmlJson, Validation.danmakuJSONSchema)
+                case "json": {
+                    //序列化结果缓存
+                    const jsonKey = this.CacheKey.danmakuJSON(bvid, page)
+                    let xmlJson = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Danmaku.DanmakuJSON>(jsonKey), Validation.danmakuJSONSchema)
+                    if (!xmlJson) {
+                        const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
+                        if (!danmakuXML) {
+                            throw new Error('failed to parse danmaku via cid')
+                        }
+                        xmlJson = await this.getSchemaValidData(await this.parseXML2JSON(danmakuXML), Validation.danmakuJSONSchema, true)
+                        await ctx.cache?.setCache(jsonKey, xmlJson, this.nowS + Config.BILI_DANMAKU_CACHE_TIME)
+                    }
+                    return ctx.jsonResp('Success', 200, xmlJson)
+                }
                 case "xml":
-                default:
-                    return ctx.body(danmakuXML,200,{
+                default: {
+                    const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
+                    if (!danmakuXML) {
+                        throw new Error('failed to parse danmaku via cid')
+                    }
+                    return ctx.body(danmakuXML, 200, {
                         'Content-Type': "application/xml"
                     })
+                }
             }
         } catch (error) {
             return ctx.jsonResp((error as Error)?.message, 500, null)

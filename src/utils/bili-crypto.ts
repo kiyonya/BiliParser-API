@@ -1,6 +1,5 @@
 import { Config } from "../config";
 import { AppContext, BiliTypes } from "../types";
-import CacheableObject from "./cache";
 import { hmacSha256, md5String } from "./hashlib";
 import { proxyFetch } from "./proxy-fetch";
 
@@ -101,7 +100,10 @@ export default class BiliCrypto {
                 "_uuid": this.randomUUID(signTs),
                 "buvid3": buvid3,
                 ...(ticket ? { "bili_ticket": ticket } : {}),
-                ...(buvid4 ? { "buvid4": buvid4 } : {})
+                ...(buvid4 ? { "buvid4": buvid4 } : {}),
+                "b_nut": String(signTs),
+                "buvid_fp": md5String(crypto.randomUUID()),
+                "CURRENT_FNVAL": "2000"
             }
             if (cookieCacheOk) {
                 const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
@@ -172,38 +174,35 @@ export default class BiliCrypto {
         return key
     }
 
-    public async signApp(params: Record<any, any>, platform: BiliTypes.PlatformAPPKEY): Promise<URLSearchParams> {
-
-        const appkey = platform.appkey
-        const appsec = platform.appsec
-
-        const fullParams: Record<any, any> = { ...params, appkey };
-
-        const uparmas = new URLSearchParams()
-        for (const [k, v] of Object.entries(fullParams)) {
-            uparmas.append(k, encodeURIComponent(v))
+    public genQvid() {
+        const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghigklmnopqrstuvwxyz';
+        const result: string[] = [];
+        for (let i = 0; i < 32; i++) {
+            const randomIndex = Math.floor(Math.random() * charset.length);
+            result.push(charset[randomIndex] as string);
         }
-
-        const qstring = uparmas.toString()
-        const sign = md5String(qstring + appsec)
-        uparmas.append('sign', sign)
-
-        return uparmas
+        return result.join('');
     }
 
-    public async signWbi(params: Record<any, any>) {
+    public async signApp(params: Record<any, any>, platform: BiliTypes.PlatformAPPKEY): Promise<Record<string, string>> {
+        const appkey = platform.appkey;
+        const appsec = platform.appsec;
+        const fullParams: Record<string, string> = { ...params, appkey: String(appkey) };
+        const parts = Object.keys(fullParams).map(
+            k => `${k}=${encodeURIComponent(String(fullParams[k]))}`
+        );
+        const queryString = parts.join('&');
+        const sign = md5String(queryString + appsec);
+        return { ...fullParams, sign };
+    }
 
+    public async signWbi(params: Record<string, string>): Promise<Record<string, string>> {
         const mixinKey = await this.getBiliWbiMixinKey();
-        const wts = Math.floor(Date.now() / 1000)
-        const fullParams: Record<any, any> = { ...params, wts: wts };
-
-        const uparmas = new URLSearchParams()
-        for (const [k, v] of Object.entries(fullParams)) {
-            uparmas.append(k, encodeURIComponent(v))
-        }
-        const qstring = uparmas.toString()
-        const w_rid = md5String(qstring + mixinKey)
-        uparmas.append('w_rid', w_rid)
-        return uparmas
+        const wts = String(Math.floor(Date.now() / 1000));
+        const fullParams: Record<string, string> = { ...params, wts };
+        const parts = Object.keys(fullParams).map(k => `${k}=${encodeURIComponent(String(fullParams[k]))}`);
+        const queryString = parts.join('&');
+        const w_rid = md5String(queryString + mixinKey);
+        return { ...fullParams, w_rid, qv_id: this.genQvid() };
     }
 }
