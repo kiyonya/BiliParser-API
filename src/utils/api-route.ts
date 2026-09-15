@@ -3,8 +3,8 @@ import { AppContext, BiliTypes } from "../types";
 import { b23Parser } from "./b23-parse";
 import z from "zod";
 import { Config } from "../config";
-import CacheableObject from "./cache";
 import { md5String } from "./hashlib";
+import { Geolib } from "./geolib";
 
 export interface APIResponse<Data = any> {
     code: number,
@@ -143,17 +143,13 @@ export default abstract class APIRoute extends OpenAPIRoute {
                 cdnHostname = this.CDNS[cdn]
             }
             else {
-                const cf = ctx.req.raw.cf
-                for (const strategy of Config.VIDEO_CDN_STRATEGE) {
-                    const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
-                    if (isMatch) {
-                        const cdnName = strategy.cdn as keyof BiliTypes.BiliVideoCDN
-                        cdnHostname = this.CDNS[cdnName]
-                        ctx.header('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
-                        break
-                    }
+                const geo = Geolib.geo(ctx.req.raw.cf)
+                const match = Geolib.matchStrategy(Config.VIDEO_CDN_STRATEGE, geo)
+                if (match) {
+                    const cdnName = match.cdn as keyof BiliTypes.BiliVideoCDN
+                    cdnHostname = this.CDNS[cdnName]
+                    ctx.header('X-CDN-Strategy', `${match.continent},${match.area},${cdnName}`)
                 }
-
             }
             if (cdnHostname) {
                 const _ = new URL(url)
@@ -174,6 +170,27 @@ export default abstract class APIRoute extends OpenAPIRoute {
             dash.dobly = dash.dobly ? dash.dobly.map(replaceHost) : dash.dobly
             dash.flac = dash.flac ? dash.flac.map(replaceHost) : dash.flac
             return dash
+        },
+        switchStreamCDN: (ctx: AppContext, stream: { urls: { url: string }[] }, ov?: boolean) => {
+            let isUseOvStream: boolean
+            if (ov !== undefined) {
+                isUseOvStream = ov
+            }
+            else {
+                const geo = Geolib.geo(ctx.req.raw.cf)
+                isUseOvStream = !Geolib.isCN(geo)
+            }
+            if (isUseOvStream) {
+                stream.urls.forEach(ug => {
+                    ug.url = ug.url.replace('--cn', '--ov')
+                })
+            }
+            else {
+                stream.urls.forEach(ug => {
+                    ug.url = ug.url.replace('--ov', '--cn')
+                })
+            }
+            return { stream: stream, server: isUseOvStream ? 'ov' : 'cn' }
         },
         getUrlBv: async (biliurl: string | URL): Promise<{ bvid: string, p: number } | null> => {
             try {

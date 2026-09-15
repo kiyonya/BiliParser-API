@@ -49,8 +49,8 @@ export class BiliDanmakuRoute extends APIRoute {
             throw new Error(`cannot get target video part with part ${p}`)
         }
         const cid = targetPart.cid
-        this.ctx?.header("x-url-cid", String(cid))
-        this.ctx?.header("x-url-vpart", String(p))
+        ctx?.header("x-url-cid", String(cid))
+        ctx?.header("x-url-vpart", String(p))
 
         const key = this.CacheKey.danmaku(cid)
 

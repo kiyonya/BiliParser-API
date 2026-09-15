@@ -26,7 +26,7 @@ export class BiliVideoRoute extends APIRoute {
             bvid = processed.bvid
             p = processed.p
         }
-        if (!Config.isServerLogin) {
+        if (!Config.IS_SERVER_LOGIN) {
             qn = Math.min(qn, 80)
         }
         return { ...args, p: p, bvid: bvid, platform, qn }
@@ -34,7 +34,7 @@ export class BiliVideoRoute extends APIRoute {
         if (!args.bvid) {
             ctx.addIssue("cannot find bvid to parse")
         }
-        if (args.format === 'dash' && args.platform === 'html5' && !Config.isServerLogin) {
+        if (args.format === 'dash' && args.platform === 'html5' && !Config.IS_SERVER_LOGIN) {
             ctx.addIssue("Your request is fine, but when the platform is html5 and the format is dash, the server must be logged in. The current server is running offline, so please try changing the platform to app or pc.")
         }
     })
@@ -58,7 +58,7 @@ export class BiliVideoRoute extends APIRoute {
         }
 
         const targetCid = targetPart.cid
-        const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format, Config.serverLoginKeyHash)
+        const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format, Config.SERVER_LOGIN_HASHKEY)
 
         let videoPlay = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey), Validation.videoPlaySchema)
 

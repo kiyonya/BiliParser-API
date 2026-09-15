@@ -28,7 +28,7 @@ export class SubtitleRoute extends APIRoute {
         if (!args.bvid) {
             ctx.addIssue("cannot find bvid to parse")
         }
-        if (!Config.isServerLogin) {
+        if (!Config.IS_SERVER_LOGIN) {
             ctx.addIssue("This API can be used and your request is fine, but getting subtitles requires the server to be logged in. Right now the server is offline, so sorry, we can't handle your request this time.")
         }
     })

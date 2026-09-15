@@ -8,6 +8,13 @@ export interface ContextInject {
     entryTrusted: boolean,
 }
 
+export interface CDNStrategy {
+    continent: string
+    area: string
+    cdn: string
+    priority: number
+}
+
 export type AppContext = Context<{ Bindings: Env }> & ContextInject
 
 export interface CacheWarp<Data = any> {

@@ -1,11 +1,7 @@
 import z from "zod"
 import { md5String } from "./utils/hashlib"
 import { MemoObject } from "./memo"
-import { BiliTypes } from "./types"
-
-export interface CDNStrategy {
-    continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN, priority: number
-}
+import { CDNStrategy } from "./types"
 
 const numberEnv = (def: number) => z.coerce.number().default(def)
 const stringEnv = z.coerce.string().optional()
@@ -14,7 +10,7 @@ const booleanEnv = (raw: string | undefined, def: boolean): boolean =>
 
 export abstract class Config extends MemoObject {
 
-    protected static parseCDNStrategy(strategies?: string): CDNStrategy[] {
+    public static parseCDNStrategy(strategies?: string): CDNStrategy[] {
         const raw = strategies?.trim()
         if (!raw) { return [] }
         return raw.split(';').map(s => s.trim()).filter(Boolean).map(entry => {
@@ -27,21 +23,22 @@ export abstract class Config extends MemoObject {
                 priority--
             }
             return {
-                continent: continent as ContinentCode | '*',
-                area: area as Iso3166Alpha2Code | '*',
-                cdn: cdn as keyof BiliTypes.BiliVideoCDN,
+                continent: continent as string,
+                area: area as string,
+                cdn: cdn as string,
                 priority: priority as number
             }
         }).filter(s => s.continent && s.area && s.cdn).sort((a, b) => b.priority - a.priority)
     }
 
-    public static get isServerLogin() {
+    //auth
+    public static get IS_SERVER_LOGIN() {
         return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined)
     }
 
-    public static get serverLoginKeyHash() {
+    public static get SERVER_LOGIN_HASHKEY() {
         return this.memo("serverLoginKeyHash", () => {
-            const key = `${String(this.isServerLogin)}:${process.env.CONFIG_CustomCookies ?? ""}`
+            const key = `${String(this.IS_SERVER_LOGIN)}:${process.env.CONFIG_CustomCookies ?? ""}`
             return md5String(key)
         })
     }
@@ -66,6 +63,10 @@ export abstract class Config extends MemoObject {
 
     public static get RESPONSE_CACHE_STALE_WHILE_REVALIDATE(): number {
         return this.memo("RESPONSE_CACHE_STALE_WHILE_REVALIDATE", () => numberEnv(0).safeParse(process.env.CONFIG_ResponseCacheStaleWhileRevalidate).data ?? 0)
+    }
+
+    public static get RESPONSE_WORKER_CACHING():boolean {
+        return this.memo("RESPONSE_WORKER_CACHING",()=>booleanEnv(process.env.CONFIG_ResponseWorkerCaching,true))
     }
 
     //cookies

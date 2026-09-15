@@ -4,6 +4,8 @@ import BiliLiveParser from "../services/live-parser";
 import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
 import { Config } from "../config";
+import { GeoContext, Geolib } from "../utils/geolib";
+
 
 export class BiliLiveRoute extends APIRoute {
 
@@ -59,35 +61,7 @@ export class BiliLiveRoute extends APIRoute {
             return null
         }
     }
-    private switchStreamCdn(ctx: AppContext, stream: BiliTypes.RES.Live.LiveStream, ov?: boolean) {
-        let isUseOvStream: boolean = false
-        if (ov !== undefined) {
-            isUseOvStream = ov
-        }
-        else {
-            const cf = ctx.req.raw.cf
-            const isChinaRegion = cf?.continent === 'AS' && cf.country === "CN"
-            if (isChinaRegion) {
-                isUseOvStream = false
-            }
-            else {
-                isUseOvStream = true
-            }
-        }
 
-        if (isUseOvStream) {
-            stream.urls.forEach(ug => {
-                ug.url = ug.url.replace('--cn', '--ov')
-            })
-            ctx.header('X-Stream-Server', 'ov')
-        }
-        else {
-            stream.urls.forEach(ug => {
-                ug.url = ug.url.replace('--ov', '--cn')
-            })
-            ctx.header('X-Stream-Server', 'cn')
-        }
-    }
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
@@ -141,7 +115,8 @@ export class BiliLiveRoute extends APIRoute {
                     ctx.header('X-Stream-Codec', codec)
                     ctx.header('X-Stream-Protocol', protocol)
                 }
-                this.switchStreamCdn(ctx, result.stream, ov)
+                const { server } = this.utils.switchStreamCDN(ctx, result.stream, ov)
+                ctx.header('X-Stream-Server', server)
             }
 
             switch (type) {
