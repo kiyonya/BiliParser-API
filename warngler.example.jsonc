@@ -33,8 +33,8 @@
     "CONFIG_ProxyToken": "...",
     "CONFIG_ProxyServerUrl": "...",
     "CONFIG_ProxyFetchMaxRetries": 3,
-    "CONFIG_ProxyFetchTimeout":10000,
-    "CONFIG_CacheValidation":true,
+    "CONFIG_ProxyFetchTimeout": 10000,
+    "CONFIG_CacheValidation": true,
     "CONFIG_BiliVideoPlayUrlCacheTime": 5400,
     "CONFIG_BiliBangumiPlayUrlCacheTime": 5400,
     "CONFIG_BiliLiveCacheTime": 60,
@@ -45,5 +45,18 @@
     "CONFIG_BiliDanmakuCacheTime": 1800,
     "CONFIG_VideoCDNStrategy": "AS,CN,alib;*,*,aliov",
     "SERVER_VERSION": "3.2.5.20260826",
+  },
+  "exports": {
+    "default": {
+      "type": "worker",
+      "cache": { "enabled": false },
+    },
+    "BiliAPIEntryPoint": {
+      "type": "worker",
+      "cache": { "enabled": true },
+    },
+  },
+  "placement": {
+    "mode": "smart",
   },
 }
