@@ -19,7 +19,6 @@ import z from "zod";
 import { Config } from "./config";
 
 const DEFAULT_HEADERS: Record<string, string> = {
-    'Cache-Control': "no-cache",
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
@@ -72,8 +71,10 @@ async function responseHeaders(ctx: HonoContext, next: Next) {
 async function ctagCache(ctx: HonoContext, next: Next) {
     await next()
     if (!Config.RESPONSE_WORKER_CACHING) { return }
-    const url = new URL(ctx.req.url)
-    const ctag = url.searchParams.get("__ctag")
+    if(ctx.res.headers.has("Cache-Control")){
+        return
+    }
+    const ctag = ctx.req.header('Ctag')
     const cacheTime = Config.RESPONSE_CACHE_TIME ?? 0
     if (!ctag || !cacheTime || cacheTime <= 0 || ![200, 302, 304, 307].includes(ctx.res.status)) {
         return
@@ -85,6 +86,7 @@ async function ctagCache(ctx: HonoContext, next: Next) {
     const maxAge = Math.max(0, Math.floor(Math.min(cacheTime, maxCacheTime)))
     if (maxAge <= 0) {
         ctx.res.headers.set('Cache-Control', 'no-store')
+        ctx.res.headers.set('Vary','*')
         return
     }
     const staleWhileRevalidate = Math.max(0, Math.floor(Math.min(Config.RESPONSE_CACHE_STALE_WHILE_REVALIDATE, maxAge)))
@@ -92,7 +94,8 @@ async function ctagCache(ctx: HonoContext, next: Next) {
         ? `public, max-age=${maxAge}, stale-while-revalidate=${staleWhileRevalidate}`
         : `public, max-age=${maxAge}`
     ctx.res.headers.set('Cache-Control', cacheControl)
-    ctx.res.headers.set("X-Ctag", ctag)
+    ctx.res.headers.set('Vary','Ctag')
+    ctx.res.headers.set("Ctag", ctag)
 }
 
 const app = new Hono<{ Bindings: Env }>();

@@ -33,11 +33,11 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 			isCN: Geolib.isCN(geo),
 			loginHash: Config.SERVER_LOGIN_HASHKEY,
 			cacheVersion:Config.CACHE_DATA_VERSION,
-			serverVersion:process.env.SERVER_VERSION ?? "N/A"
+			serverVersion:this.env.SERVER_VERSION ?? "N/A"
 		}
 		const ctag = md5String(JSON.stringify(ctagParams))
-		url.searchParams.set("__ctag", ctag)
 		const modifiedRequest = new Request(url, request)
+		modifiedRequest.headers.set("Ctag",ctag)
 		return this.ctx.exports.BiliAPIEntryPoint.fetch(modifiedRequest, {
 			cf: request.cf
 		})
