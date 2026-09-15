@@ -1,0 +1,33 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "bili-api-entry-cache",
+  "main": "./index.ts",
+  "compatibility_date": "2026-07-04",
+  "observability": {
+    "enabled": true,
+  },
+  "upload_source_maps": true,
+  "compatibility_flags": ["nodejs_compat"],
+  "placement":{
+    "mode":"smart"
+  },
+  "cache": {
+    "enabled": false
+  },
+  "services": [
+    {
+      "binding": "BILI_API",
+      "service": "bili-api"
+    }
+  ],
+  "vars": {
+    "CACHE_DATA_VERSION":5,
+    "CDN_STRATEGY": "<strategy>",
+    "SERVER_VERSION": "<version>",
+    "FRONTWORKER_CTAG_TOKEN":"<token>"
+  }
+}
