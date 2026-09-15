@@ -59,7 +59,6 @@ export class BiliLiveRoute extends APIRoute {
             return null
         }
     }
-
     private switchStreamCdn(ctx: AppContext, stream: BiliTypes.RES.Live.LiveStream, ov?: boolean) {
         let isUseOvStream: boolean = false
         if (ov !== undefined) {
@@ -89,8 +88,7 @@ export class BiliLiveRoute extends APIRoute {
             ctx.header('X-Stream-Server', 'cn')
         }
     }
-
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = this.PARAMS.safeParse({
@@ -113,7 +111,7 @@ export class BiliLiveRoute extends APIRoute {
             }
             const cacheKey = this.CacheKey.live(roomId)
             //edgeonly Validation.liveSchema
-            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(cacheKey, undefined,'edge'), Validation.liveSchema)
+            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(cacheKey, undefined, 'edge'), Validation.liveSchema)
             if (!result) {
                 const parser: BiliLiveParser = new BiliLiveParser(ctx)
 
@@ -132,8 +130,8 @@ export class BiliLiveRoute extends APIRoute {
                     result.stream = playStream
                 }
 
-                result = await this.getSchemaValidData(result,Validation.liveSchema,true)
-                await ctx.cache.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME,undefined, 'edge')
+                result = await this.getSchemaValidData(result, Validation.liveSchema, true)
+                await ctx.cache.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, undefined, 'edge')
             }
 
             if (result.stream) {

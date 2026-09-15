@@ -22,6 +22,7 @@ export default class CacheableObject {
     protected kvCacheHits = new Set<string>()
     protected edgeCacheHits = new Set<string>()
     protected kvCacheNotUsed: boolean = false
+    public minExpirationTime:number = Infinity
 
     public get cacheHeaders(): Record<string, string> {
 
@@ -43,6 +44,9 @@ export default class CacheableObject {
             const expirationAt: number = typeof expirationAtCall === 'function'
                 ? expirationAtCall(data)
                 : expirationAtCall;
+            if(expirationAt < this.minExpirationTime){
+                this.minExpirationTime = expirationAt
+            }
             const tasks: Promise<any>[] = [];
             if (mode === 'all' || mode === 'edge') {
                 tasks.push(this.edgeCache.setEdgeCache(this.ctx, key, data, expirationAt, schema));

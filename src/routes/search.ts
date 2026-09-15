@@ -17,7 +17,7 @@ export class SearchRoute extends APIRoute {
         order: z.string().optional()
     })
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = await this.paramsSchema.safeParse({

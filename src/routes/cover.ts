@@ -10,7 +10,7 @@ export class BiliCoverRoute extends APIRoute {
     protected readonly PARAMS = z.object({
         url: z.url().optional(),
         bvid: z.string().optional(),
-        type: z.enum(['img', 'url', 'redirect']).optional()
+        type: z.enum(['url', 'redirect']).optional()
     }).transform(async (args) => {
         let { bvid, url } = args
         if (url) {
@@ -27,7 +27,7 @@ export class BiliCoverRoute extends APIRoute {
         }
     })
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = await this.PARAMS.safeParseAsync({
@@ -51,31 +51,11 @@ export class BiliCoverRoute extends APIRoute {
                 await ctx.cache.setCache(key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
             }
             const imgUrl = videoInfo.pic
-            const isUseRedirect = type === undefined && (ctx.req.raw.cf?.country as string | undefined)?.toLowerCase() === "cn"
-            if(isUseRedirect){type = 'redirect'}
             switch (type) {
                 case "url":
                     return ctx.text(imgUrl, 200)
-                case "img":
-                default:
-                    const proxyHeaders = new Headers()
-                    proxyHeaders.set('Referer', this.BILI_REFERER)
-                    const imgReq = await fetch(imgUrl, {
-                        method: "GET",
-                        headers: proxyHeaders
-                    })
-                    const resHeaders: Record<string, string> = {}
-                    for (const [k, v] of imgReq.headers.entries()) {
-                        resHeaders[k] = v
-                    }
-                    if (imgReq.body) {
-                        return ctx.body(imgReq.body, 200, {
-                            'Access-Control-Allow-Origin': "*",
-                            "Cache-Control": "max-age=31536000",
-                            ...resHeaders
-                        })
-                    }
                 case 'redirect':
+                default:
                     return ctx.redirect(imgUrl, 302)
             }
         } catch (error) {

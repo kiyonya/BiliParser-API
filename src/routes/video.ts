@@ -97,7 +97,7 @@ export class BiliVideoRoute extends APIRoute {
         return video
     }
 
-    public override async invoke(ctx: AppContext): Promise<Response> {
+    public override async handle(ctx: AppContext): Promise<Response> {
         try {
             const reqUrl = new URL(ctx.req.url)
             const parmas = await this.PARAMS.safeParseAsync({

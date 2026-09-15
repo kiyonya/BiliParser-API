@@ -23,7 +23,7 @@ export class BiliBangumiInfoRoute extends APIRoute {
         }
     })
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
 
         try {
             const url = new URL(ctx.req.url)
@@ -69,7 +69,7 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
         }
     })
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = this.PARAMS.safeParse({

@@ -103,7 +103,7 @@ export class SubtitleRoute extends APIRoute {
         return srt.join("\n\n")
     }
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = await this.PARAMS.safeParseAsync({

@@ -1,7 +1,7 @@
 import z from "zod"
-import { BiliTypes } from "./types"
 import { md5String } from "./utils/hashlib"
 import { MemoObject } from "./memo"
+import { BiliTypes } from "./types"
 
 export interface CDNStrategy {
     continent: ContinentCode | '*', area: Iso3166Alpha2Code | '*', cdn: keyof BiliTypes.BiliVideoCDN, priority: number
@@ -12,18 +12,7 @@ const stringEnv = z.coerce.string().optional()
 const booleanEnv = (raw: string | undefined, def: boolean): boolean =>
     raw ? raw === "true" : def
 
-export abstract class Config extends MemoObject{
-
-    public static get isServerLogin() {
-        return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined)
-    }
-
-    public static get serverLoginKeyHash() {
-        return this.memo("serverLoginKeyHash", () => {
-            const key = `${String(this.isServerLogin)}:${process.env.CONFIG_CustomCookies ?? ""}`
-            return md5String(key)
-        })
-    }
+export abstract class Config extends MemoObject {
 
     protected static parseCDNStrategy(strategies?: string): CDNStrategy[] {
         const raw = strategies?.trim()
@@ -46,6 +35,17 @@ export abstract class Config extends MemoObject{
         }).filter(s => s.continent && s.area && s.cdn).sort((a, b) => b.priority - a.priority)
     }
 
+    public static get isServerLogin() {
+        return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined)
+    }
+
+    public static get serverLoginKeyHash() {
+        return this.memo("serverLoginKeyHash", () => {
+            const key = `${String(this.isServerLogin)}:${process.env.CONFIG_CustomCookies ?? ""}`
+            return md5String(key)
+        })
+    }
+
     //cdn
     public static get VIDEO_CDN_STRATEGE(): CDNStrategy[] {
         return this.memo("VIDEO_CDN_STRATEGE", () => this.parseCDNStrategy(process.env.CONFIG_VideoCDNStrategy ?? "AS,CN,alib;*,*,aliov"))
@@ -58,6 +58,14 @@ export abstract class Config extends MemoObject{
 
     public static get CACHE_DATA_VERSION(): number {
         return this.memo("CACHE_DATA_VERSION", () => numberEnv(5).safeParse(process.env.CONFIG_CacheDataVersion).data ?? 5)
+    }
+
+    public static get RESPONSE_CACHE_TIME(): number {
+        return this.memo("RESPONSE_CACHE_TIME", () => numberEnv(0).safeParse(process.env.CONFIG_ResponseCacheTime).data ?? 0)
+    }
+
+    public static get RESPONSE_CACHE_STALE_WHILE_REVALIDATE(): number {
+        return this.memo("RESPONSE_CACHE_STALE_WHILE_REVALIDATE", () => numberEnv(0).safeParse(process.env.CONFIG_ResponseCacheStaleWhileRevalidate).data ?? 0)
     }
 
     //cookies

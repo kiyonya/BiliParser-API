@@ -14,7 +14,7 @@ export class BiliArchieveRoute extends APIRoute {
         pageSize: z.coerce.number().default(30)
     })
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = this.PARAMS.safeParse({

@@ -110,7 +110,7 @@ export class BiliDanmakuRoute extends APIRoute {
         }
     }
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const params = await this.PARAMS.safeParseAsync({

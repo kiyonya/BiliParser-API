@@ -3,7 +3,7 @@ import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
 
 export class BiliVideoCDNRoute extends APIRoute {
-    public override async invoke(ctx: AppContext): Promise<Response> {
+    public override async handle(ctx: AppContext): Promise<Response> {
         try {
             return ctx.jsonResp( 'Success', 200, this.CDNS, Validation.videoCDNSchema)
         } catch (error) {

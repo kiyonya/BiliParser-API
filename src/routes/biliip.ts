@@ -5,7 +5,7 @@ import { proxyFetch } from "../utils/proxy-fetch";
 
 export class BiliIpRegionRoute extends APIRoute {
 
-    public override async invoke(ctx: AppContext) {
+    public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
             const headers = new Headers()

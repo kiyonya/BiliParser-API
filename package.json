@@ -3,10 +3,15 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
-    "cf-typegen": "wrangler types"
+    "check-cons": "node check-consistency.mjs",
+    "typegen":"wrangler types && cd entry-cache && wrangler types",
+    "typegen-main": "wrangler types",
+    "typegen-entry": "cd entry-cache && wrangler types",
+    "deploy-entry": "cd entry-cache && wrangler deploy",
+    "dev-entry": "cd entry-cache && wrangler dev",
+    "dev-main": "wrangler dev",
+    "deploy-main": "wrangler deploy",
+    "deploy": "wrangler deploy && cd entry-cache && wrangler deploy"
   },
   "dependencies": {
     "@types/xml2js": "^0.4.14",

@@ -52,45 +52,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
     protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
 
-    protected readonly DEFAULT_HEADERS: Record<string, string> = {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    }
-
-    public abstract invoke(ctx: AppContext, ...args: any[]): Response | Promise<Response>
-    public override async handle(ctx: AppContext, ...args: any[]) {
-        const cache = new CacheableObject(ctx)
-        ctx.cache = cache
-        ctx.jsonResp = <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>): Response => {
-            if (schema) {
-                const parsed = schema.safeParse(data)
-                if (!parsed.success) {
-                    throw new Error(`response validation failed: ${parsed.error.message}`)
-                }
-                data = parsed.data as Data
-            }
-            const response: APIResponse<Data> = {
-                code: code,
-                message: message ?? "",
-                data: data,
-                time: Date.now()
-            }
-            return ctx.json(response, code as any)
-        }
-        for (const [k, v] of Object.entries(this.DEFAULT_HEADERS)) {
-            ctx.header(k, v)
-        }
-        const response = await this.invoke(ctx, ...args)
-        for (const [k, v] of Object.entries(cache.cacheHeaders)) {
-            response.headers.set(k, v)
-        }
-        response.headers.set('X-Cache-Version', String(this.CACHE_DATA_VERSION))
-        response.headers.set('X-Server-Version', this.SERVER_VERSION)
-        response.headers.set('X-Nekocha', process.env.MOTD ?? "is nekocha cute?")
-        response.headers.set('X-Server-Online', String(Config.isServerLogin))
-        return response
-    }
+    public abstract handle(ctx: AppContext, ...args: any[]): Response | Promise<Response>
 
     protected async getSchemaValidData<Data>(
         data: Data,
@@ -176,21 +138,22 @@ export default abstract class APIRoute extends OpenAPIRoute {
 
     protected readonly utils = {
         switchCDN: (ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN) => {
-            const cf = ctx.req.raw.cf
             let cdnHostname: string | undefined = undefined
             if (cdn && this.CDNS[cdn]) {
                 cdnHostname = this.CDNS[cdn]
             }
             else {
+                const cf = ctx.req.raw.cf
                 for (const strategy of Config.VIDEO_CDN_STRATEGE) {
                     const isMatch = (strategy.continent === '*' || cf?.continent === strategy.continent) && (strategy.area === '*' || cf?.country === strategy.area)
                     if (isMatch) {
-                        const cdnName = strategy.cdn
+                        const cdnName = strategy.cdn as keyof BiliTypes.BiliVideoCDN
                         cdnHostname = this.CDNS[cdnName]
                         ctx.header('X-CDN-Strategy', `${strategy.continent},${strategy.area},${cdnName}`)
                         break
                     }
                 }
+
             }
             if (cdnHostname) {
                 const _ = new URL(url)

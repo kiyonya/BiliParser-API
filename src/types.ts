@@ -1,10 +1,15 @@
 import type { Context } from "hono";
 import CacheableObject from "./utils/cache";
 import z from "zod";
-export interface AppContext extends Context<{ Bindings: Env }> {
+
+export interface ContextInject {
     cache: CacheableObject,
     jsonResp: <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>) => Response,
-};
+    entryTrusted: boolean,
+}
+
+export type AppContext = Context<{ Bindings: Env }> & ContextInject
+
 export interface CacheWarp<Data = any> {
     data: Data,
     expirationAt: number,
