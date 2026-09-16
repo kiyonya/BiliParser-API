@@ -57,16 +57,12 @@ export abstract class Config extends MemoObject {
         return this.memo("CACHE_DATA_VERSION", () => numberEnv(5).safeParse(process.env.CONFIG_CacheDataVersion).data ?? 5)
     }
 
-    public static get RESPONSE_CACHE_TIME(): number {
-        return this.memo("RESPONSE_CACHE_TIME", () => numberEnv(0).safeParse(process.env.CONFIG_ResponseCacheTime).data ?? 0)
-    }
-
-    public static get RESPONSE_CACHE_STALE_WHILE_REVALIDATE(): number {
-        return this.memo("RESPONSE_CACHE_STALE_WHILE_REVALIDATE", () => numberEnv(0).safeParse(process.env.CONFIG_ResponseCacheStaleWhileRevalidate).data ?? 0)
-    }
-
     public static get RESPONSE_WORKER_CACHING():boolean {
         return this.memo("RESPONSE_WORKER_CACHING",()=>booleanEnv(process.env.CONFIG_ResponseWorkerCaching,true))
+    }
+
+    public static get RESPONSE_MAX_CACHE_TIME():number {
+        return this.memo('RESPONSE_MAX_CACHE_TIME',()=>numberEnv(3600).safeParse(process.env.CONFIG_ResponseMaxCacheTime).data ?? 3600)
     }
 
     //cookies

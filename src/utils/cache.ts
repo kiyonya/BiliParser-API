@@ -22,7 +22,7 @@ export default class CacheableObject {
     protected kvCacheHits = new Set<string>()
     protected edgeCacheHits = new Set<string>()
     protected kvCacheNotUsed: boolean = false
-    public minExpirationTime:number = Infinity
+    public minExpirationTime: number = Infinity
 
     public get cacheHeaders(): Record<string, string> {
 
@@ -44,7 +44,7 @@ export default class CacheableObject {
             const expirationAt: number = typeof expirationAtCall === 'function'
                 ? expirationAtCall(data)
                 : expirationAtCall;
-            if(expirationAt < this.minExpirationTime){
+            if (expirationAt < this.minExpirationTime) {
                 this.minExpirationTime = expirationAt
             }
             const tasks: Promise<any>[] = [];
@@ -77,6 +77,9 @@ export default class CacheableObject {
                 if (edgeCache) {
                     addkey && this.edgeCacheHits.add(key)
                     this.kvCacheNotUsed = true;
+                    if (edgeCache.raw.expirationAt < this.minExpirationTime) {
+                        this.minExpirationTime = edgeCache.raw.expirationAt
+                    }
                     return edgeCache.data;
                 }
                 return null;
@@ -86,6 +89,9 @@ export default class CacheableObject {
                 if (kvCache) {
                     addkey && this.kvCacheHits.add(key)
                     this.kvCacheNotUsed = false;
+                    if (kvCache.raw.expirationAt < this.minExpirationTime) {
+                        this.minExpirationTime = kvCache.raw.expirationAt
+                    }
                     return kvCache.data;
                 }
                 return null;
@@ -94,6 +100,9 @@ export default class CacheableObject {
             if (edgeCache) {
                 addkey && this.edgeCacheHits.add(key)
                 this.kvCacheNotUsed = true;
+                if (edgeCache.raw.expirationAt < this.minExpirationTime) {
+                    this.minExpirationTime = edgeCache.raw.expirationAt
+                }
                 return edgeCache.data;
             }
             const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, schema);
@@ -103,6 +112,9 @@ export default class CacheableObject {
                 const kvCacheKey = kvCache.raw.key;
                 const expirationAt = kvCache.raw.expirationAt;
                 await this.edgeCache.setEdgeCache(this.ctx, kvCacheKey, kvCache.data, expirationAt, schema);
+                if (expirationAt < this.minExpirationTime) {
+                    this.minExpirationTime = expirationAt
+                }
                 return kvCache.data;
             }
             return null;

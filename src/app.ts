@@ -17,16 +17,17 @@ import { AppContext, ContextInject } from "./types";
 import { APIResponse } from "./utils/api-route";
 import z from "zod";
 import { Config } from "./config";
+import { ResponseHeader } from "hono/utils/headers";
 
-const DEFAULT_HEADERS: Record<string, string> = {
+const DEFAULT_HEADERS: Partial<Record<ResponseHeader, string>> = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE, HEAD',
 }
 
 export type HonoContext = Context<{ Bindings: Env }, "*", any>
 export type HonoContextInjected = HonoContext & ContextInject & AppContext
 
-async function appContext(ctx: HonoContext, next: Next) {
+async function useAppContext(ctx: HonoContext, next: Next) {
     const mctx = ctx as HonoContextInjected
     const cache = new CacheableObject(mctx)
     mctx.cache = cache
@@ -53,56 +54,52 @@ async function appContext(ctx: HonoContext, next: Next) {
     await next()
 }
 
-async function responseHeaders(ctx: HonoContext, next: Next) {
+async function useRespCacheHeaders(ctx: HonoContext, next: Next) {
     await next()
     const cache = (ctx as HonoContextInjected).cache
     for (const [k, v] of Object.entries(cache.cacheHeaders)) {
         ctx.res.headers.set(k, v)
     }
-    ctx.res.headers.set('X-Cache-Version', String(Config.CACHE_DATA_VERSION))
-    ctx.res.headers.set('X-Server-Version', String(process.env.SERVER_VERSION))
-    ctx.res.headers.set('X-Nekocha', process.env.MOTD ?? "is nekocha cute?")
-    ctx.res.headers.set('X-Server-Online', String(Config.IS_SERVER_LOGIN))
     if (cache.minExpirationTime < Infinity) {
         ctx.res.headers.set('X-Min-Expiration', String(cache.minExpirationTime))
     }
 }
 
-async function ctagCache(ctx: HonoContext, next: Next) {
+async function useCtagCache(ctx: HonoContext, next: Next) {
     await next()
-    if (!Config.RESPONSE_WORKER_CACHING) { return }
-    if(ctx.res.headers.has("Cache-Control")){
+    if (!Config.RESPONSE_WORKER_CACHING) { 
+        ctx.res.headers.set('Cache-Control', 'no-store')
+        return 
+    }
+    if (ctx.res.headers.has("Cache-Control")) {
         return
     }
-    const ctag = ctx.req.header('Ctag')
-    const cacheTime = Config.RESPONSE_CACHE_TIME ?? 0
-    if (!ctag || !cacheTime || cacheTime <= 0 || ![200, 302, 304, 307].includes(ctx.res.status)) {
+    const url = new URL(ctx.req.url)
+    const ctag = url.searchParams.get("__ctag")
+    const maxCacheTime = Config.RESPONSE_MAX_CACHE_TIME
+    if (!ctag || !maxCacheTime || maxCacheTime <= 0 || ![200, 302, 304, 307].includes(ctx.res.status)) {
         return
     }
     const cache = (ctx as HonoContextInjected).cache
-    const minExpirationTime = cache.minExpirationTime
     const nowS = Math.floor(Date.now() / 1000)
-    const maxCacheTime = minExpirationTime - nowS
-    const maxAge = Math.max(0, Math.floor(Math.min(cacheTime, maxCacheTime)))
-    if (maxAge <= 0) {
+    const minExpirationTime = cache.minExpirationTime
+    const maxCacheExpiration = nowS + maxCacheTime
+    const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
+    const maxAge = Math.max(0, Math.floor(maxExpiration - nowS))
+    if (!maxAge || maxAge <= 0) {
         ctx.res.headers.set('Cache-Control', 'no-store')
-        ctx.res.headers.set('Vary','*')
         return
     }
-    const staleWhileRevalidate = Math.max(0, Math.floor(Math.min(Config.RESPONSE_CACHE_STALE_WHILE_REVALIDATE, maxAge)))
-    const cacheControl = staleWhileRevalidate > 0
-        ? `public, max-age=${maxAge}, stale-while-revalidate=${staleWhileRevalidate}`
-        : `public, max-age=${maxAge}`
+    const cacheControl = `public, max-age=${maxAge}`
     ctx.res.headers.set('Cache-Control', cacheControl)
-    ctx.res.headers.set('Vary','Ctag')
     ctx.res.headers.set("Ctag", ctag)
 }
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.use(appContext)
-app.use(responseHeaders)
-app.use(ctagCache)
+app.use(useAppContext)
+app.use(useRespCacheHeaders)
+app.use(useCtagCache)
 
 const openapi = fromHono(app, {
     docs_url: "/doc"
