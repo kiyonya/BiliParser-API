@@ -1,6 +1,5 @@
 import z from "zod"
 import { AppContext } from "../types"
-import { Config } from "../config"
 import EdgeCache from "./edge-cache"
 import KVCache from "./kv-cache"
 import { md5String } from "./hashlib"
@@ -28,14 +27,8 @@ export default class CacheableObject {
 
         const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
         const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
-
         const headers: Record<string, string> = {}
-        const isCacheHit = Boolean(this.edgeCacheHits.size) || Boolean(this.kvCacheHits.size)
-
-        headers['X-Cache-Status'] = isCacheHit ? "HIT" : "MISS"
-        headers['X-Cache-Edge'] = edgeHits || "MISS"
-        headers['X-Cache-KV'] = kvHits || (this.kvCacheNotUsed ? "NOTUSE" : "MISS")
-
+        headers['X-Server-Cache-Status'] = `edge;hit="${edgeHits || "MISS"}",kv;hit="${kvHits ||  (this.kvCacheNotUsed ? "UNUSED" : "MISS")}"`
         return headers
     }
 

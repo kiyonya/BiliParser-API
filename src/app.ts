@@ -43,7 +43,6 @@ async function useAppContext(ctx: HonoContext, next: Next) {
             code: code,
             message: message ?? "",
             data: data,
-            time: Date.now()
         }
         const responseJson: Response = mctx.json(response, code as any)
         return responseJson
@@ -90,7 +89,7 @@ async function useCtagCache(ctx: HonoContext, next: Next) {
         ctx.res.headers.set('Cache-Control', 'no-store')
         return
     }
-    const cacheControl = `public, max-age=${maxAge}`
+    const cacheControl = `public, max-age=0, s-maxage=${maxAge}`
     ctx.res.headers.set('Cache-Control', cacheControl)
     ctx.res.headers.set("Ctag", ctag)
 }

@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import CacheableObject from "./utils/cache";
 import z from "zod";
 
+
 export interface ContextInject {
     cache: CacheableObject,
     jsonResp: <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>) => Response,

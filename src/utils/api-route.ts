@@ -9,7 +9,7 @@ import { Geolib } from "./geolib";
 export interface APIResponse<Data = any> {
     code: number,
     message: string,
-    time: number,
+    time?: number,
     data: Data,
 }
 
