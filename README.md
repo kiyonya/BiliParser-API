@@ -1,7 +1,7 @@
 # Cloudflare BiliParser API
 
 基于 Cloudflare Workers 部署的 bilibili 视频直链、视频信息、直播流、番剧、弹幕等解析服务。
-使用 Edge Cache (边缘节点缓存) + Workers KV 二级缓存,根据视频时长动态计算缓存时间,最大化利用缓存提高解析速度。
+使用 Cloudflare CDN 响应缓存 + Edge Cache (边缘节点缓存) + Workers KV + Cookies 多级缓存,根据视频时长动态计算缓存时间,最大化利用缓存提高解析速度。
 内置请求限流,并支持根据请求地区自动切换 CDN,支持 VRChat (VizVid / ProTV)。
 
 ![MIT](https://img.shields.io/badge/-VRCHAT%20Support-blue?style=for-the-badge&logo=vrchat) ![MIT](https://img.shields.io/badge/-Cloudflare%20Workers-orange?style=for-the-badge&logo=cloudflare&logoColor=white) ![TS](https://img.shields.io/badge/-Typescript-blue?style=for-the-badge&logo=typescript&logoColor=white) ![LIC](https://img.shields.io/badge/LICENSE-MIT-green?style=for-the-badge)
@@ -22,13 +22,16 @@
 - **视频播放** - 通过 BV 号重定向(302)到视频直链接,支持多 P(分P)视频,支持 MP4 单文件直链与 DASH 多音视频流,支持 `html5` / `pc` / `app` 三平台播放源
 - **视频信息** - 返回视频标题、封面、UP 主、分 P、时长等解析信息
 - **直播信息与直播流** - 获取直播间信息,并解析直播流地址(HLS / FLV / FMP4 / TS)
-- **番剧** - 支持番剧/影视信息、分集列表、单集播放地址解析
+- **番剧** - 支持番剧/影视信息、分集列表解析
 - **弹幕** - 支持以 XML 或 JSON 形式获取视频弹幕
 - **封面** - 支持视频封面图片获取
+- **视频字幕** - 获取视频 CC 字幕,支持字幕信息、SRT 与原始 JSON 输出,可按语言筛选(需要服务端登录)
+- **搜索** - 支持视频、UP 主、直播间搜索,支持分页与排序
 - **用户合集** - 获取 UP 主某个合集(UGC 合集)下的视频列表
+- **用户收藏夹** - 获取用户收藏夹信息与其中的视频列表,支持关键词过滤与分页
 - **自动 CDN 换源** - 根据cfcolo对不同请求地区自动匹配最优 CDN (可通过参数强制指定，CDN策略可配置),优化视频加载速度
 - **动态缓存** - 视频信息和播放地址分离缓存,依据视频时长与播放地址有效期动态计算缓存时间;短时间多人播放只解析一次
-- **二级缓存** - Edge Cache(边缘节点缓存)+ Workers KV 双层缓存,配合缓存数据校验保证数据有效性
+- **多级缓存** - Cloudflare CDN 响应缓存 → Edge Cache(边缘节点缓存)→ Workers KV → Cookies 缓存,使用 `ctag` 版本化缓存键,配合缓存数据校验保证数据有效性
 - **绕过 IP 限制** - 通过 Vercel Serverless Functions 代理解析,绕过 B 站对 Cloudflare IP 的限制
 
 ## 遇到的已知问题和建议
@@ -42,6 +45,18 @@
 3. **在VRCHAT里播放后拖动进度条视频卡住**
    请确保您的播放器能够正确解码视频 (推荐使用AVPro)
    不同CDN对于VRCHAT发起的包含Range字段请求响应可能不同,推荐使用alib或cos,国外推荐aliov
+
+## 多级缓存状态与响应头
+
+请求依次经过 **Cloudflare CDN 响应缓存 → Edge Cache(边缘节点缓存)→ Workers KV → Cookies 缓存** 四级缓存,可通过响应头判断命中的层级:
+
+| 情况 | `cf-cache-status` | `x-server-cache-status` | `x-bcrypto-cookies-cache` | 说明 |
+|---|---|---|---|---|
+| Cloudflare CDN 命中 | `HIT` | `edge;hit="UNUSED",kv;hit="UNUSED"` | - | cloudflare 响应缓存,内部 Worker 未被唤醒 |
+| CF 未命中，Edge 命中 | `MISS` 或 `EXPIRED` | `edge;hit="HIT",kv;hit="UNUSED"` | - | 使用 edge 缓存 |
+| CF 未命中，Edge 未命中，KV 命中 | `MISS` 或 `EXPIRED` | `edge;hit="MISS",kv;hit="HIT"` | - | 使用 kv 缓存并回填 edge 缓存 |
+| 前三层全未命中，Worker 执行，Cookies 命中 | `MISS` 或 `EXPIRED` | `edge;hit="MISS",kv;hit="MISS"` | `HIT` | 使用缓存 cookies 解析 |
+| 前三层全未命中，Worker 执行，Cookies 未命中 | `MISS` 或 `EXPIRED` | `edge;hit="MISS",kv;hit="MISS"` | `MISS` | 获取 cookies 并解析 |
 
 ## 快速开始
 
@@ -80,6 +95,9 @@ curl -I "https://your.workers.domain/video/BV1UT42167xb?cdn=aliov"
 ```bash
 curl "https://your.workers.domain/video/BV1UT42167xb?format=dash"
 ```
+
+> [!NOTE]
+> 服务端未登录时,`qn` 会被限制到最高 `80`(1080P),且 `platform=html5` + `format=dash` 不可用(可改用 `platform=pc` 或 `app`)。配置自定义 cookies 后即可解锁更高清晰度与 html5 DASH。
 
 ### 视频信息
 
@@ -130,8 +148,7 @@ curl "https://your.workers.domain/video/BV1UT42167xb?type=json"
       "backupUrl": ["https://upos-sz-mirroraliov.bilivideo...."],
       "quality": 64
     }
-  },
-  "time": 1783407821041
+  }
 }
 ```
 
@@ -181,8 +198,7 @@ curl "https://your.workers.domain/video/BV1UT42167xb?type=json"
         "flac": null
       }
     }
-  },
-  "time": 1783407821041
+  }
 }
 ```
 
@@ -224,8 +240,7 @@ curl "https://your.workers.domain/live/5055636?type=json"
       ],
       "platform": "xlive"
     }
-  },
-  "time": 1783407821041
+  }
 }
 ```
 
@@ -256,7 +271,7 @@ curl -I "https://your.workers.domain/live/5055636?ov=true"
 所有接口均支持 `GET` 请求,可通过路径参数或查询参数传入,返回 JSON 结构为:
 
 ```json
-{ "code": 200, "message": "Success", "time": 1783407821041, "data": {} }
+{ "code": 200, "message": "Success", "data": {} }
 ```
 
 ### 视频相关
@@ -285,30 +300,49 @@ curl "https://your.workers.domain/video?url=https://www.bilibili.com/video/BV1mN
 
 获取视频封面。
 
-| 参数   | 类型                         | 默认  | 说明                                                                          |
-| ------ | ---------------------------- | ----- | ----------------------------------------------------------------------------- |
-| `bvid` | string                       | -     | BV 号                                                                         |
-| `url`  | string                       | -     | bilibili 视频链接                                                             |
-| `type` | `img` \| `url` \| `redirect` | `img` | `img`:代理图片(带 Referer);`url`:返回封面直链文本;`redirect`:302 重定向到封面 |
+| 参数   | 类型                | 默认       | 说明                                         |
+| ------ | ------------------- | ---------- | -------------------------------------------- |
+| `bvid` | string              | -          | BV 号                                        |
+| `url`  | string              | -          | bilibili 视频链接                            |
+| `type` | `url` \| `redirect` | `redirect` | `url`:返回封面直链文本;`redirect`:302 重定向到封面 |
 
 ```bash
 curl "https://your.workers.domain/cover/BV1UT42167xb?type=url"
 ```
 
-#### `GET /danmaku/:bvid?`
+#### `GET /danmaku/:bvid?/:p?`
 
 获取视频弹幕。
 
 | 参数   | 类型            | 默认  | 说明                                                                                                          |
 | ------ | --------------- | ----- | ------------------------------------------------------------------------------------------------------------- |
 | `bvid` | string          | -     | BV 号                                                                                                         |
-| `cid`  | number          | -     | 视频 cid(提供时优先,免去解析 BV 号)                                                                           |
+| `p`    | number          | `1`   | 分 P 序号,`0` 等价于 `1`                                                                                       |
 | `url`  | string          | -     | bilibili 视频链接                                                                                             |
 | `type` | `xml` \| `json` | `xml` | `xml`:返回标准 XML;`json`:返回结构化 JSON(含 `danmakus[]`,字段含时间/模式/字号/颜色/发送时间/类型/用户哈希等) |
 
 ```bash
 curl "https://your.workers.domain/danmaku/BV1UT42167xb"
 curl "https://your.workers.domain/danmaku/BV1UT42167xb?type=json"
+```
+
+#### `GET /subtitle/:bvid?/:p?`
+
+获取视频 CC 字幕。**需要服务端登录**(配置自定义 cookies),否则返回提示信息。
+
+| 参数   | 类型                      | 默认   | 说明                                                                 |
+| ------ | ------------------------- | ------ | -------------------------------------------------------------------- |
+| `bvid` | string                    | -      | BV 号                                                                |
+| `p`    | number                    | `1`    | 分 P 序号,`0` 等价于 `1`                                              |
+| `url`  | string                    | -      | bilibili 视频链接                                                    |
+| `lang` | string                    | -      | 指定字幕语言(如 `zh-Hans`);省略时返回该视频全部字幕信息              |
+| `type` | `srt` \| `json` \| `info` | `info` | `info`:字幕信息;`srt`:转换为 SRT 文本;`json`:返回原始字幕 JSON(需配合 `lang`) |
+
+```bash
+# 获取全部字幕信息
+curl "https://your.workers.domain/subtitle/BV1UT42167xb"
+# 获取指定语言的 SRT
+curl "https://your.workers.domain/subtitle/BV1UT42167xb?lang=zh-Hans&type=srt"
 ```
 
 #### `GET /cdn`
@@ -323,8 +357,7 @@ curl "https://your.workers.domain/danmaku/BV1UT42167xb?type=json"
     "ali": "upos-sz-mirrorali.bilivideo.com",
     "aliov": "upos-sz-mirroraliov.bilivideo.com",
     "alib": "upos-sz-mirroralib.bilivideo.com"
-  },
-  "time": 1783407821041
+  }
 }
 ```
 
@@ -369,21 +402,6 @@ curl "https://your.workers.domain/bangumi/info?mdid=28231832"
 curl "https://your.workers.domain/bangumi/episodes?ssid=37498"
 ```
 
-#### `GET /bangumi/play/:epid?`
-
-解析单集播放地址。
-
-| 参数   | 类型              | 默认    | 说明                                                     |
-| ------ | ----------------- | ------- | -------------------------------------------------------- |
-| `epid` | number            | -       | 剧集号(可带 `ep` 前缀)                                   |
-| `type` | `video` \| `json` | `video` | `video`:307 跳转到 `/pplay` 代理播放;`json`:返回解析结果 |
-| `qn`   | number            | `64`    | 清晰度(当前固定为 64)                                    |
-| `cdn`  | string            | `ali`   | 指定 CDN                                                 |
-
-```bash
-curl "https://your.workers.domain/bangumi/play/ep378374?type=json"
-```
-
 ### 用户相关
 
 #### `GET /user/archieve/:mid?/:sid?`
@@ -401,6 +419,41 @@ curl "https://your.workers.domain/bangumi/play/ep378374?type=json"
 curl "https://your.workers.domain/user/archieve/296909317/3091395?page=1&pageSize=30"
 ```
 
+#### `GET /user/fav/:fid?`
+
+获取用户收藏夹信息与其中的视频列表。
+
+| 参数       | 类型   | 默认 | 说明               |
+| ---------- | ------ | ---- | ------------------ |
+| `fid`      | number | -    | 收藏夹 id          |
+| `keyword`  | string | -    | 在收藏夹内搜索关键词 |
+| `page`     | number | `1`  | 页码               |
+| `pageSize` | number | `40` | 每页数量           |
+
+```bash
+curl "https://your.workers.domain/user/fav/220737630?page=1&pageSize=40"
+```
+
+### 搜索相关
+
+#### `GET /search/:type?`
+
+搜索视频、UP 主或直播间。
+
+| 参数       | 类型                      | 默认    | 说明                     |
+| ---------- | ------------------------- | ------- | ------------------------ |
+| `type`     | `video` \| `up` \| `live` | `video` | 搜索类型                 |
+| `keyword`  | string                    | -       | 搜索关键词(必填)         |
+| `page`     | number                    | `1`     | 页码,`0` 等价于 `1`      |
+| `pageSize` | number                    | `20`    | 每页数量                 |
+| `order`    | string                    | -       | 排序方式(由 B 站接口决定) |
+
+```bash
+curl "https://your.workers.domain/search/video?keyword=VRChat"
+curl "https://your.workers.domain/search/up?keyword=宇多田光"
+curl "https://your.workers.domain/search/live?keyword=VRChat"
+```
+
 ### 其他
 
 #### `GET /ipregion`
@@ -413,17 +466,24 @@ curl "https://your.workers.domain/ipregion"
 
 ### 响应头
 
-| 头                                                         | 说明                                           |
-| ---------------------------------------------------------- | ---------------------------------------------- |
-| `X-Cache-Edge-Hit`                                         | 命中的 Edge Cache key(MD5),未命中为 `MISS`     |
-| `X-Cache-KV-Hit`                                           | 命中的 KV Cache key(MD5),未使用 KV 为 `NOTUSE` |
-| `X-Bili-CDN`                                               | 实际使用的播放 CDN 域名                        |
-| `X-CDN-Strategy`                                           | 命中的 CDN 策略(地区,地区,CDN 名)              |
-| `X-Stream-Server`                                          | 直播流服务器(`cn` / `ov`)                      |
-| `X-Stream-Parse-Platform`                                  | 直播解析平台(`xlive` / `h5`)                   |
-| `X-Stream-Format` / `X-Stream-Codec` / `X-Stream-Protocol` | 直播流格式/编码/协议(xlive)                    |
-| `X-URL-CID` / `X-URL-Vpart`                                | 视频播放地址对应的 cid / 分 P                  |
-| `Server-Version`                                           | 服务端版本                                     |
+| 头                                                         | 说明                                                                                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `cf-cache-status`                                          | Cloudflare CDN 缓存状态(`HIT` / `MISS` / `EXPIRED`)                                                                       |
+| `X-Server-Cache-Status`                                    | Worker 内部缓存状态,格式 `edge;hit="...",kv;hit="..."`;命中为缓存 key 的 MD5 前 6 位,未命中为 `MISS`,未使用为 `UNUSED`    |
+| `X-Cache-Version`                                          | 缓存数据版本(`CONFIG_CacheDataVersion`)                                                                                   |
+| `X-Server-Version`                                         | 服务端版本号                                                                                                             |
+| `X-Server-Online`                                          | 服务端是否处于登录态(`true` / `false`)                                                                                    |
+| `X-Min-Expiration`                                         | 本次响应涉及缓存数据的最早过期时间(秒级时间戳)                                                                             |
+| `X-Bcrypto-Cookies-Cache`                                  | Cookies 缓存状态(`HIT` / `MISS`)                                                                                          |
+| `X-Bcrypto-Sign-Time`                                      | 生成 cookies 签名时的时间戳                                                                                               |
+| `X-Bili-CDN`                                               | 实际使用的播放 CDN 域名                                                                                                   |
+| `X-CDN-Strategy`                                           | 命中的 CDN 策略(大洲,地区,CDN 名)                                                                                          |
+| `X-Bili-Bvid`                                              | 视频播放重定向对应的 BV 号                                                                                                |
+| `X-Stream-Server`                                          | 直播流服务器(`cn` / `ov`)                                                                                                 |
+| `X-Stream-Parse-Platform`                                  | 直播解析平台(`xlive` / `h5`)                                                                                              |
+| `X-Stream-Format` / `X-Stream-Codec` / `X-Stream-Protocol` | 直播流格式/编码/协议(xlive)                                                                                               |
+| `X-Url-Cid` / `X-Url-Part`                                 | 视频播放地址对应的 cid / 分 P                                                                                             |
+| `Ctag`                                                     | 版本化缓存键(用于 CDN 响应缓存);存在时响应可被 Cloudflare CDN 缓存                                                        |
 
 ## 部署解析站
 
@@ -464,11 +524,29 @@ npm install
         "name": "RATE_LIMITER",
         "namespace_id": "100",
         "simple": {
-            "limit": 100,
-            "period": 60
+            "limit": 20,
+            "period": 10
         }
     }
 ]
+```
+
+配置双 Worker 导出(缓存优化):默认入口负责限流、地区识别与生成 `ctag`,并调用启用了缓存的 `BiliAPIEntryPoint`。启用后 Cloudflare 可直接命中缓存返回响应,不再唤醒内部 Worker:
+
+```jsonc
+"exports": {
+    "default": {
+        "type": "worker",
+        "cache": { "enabled": false }
+    },
+    "BiliAPIEntryPoint": {
+        "type": "worker",
+        "cache": { "enabled": true }
+    }
+},
+"placement": {
+    "mode": "smart"
+}
 ```
 
 ### 4. 配置环境变量
@@ -479,9 +557,13 @@ npm install
 
 | 变量 | 默认值 | 说明 |
 | ---- | ------ | ---- |
-| `CONFIG_EnableCustomCookies` | `false` | 允许使用配置的自定义cookie(需要填写 CONFIG_CustomCookies) |
-| `CONFIG_CustomCookies` | - | 自定义cookies,例如 `SESSDATA=123456...`,获取高清视频流以及字幕文件需要持有登录状态的cookies |
-| `CONFIG_CacheValidation` | `true` | 启用缓存校验 |
+| `CONFIG_EnableCustomCookies` | `false` | 允许使用配置的自定义cookie(需要填写 CONFIG_CustomCookies);启用且填写后服务端视为登录态 |
+| `CONFIG_CustomCookies` | - | 自定义cookies,例如 `SESSDATA=123456...`,获取高清视频流、DASH(html5)以及字幕文件需要持有登录状态的cookies |
+| `CONFIG_CacheValidation` | `true` | 启用缓存数据校验 |
+| `CONFIG_CacheDataVersion` | `5` | 缓存数据版本号,修改后所有缓存层级的 key 随之变化(可用于强制刷新缓存) |
+| `CONFIG_ResponseWorkerCaching` | `true` | 启用基于 `ctag` 的 Cloudflare CDN 响应缓存 |
+| `CONFIG_ResponseMaxCacheTime` | `3600` | CDN 响应缓存最大时间(秒) |
+| `CONFIG_CookiesSignCacheTime` | `3600` | 匿名 cookies 缓存时间(秒) |
 | `CONFIG_UseProxyFetch` | `true` | 使用代理服务器 |
 | `CONFIG_ProxyToken` | - | 代理服务器 Token(Bearer 认证) |
 | `CONFIG_ProxyServerUrl` | - | 代理服务器地址 |
@@ -491,31 +573,44 @@ npm install
 | `CONFIG_BiliBangumiPlayUrlCacheTime` | `5400` | 番剧播放地址最大缓存时间(秒) |
 | `CONFIG_BiliLiveCacheTime` | `60` | 直播信息缓存时间(秒) |
 | `CONFIG_BiliVideoInfoCacheTime` | `86400` | 视频信息缓存时间(秒) |
+| `CONFIG_BiliVideoSubtitlesCacheTime` | `1800` | 视频字幕缓存时间(秒) |
 | `CONFIG_BiliBangumiEpisodesCacheTime` | `604800` | 番剧分集缓存时间(秒) |
 | `CONFIG_BiliBangumiInfoCacheTime` | `604800` | 番剧信息缓存时间(秒) |
 | `CONFIG_UGCSeasonArchieveCacheTime` | `86400` | 用户合集缓存时间(秒) |
+| `CONFIG_BiliUserFavCacheTime` | `3600` | 用户收藏夹缓存时间(秒) |
 | `CONFIG_BiliDanmakuCacheTime` | `1800` | 弹幕缓存时间(秒) |
-| `CONFIG_CDNS_DEFAULT` | - | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
-| `SERVER_VERSION` | - | 服务端版本号,会写入 `Server-Version` 响应头 |
+| `CONFIG_BiliSearchCacheTime` | `360` | 搜索缓存时间(秒) |
+| `CONFIG_VideoCDNStrategy` | `AS,CN,alib;*,*,aliov` | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
+| `SERVER_VERSION` | - | 服务端版本号,会写入 `X-Server-Version` 响应头 |
 
 ```jsonc
 "vars": {
+    "CONFIG_EnableCustomCookies": false,
+    "CONFIG_CustomCookies": "SESSDATA=...",
+    "CONFIG_CacheValidation": true,
+    "CONFIG_CacheDataVersion": 5,
+    "CONFIG_ResponseWorkerCaching": true,
+    "CONFIG_ResponseMaxCacheTime": 3600,
+    "CONFIG_CookiesSignCacheTime": 3600,
     "CONFIG_UseProxyFetch": true,
     "CONFIG_ProxyToken": "Your Proxy Token",
     "CONFIG_ProxyServerUrl": "Your Proxy Server URL",
     "CONFIG_ProxyFetchMaxRetries": 3,
-    "CONFIG_ProxyFetchTimeout":10000,
-    "CONFIG_CacheValidation":true,
+    "CONFIG_ProxyFetchTimeout": 10000,
     "CONFIG_BiliVideoPlayUrlCacheTime": 5400,
     "CONFIG_BiliBangumiPlayUrlCacheTime": 5400,
     "CONFIG_BiliLiveCacheTime": 60,
     "CONFIG_BiliVideoInfoCacheTime": 86400,
+    "CONFIG_BiliVideoSubtitlesCacheTime": 1800,
     "CONFIG_BiliBangumiEpisodesCacheTime": 604800,
     "CONFIG_BiliBangumiInfoCacheTime": 604800,
     "CONFIG_UGCSeasonArchieveCacheTime": 86400,
+    "CONFIG_BiliUserFavCacheTime": 3600,
     "CONFIG_BiliDanmakuCacheTime": 1800,
+    "CONFIG_BiliSearchCacheTime": 360,
     "CONFIG_VideoCDNStrategy": "AS,CN,alib;*,*,aliov",
-  },
+    "SERVER_VERSION": "3.2.5.20260826"
+}
 ```
 
 ### 5. 本地开发
