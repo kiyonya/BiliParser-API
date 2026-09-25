@@ -22,32 +22,6 @@ export default abstract class APIRoute extends OpenAPIRoute {
     protected BILI_VIDEO_PATTERN = new URLPattern("*://*bilibili.com/video/*")
     protected BILI_B23TV_PATTERN = new URLPattern("*://*b23.tv/*")
 
-    protected CDNS: BiliTypes.BiliVideoCDN = {
-        ali: 'upos-sz-mirrorali.bilivideo.com',
-        aliov: 'upos-sz-mirroraliov.bilivideo.com',
-        alib: 'upos-sz-mirroralib.bilivideo.com',
-        alio1: 'upos-sz-mirroralio1.bilivideo.com',
-        ali02: 'upos-sz-mirrorali02.bilivideo.com',
-        cos: 'upos-sz-mirrorcos.bilivideo.com',
-        cosb: 'upos-sz-mirrorcosb.bilivideo.com',
-        coso1: 'upos-sz-mirrorcoso1.bilivideo.com',
-        cosov: 'upos-sz-mirrorcosov.bilivideo.com',
-        cosdisp: 'upos-sz-mirrorcosdisp.bilivideo.com',
-        hw: 'upos-sz-mirrorhw.bilivideo.com',
-        hwb: 'upos-sz-mirrorhwb.bilivideo.com',
-        hwo1: 'upos-sz-mirrorhwo1.bilivideo.com',
-        hwdisp: 'upos-sz-mirrorhwdisp.bilivideo.com',
-        bd: 'upos-sz-mirrorbd.bilivideo.com',
-        m08c: 'upos-sz-mirror08c.bilivideo.com',
-        m08h: 'upos-sz-mirror08h.bilivideo.com',
-        m08ct: 'upos-sz-mirror08ct.bilivideo.com',
-        estgcos: 'upos-sz-estgcos.bilivideo.com',
-        estgoss: 'upos-sz-estgoss.bilivideo.com',
-        estghw: 'upos-sz-estghw.bilivideo.com',
-        upcdnbda2: 'upos-sz-upcdnbda2.bilivideo.com',
-        rali: 'upos-sz-mirrorrali.bilivideo.com',
-        akam: "upos-hz-mirrorakam.akamaized.net"
-    }
     protected readonly BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
     protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
@@ -137,17 +111,17 @@ export default abstract class APIRoute extends OpenAPIRoute {
     }
 
     protected readonly utils = {
-        switchCDN: (ctx: AppContext, url: string, cdn?: keyof BiliTypes.BiliVideoCDN) => {
+        switchCDN: (ctx: AppContext, url: string, cdn?: string) => {
             let cdnHostname: string | undefined = undefined
-            if (cdn && this.CDNS[cdn]) {
-                cdnHostname = this.CDNS[cdn]
+            if (cdn && Config.VIDEO_CDN[cdn]) {
+                cdnHostname = Config.VIDEO_CDN[cdn]
             }
             else {
                 const geo = Geolib.geo(ctx.req.raw.cf)
                 const match = Geolib.matchStrategy(Config.VIDEO_CDN_STRATEGE, geo)
                 if (match) {
-                    const cdnName = match.cdn as keyof BiliTypes.BiliVideoCDN
-                    cdnHostname = this.CDNS[cdnName]
+                    const cdnName = match.cdn as string
+                    cdnHostname = Config.VIDEO_CDN[cdnName]
                     ctx.header('X-CDN-Strategy', `${match.continent},${match.area},${cdnName}`)
                 }
             }
@@ -159,7 +133,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
             }
             return url
         },
-        switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: keyof BiliTypes.BiliVideoCDN) => {
+        switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: string) => {
             const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
                 dashItem.baseUrl = this.utils.switchCDN(ctx, dashItem.baseUrl, cdn)
                 dashItem.backupUrl = dashItem.backupUrl.map(u => this.utils.switchCDN(ctx, u, cdn))

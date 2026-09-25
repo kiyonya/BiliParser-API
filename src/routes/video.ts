@@ -9,7 +9,7 @@ export class BiliVideoRoute extends APIRoute {
 
     private readonly PARAMS = z.object({
         type: z.enum(["video", "json"]).default("video"),
-        cdn: z.enum(Object.keys(this.CDNS) as (keyof BiliTypes.BiliVideoCDN)[]).optional(),
+        cdn: z.enum(Object.keys(Config.VIDEO_CDN)).optional(),
         qn: z.enum(["6", "16", "32", "64", "74", "80", "100", "112", "116", "120", "125", "126", "127", "129"]).default("64").transform((qn) => parseInt(qn)),
         format: z.enum(['mp4', 'dash']).default('mp4'),
         platform: z.enum(['html5', 'pc', 'app']).default('html5'),

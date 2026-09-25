@@ -44,7 +44,8 @@ export async function proxyFetch(
                     const headers = new Headers(init?.headers);
                     
                     if (token) {
-                        headers.append('Authorization', `Bearer ${token}`);
+                        //传递token的方式
+                        headers.set(Config.PROXY_TOKEN_HEADER,token)
                     }
                     proxyUrl.searchParams.set('url', url.toString());
                     return fetch(proxyUrl, {

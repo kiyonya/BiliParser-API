@@ -817,33 +817,6 @@ export namespace BiliTypes {
     export type BVideoPlatform = "web" | 'app'
     export type BLivePlatform = 'h5' | 'xlive'
 
-    export interface BiliVideoCDN {
-        ali: string;
-        aliov: string;
-        alib: string;
-        alio1: string;
-        ali02: string;
-        cos: string;
-        cosb: string;
-        coso1: string;
-        cosdisp: string;
-        cosov: string
-        hw: string;
-        hwb: string;
-        hwo1: string;
-        hwdisp: string;
-        bd: string;
-        m08c: string;
-        m08h: string;
-        m08ct: string;
-        estgcos: string;
-        estgoss: string;
-        estghw: string;
-        upcdnbda2: string;
-        rali: string;
-        akam: string;
-    }
-
 }
 
 export namespace APITypes {

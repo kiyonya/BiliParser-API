@@ -1,4 +1,4 @@
-import z from "zod";
+import z, { ZodRecord, ZodString } from "zod";
 import { BiliTypes } from "./types";
 import { MemoObject } from "./memo";
 
@@ -299,10 +299,6 @@ export abstract class Validation extends MemoObject {
         return this.memo("ipRegionSchema", () => z.object({
             ipRegion: z.string()
         }))
-    }
-
-    public static get videoCDNSchema(): z.ZodType<BiliTypes.BiliVideoCDN> {
-        return this.memo("videoCDNSchema", () => z.record(z.string(), z.string()) as unknown as z.ZodType<BiliTypes.BiliVideoCDN>)
     }
 
     public static get searchVideoItemSchema(): z.ZodType<BiliTypes.RES.Search.SearchVideoItem> {

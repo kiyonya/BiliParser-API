@@ -12,6 +12,7 @@ import { Config } from './config';
 import { md5String } from './utils/hashlib';
 
 export class BiliAPIEntryPoint extends WorkerEntrypoint {
+	protected cacheEnable = true
 	// if cache,this method not invoke
 	async fetch(request: Request): Promise<Response> {
 		const response = await app.fetch(request, this.env, this.ctx)
