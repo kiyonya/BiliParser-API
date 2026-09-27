@@ -29,25 +29,30 @@ export default class CacheableObject {
         const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
         const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
         const headers: Record<string, string> = {}
-        headers['X-Server-Cache-Status'] = `edge;hit="${edgeHits || "MISS"}",kv;hit="${kvHits ||  (this.kvCacheNotUsed ? "UNUSED" : "MISS")}"`
+        headers['X-Server-Cache-Status'] = `edge;hit="${edgeHits || "MISS"}",kv;hit="${kvHits || (this.kvCacheNotUsed ? "UNUSED" : "MISS")}"`
         return headers
+    }
+
+    protected async validateSchema<Data = any>(data: Data, schema?: z.ZodType<Data>) {
+        if (!schema || !Config.ENABLE_CAHCE_DATA_VALIDATION) { return true }
+        return (await schema.safeParseAsync(data)).success
     }
 
     public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode: CacheMode = "all"): Promise<void> {
         try {
+            if (!await this.validateSchema(data, schema)) { return }
             const expirationAt: number = typeof expirationAtCall === 'function'
                 ? expirationAtCall(data)
                 : expirationAtCall;
             if (expirationAt < this.minExpirationTime) {
                 this.minExpirationTime = expirationAt
             }
-            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? schema.safeParse(data).success : true) : true
-            if (!isDataValid) { return }
             const warp: CacheWarp<Data> = {
                 data: data,
                 expirationAt: expirationAt,
                 key: key
             }
+            //只序列化一次不等待
             const serialized = JSON.stringify(warp)
             const tasks: Promise<any>[] = [];
             if (mode === 'all' || mode === 'edge') {
@@ -74,53 +79,69 @@ export default class CacheableObject {
      */
     public async getCache<Data = any>(key: string, schema?: z.ZodType<Data>, mode: CacheMode = "all", addkey: boolean = true): Promise<Data | null> {
         try {
+            let data: null | Data = null
+            let rewriteEdgeCache: CacheWarp<Data> | null = null
             if (mode === 'edge') {
-                const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key, schema);
+                const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key);
                 if (edgeCache) {
                     addkey && this.edgeCacheHits.add(key)
                     this.kvCacheNotUsed = true;
                     if (edgeCache.raw.expirationAt < this.minExpirationTime) {
                         this.minExpirationTime = edgeCache.raw.expirationAt
                     }
-                    return edgeCache.data;
+                    data = edgeCache.data
                 }
-                return null;
             }
-            if (mode === 'kv') {
-                const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, schema);
+            else if (mode === 'kv') {
+                const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key);
                 if (kvCache) {
                     addkey && this.kvCacheHits.add(key)
                     this.kvCacheNotUsed = false;
                     if (kvCache.raw.expirationAt < this.minExpirationTime) {
                         this.minExpirationTime = kvCache.raw.expirationAt
                     }
-                    return kvCache.data;
+                    data = kvCache.data
                 }
-                return null;
             }
-            const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key, schema);
-            if (edgeCache) {
-                addkey && this.edgeCacheHits.add(key)
-                this.kvCacheNotUsed = true;
-                if (edgeCache.raw.expirationAt < this.minExpirationTime) {
-                    this.minExpirationTime = edgeCache.raw.expirationAt
+            else if (mode === 'all') {
+                const edgeCache = await this.edgeCache.getEdgeCache<Data>(this.ctx, key);
+                if (edgeCache) {
+                    addkey && this.edgeCacheHits.add(key)
+                    this.kvCacheNotUsed = true;
+                    if (edgeCache.raw.expirationAt < this.minExpirationTime) {
+                        this.minExpirationTime = edgeCache.raw.expirationAt
+                    }
+                    data = edgeCache.data
                 }
-                return edgeCache.data;
-            }
-            const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key, schema);
-            if (kvCache) {
-                addkey && this.kvCacheHits.add(key)
-                this.kvCacheNotUsed = false;
-                const kvCacheKey = kvCache.raw.key;
-                const expirationAt = kvCache.raw.expirationAt;
-                const serialized = JSON.stringify({ data: kvCache.data, expirationAt, key: kvCacheKey });
-                this.ctx.defer(this.edgeCache.setEdgeCacheRaw(this.ctx, kvCacheKey, serialized, expirationAt));
-                if (expirationAt < this.minExpirationTime) {
-                    this.minExpirationTime = expirationAt
+                else {
+                    const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key);
+                    if (kvCache) {
+                        addkey && this.kvCacheHits.add(key)
+                        this.kvCacheNotUsed = false;
+                        //
+                        rewriteEdgeCache = kvCache.raw
+                        //
+                        const expirationAt = kvCache.raw.expirationAt;
+                        if (expirationAt < this.minExpirationTime) {
+                            this.minExpirationTime = expirationAt
+                        }
+                        data = kvCache.data
+                    }
                 }
-                return kvCache.data;
             }
-            return null;
+            if (!data || !await this.validateSchema(data, schema)) { return null }
+            if (rewriteEdgeCache) {
+                //这里不使用defer而是硬性要求等待
+                //kv命中edge不命中的情况只有在跨数据中心时才会出现,属于概率没有那么大的事件
+                //defer会将回写edge的promise放入队列等待时机执行，虽然会让getCache返回快一些
+                //但是当请求次数较多时，edge不能快速生效，而且可能会被多次从kv回写
+                //edge本身不付费，kv是计费的，让kv少读取是关键的
+                //所以，在小概率情况下多等待一会让edge生效来避免后续反复从kv读取是有价值的，这个时间不会有明显的察觉
+                //而且大部分时间edge命中直接就返回了，也轮不到回写
+                //况且edge速度很快，kv读取和写入大概需要200ms 下面的promise执行不会超过200ms 所以等一次爽一年和爽一次等一年的取舍还是值得的
+                await this.edgeCache.setEdgeCache(this.ctx, rewriteEdgeCache.key, rewriteEdgeCache.data, rewriteEdgeCache.expirationAt)
+            }
+            return data;
         } catch (error) {
             return null;
         }
