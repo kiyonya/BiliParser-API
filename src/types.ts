@@ -408,7 +408,13 @@ export namespace BiliTypes {
         }> { }
 
         export interface BiliWebTicket extends Response<{
-            ticket: string
+            ticket: string,
+            created_at:number,
+            ttl:number,
+            nav:{
+                img:string,
+                sub:string
+            }
         }> { }
 
         export interface BiliVideoViewInfo extends Response<{

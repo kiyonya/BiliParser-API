@@ -15,7 +15,7 @@ export default class BiliUserParser extends Parser {
         url.searchParams.append('page_size', String(pageSize))
         url.searchParams.append('page_num', String(page))
 
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: {
                 'Cookie': cookie, 'Referer': this.BILI_REFERER, ...this.FAKE_BROWSER_HEADERS
@@ -55,7 +55,7 @@ export default class BiliUserParser extends Parser {
         url.searchParams.set("ps", String(pageSize))
         url.searchParams.set("order", "mtime")
 
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: {
                 'Cookie': cookie, 'Referer': this.BILI_REFERER, ...this.FAKE_BROWSER_HEADERS

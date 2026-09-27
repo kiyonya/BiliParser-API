@@ -1,6 +1,6 @@
 import z from "zod"
 import { md5String } from "./utils/hashlib"
-import { MemoObject } from "./memo"
+import { MemoObject } from "./utils/memo"
 import { CDNStrategy } from "./types"
 
 const numberEnv = (def: number) => z.coerce.number().default(def)

@@ -1,6 +1,6 @@
-import z, { ZodRecord, ZodString } from "zod";
+import z from "zod";
 import { BiliTypes } from "./types";
-import { MemoObject } from "./memo";
+import { MemoObject } from "./utils/memo";
 
 export abstract class Validation extends MemoObject {
 

@@ -10,7 +10,7 @@ export default class BiliSearchParser extends Parser {
     public async search(keyword: string, type: "up", page?: number, pageSize?: number, order?: string): Promise<BiliTypes.RES.Search.SearchUserItem>
     public async search(keyword: string, type: "live", page?: number, pageSize?: number, order?: string): Promise<BiliTypes.RES.Search.SearchLiveItem>
     public async search(keyword: string, type: BiliTypes.RES.Search.SearchType, page: number = 1, pageSize: number = 20, order?: string): Promise<SearchResult> {
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const url = new URL(this.BILI_SEARCH_TYPE_API)
         const params: Record<string, string> = {
             keyword: keyword,

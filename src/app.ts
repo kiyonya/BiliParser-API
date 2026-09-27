@@ -18,6 +18,7 @@ import { APIResponse } from "./utils/api-route";
 import z from "zod";
 import { Config } from "./config";
 import { ResponseHeader } from "hono/utils/headers";
+import { BiliCookieRoute } from "./routes/cookie";
 
 const DEFAULT_HEADERS: Partial<Record<ResponseHeader, string>> = {
     'Access-Control-Allow-Origin': '*',
@@ -64,7 +65,7 @@ async function useRespCacheHeaders(ctx: HonoContext, next: Next) {
     }
 }
 
-async function useCtagCache(ctx: HonoContext, next: Next) {
+async function useResponseCache(ctx: HonoContext, next: Next) {
     await next()
     if (!Config.RESPONSE_WORKER_CACHING) { 
         ctx.res.headers.set('Cache-Control', 'no-store')
@@ -98,7 +99,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use(useAppContext)
 app.use(useRespCacheHeaders)
-app.use(useCtagCache)
+app.use(useResponseCache)
 
 const openapi = fromHono(app, {
     docs_url: "/doc"
@@ -117,5 +118,6 @@ openapi.get('/ipregion', BiliIpRegionRoute)
 openapi.get('/user/archieve/:mid?/:sid?', BiliArchieveRoute)
 openapi.get('/user/fav/:fid?', BiliFavListRoute)
 openapi.get('/search/:type?', SearchRoute)
+openapi.get('/cookie',BiliCookieRoute)
 
 export default app

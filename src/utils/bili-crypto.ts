@@ -23,12 +23,15 @@ export default class BiliCrypto {
         tv: { appkey: '4409e2ce8ffd12b8', appsec: '59b43e04ad6965f34319062b478f83dd', platform: 'android', ua: 'Bilibili Freedoooooom/MOD' }
     };
 
+    protected wbiImgUrl: string | null = null
+    protected wbiSubUrl: string | null = null
+
     public biliAntiCookie: string | null = null
     public biliWbiMixinKey: string | null = null
 
-    public async getBiliAntiCookie(): Promise<string> {
+    public async getBiliCookie(): Promise<string> {
         if (!this.biliAntiCookie) {
-            this.biliAntiCookie = await this.createBiliAntiCookie()
+            this.biliAntiCookie = await this.createBiliCookie()
         }
         return this.biliAntiCookie
     }
@@ -55,10 +58,9 @@ export default class BiliCrypto {
         return buuid
     }
 
-    private async createBiliAntiCookie(): Promise<string> {
-
+    public async createAnonymousCookie(noCache: boolean = false): Promise<Record<string, string>> {
         const cookiesCacheKey = `${Config.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`
-        let cookies = await this.ctx.cache.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
+        let cookies = noCache ? null : await this.ctx.cache.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
         if (!cookies) {
             const signTs = Date.now()
             this.ctx.header('X-Bcrypto-Cookies-Cache', 'MISS')
@@ -66,6 +68,7 @@ export default class BiliCrypto {
             let buvid3 = this.BILI_DEFAULT_BUVID3;
             let buvid4 = null;
             let ticket: string | null = null
+            let biliTicketExpires: number | null = null
             let cookieCacheOk = true
             try {
                 const res = await proxyFetch(this.BILI_FINGER_SPI);
@@ -87,8 +90,16 @@ export default class BiliCrypto {
 
                 const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": this.BROWSER_UA } });
                 const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
+                console.log(json)
                 if (json.data?.ticket) {
                     ticket = json.data.ticket
+                }
+                if (json.data?.created_at && json.data?.ttl) {
+                    biliTicketExpires = json.data.created_at + json.data.ttl
+                }
+                if (json.data?.nav) {
+                    this.wbiImgUrl = json.data.nav.img
+                    this.wbiSubUrl = json.data.nav.sub
                 }
             } catch (e) {
                 cookieCacheOk = false
@@ -101,11 +112,13 @@ export default class BiliCrypto {
                 "buvid3": buvid3,
                 ...(ticket ? { "bili_ticket": ticket } : {}),
                 ...(buvid4 ? { "buvid4": buvid4 } : {}),
+                ...(biliTicketExpires ? { "bili_ticket_expires": String(biliTicketExpires) } : {}),
                 "b_nut": String(signTs),
                 "buvid_fp": md5String(crypto.randomUUID()),
-                "CURRENT_FNVAL": "2000"
+                "CURRENT_FNVAL": "2000",
+                "lang": "zh-Hans"
             }
-            if (cookieCacheOk) {
+            if (cookieCacheOk && !noCache) {
                 const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
                 await this.ctx.cache.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
@@ -115,7 +128,12 @@ export default class BiliCrypto {
         else {
             this.ctx.header('X-Bcrypto-Cookies-Cache', 'HIT')
         }
+        return cookies
+    }
 
+    private async createBiliCookie(): Promise<string> {
+
+        let cookies = await this.createAnonymousCookie()
         if (Config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {
             cookies = {
                 ...cookies,
@@ -156,19 +174,20 @@ export default class BiliCrypto {
     }
 
     private async createBiliWbiMixinKey(): Promise<string> {
-
-        const cookie = await this.getBiliAntiCookie()
-        const req = await proxyFetch(this.BILI_WEB_NAV, {
-            headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
-        });
-        const res = await req.json<BiliTypes.BAPI.BiliNav>()
-        const img_url = res.data.wbi_img.img_url
-        const sub_url = res.data.wbi_img.sub_url
-        if (!img_url || !sub_url) {
+        if (!this.wbiImgUrl || !this.wbiSubUrl) {
+            const cookie = await this.getBiliCookie()
+            const req = await proxyFetch(this.BILI_WEB_NAV, {
+                headers: { 'User-Agent': this.BROWSER_UA, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            });
+            const res = await req.json<BiliTypes.BAPI.BiliNav>()
+            this.wbiImgUrl = res.data.wbi_img.img_url
+            this.wbiSubUrl = res.data.wbi_img.sub_url
+        }
+        if (!this.wbiImgUrl || !this.wbiSubUrl) {
             throw new Error("Cannot Get Nav WBI")
         }
-        const wbi_1 = img_url.split('/').pop()?.split('.')[0] as string
-        const wbi_2 = sub_url.split('/').pop()?.split('.')[0] as string
+        const wbi_1 = this.wbiImgUrl.split('/').pop()?.split('.')[0] as string
+        const wbi_2 = this.wbiSubUrl.split('/').pop()?.split('.')[0] as string
         const wbi_orig = wbi_1 + wbi_2
         const key = this.BILI_MIXIN_KEY_ENC.map(n => wbi_orig[n]).join('').slice(0, 32)
         return key

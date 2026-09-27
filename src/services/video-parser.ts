@@ -16,7 +16,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     public async getVideoInfo(bvid: string): Promise<BiliTypes.RES.Video.VideoInfo> {
-        const cookie = await this.BCrypto.getBiliAntiCookie();
+        const cookie = await this.BCrypto.getBiliCookie();
         const videoViewInfoURL = new URL(this.BILI_VIDEO_VIEW_API)
         videoViewInfoURL.searchParams.append('bvid', bvid)
         const videoViewReq = await proxyFetch(videoViewInfoURL, {
@@ -368,7 +368,7 @@ export default class BiliVideoParser extends Parser {
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "mp4"): Promise<BiliTypes.RES.Video.PlayURL>
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "dash"): Promise<BiliTypes.RES.Video.PlayDash>
     public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform = 'html5', format: BiliTypes.RES.Video.VideoPlayFormat = 'mp4'): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
-        const cookie = await this.BCrypto.getBiliAntiCookie();
+        const cookie = await this.BCrypto.getBiliCookie();
         switch (platform) {
             case "html5":
             case "pc":
@@ -402,7 +402,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     public async getVideoDanmakuXML(cid: number): Promise<string | null> {
-        const cookie = await this.BCrypto.getBiliAntiCookie();
+        const cookie = await this.BCrypto.getBiliCookie();
         const url = new URL(this.BILI_DANMAKU_API)
         url.pathname = `${cid}.xml`
         const req = await proxyFetch(url, {
@@ -417,7 +417,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     public async getVideoSubtitles(bvid: string, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const url = new URL(this.BILI_PLAYERV2_API)
         const params: Record<string, string> = {
             bvid: bvid,

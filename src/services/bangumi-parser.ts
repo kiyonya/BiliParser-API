@@ -15,7 +15,7 @@ export default class BiliBangumiParser extends Parser {
         else {
             throw new Error("missing seasonId or episodeId")
         }
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
@@ -45,7 +45,7 @@ export default class BiliBangumiParser extends Parser {
             throw new Error("missing seasonId")
         }
         url.searchParams.append('season_id', String(seasonId))
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })
@@ -79,7 +79,7 @@ export default class BiliBangumiParser extends Parser {
         url.searchParams.append('fnver', '0')
         url.searchParams.append('fourk', '1')
 
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
         })

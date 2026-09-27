@@ -5,7 +5,7 @@ import { proxyFetch } from "../utils/proxy-fetch"
 export default class BiliLiveParser extends Parser {
 
     public async getLiveInfo(roomId: number): Promise<BiliTypes.RES.Live.LiveInfo> {
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const liveInfoUrl = new URL(this.BILI_LIVE_INFO_API)
         liveInfoUrl.searchParams.append('room_id', String(roomId))
         const liveInfoReq = await proxyFetch(liveInfoUrl, {
@@ -25,7 +25,7 @@ export default class BiliLiveParser extends Parser {
     }
 
     public async getLivePlayStream(roomId: number, platform: BiliTypes.BLivePlatform = 'h5', format: number, codec: number, protocol: number): Promise<BiliTypes.RES.Live.LiveStream> {
-        const cookie = await this.BCrypto.getBiliAntiCookie()
+        const cookie = await this.BCrypto.getBiliCookie()
         const tasks: (() => Promise<BiliTypes.RES.Live.LiveStream>)[] = []
 
         switch (platform) {
