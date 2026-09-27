@@ -302,18 +302,17 @@ export default class BiliVideoParser extends Parser {
             const req = await proxyFetch(url, {
                 headers: headers,
             })
-            switch (format) {
-                case "mp4":
-                default:
-                    const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
-                    if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
-                        return this.createPlayUrl(dataMp4, cid, platform as any, format)
-                    }
-                case "dash":
-                    const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
-                    if (dataDash.code === 0 && dataDash.data.dash) {
-                        return this.createPlayDash(dataDash, cid, platform as any, format)
-                    }
+            if (format === 'dash') {
+                const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
+                if (dataDash.code === 0 && dataDash.data.dash) {
+                    return this.createPlayDash(dataDash, cid, platform as any, format)
+                }
+            }
+            else if (format === 'mp4') {
+                const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
+                if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
+                    return this.createPlayUrl(dataMp4, cid, platform as any, format)
+                }
             }
         }
         throw new Error(`cannot get video stream by web with format:${format},platform:${platform};if your platform is html5 and format is dash,it requires the server login,or an error will be throw like this;retry platform:pc with format:dash`)
@@ -345,18 +344,17 @@ export default class BiliVideoParser extends Parser {
             const req = await proxyFetch(url, {
                 headers: { 'User-Agent': ua }
             })
-            switch (format) {
-                case "mp4":
-                default:
-                    const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
-                    if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
-                        return this.createPlayUrl(dataMp4, cid, platform as any, format)
-                    }
-                case "dash":
-                    const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
-                    if (dataDash.code === 0 && dataDash.data.dash) {
-                        return this.createPlayDash(dataDash, cid, platform as any, format)
-                    }
+            if (format === 'dash') {
+                const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
+                if (dataDash.code === 0 && dataDash.data.dash) {
+                    return this.createPlayDash(dataDash, cid, platform as any, format)
+                }
+            }
+            else if (format === 'mp4') {
+                const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
+                if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
+                    return this.createPlayUrl(dataMp4, cid, platform as any, format)
+                }
             }
         }
         throw new Error("cannot get video stream by app")

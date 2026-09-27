@@ -52,9 +52,13 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 		url.searchParams.set('__ctag', ctag)
 		const modifiedRequest = new Request(url, request)
 		modifiedRequest.headers.set('Ctag', ctag)
+
+		const requestStart = Date.now()
 		const response: Response = await this.ctx.exports.BiliAPIEntryPoint.fetch(modifiedRequest, {
 			cf: request.cf
 		})
+		const requestEnd = Date.now()
+		const requestDuration = Math.max(0,requestEnd - requestStart)
 
 		const mutableResponse = new Response(response.body, response)
 		const cfCacheStatus = mutableResponse.headers.get("cf-cache-status")
@@ -67,6 +71,7 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 		mutableResponse.headers.set('X-Cache-Version', String(cacheVersion))
 		mutableResponse.headers.set('X-Server-Version', String(serverVersion))
 		mutableResponse.headers.set('X-Server-Online', String(isServerLogin))
+		mutableResponse.headers.set("X-Request-Duration",String(requestDuration))
 
 		return mutableResponse
 	}

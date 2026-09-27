@@ -48,6 +48,11 @@ async function useAppContext(ctx: HonoContext, next: Next) {
         const responseJson: Response = mctx.json(response, code as any)
         return responseJson
     }
+    mctx.defer = (promise:Promise<any>)=>{
+        try {
+            ctx.executionCtx.waitUntil(promise)
+        } catch (error) {}
+    }
     for (const [k, v] of Object.entries(DEFAULT_HEADERS)) {
         ctx.header(k, v)
     }

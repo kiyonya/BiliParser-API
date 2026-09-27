@@ -7,6 +7,7 @@ export interface ContextInject {
     cache: CacheableObject,
     jsonResp: <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>) => Response,
     entryTrusted: boolean,
+    defer:(promise:Promise<any>)=>void
 }
 
 export interface CDNStrategy {

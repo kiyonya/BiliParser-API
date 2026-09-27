@@ -1,5 +1,6 @@
 import z from "zod"
-import { AppContext } from "../types"
+import { AppContext, CacheWarp } from "../types"
+import { Config } from "../config"
 import EdgeCache from "./edge-cache"
 import KVCache from "./kv-cache"
 import { md5String } from "./hashlib"
@@ -40,15 +41,23 @@ export default class CacheableObject {
             if (expirationAt < this.minExpirationTime) {
                 this.minExpirationTime = expirationAt
             }
+            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? schema.safeParse(data).success : true) : true
+            if (!isDataValid) { return }
+            const warp: CacheWarp<Data> = {
+                data: data,
+                expirationAt: expirationAt,
+                key: key
+            }
+            const serialized = JSON.stringify(warp)
             const tasks: Promise<any>[] = [];
             if (mode === 'all' || mode === 'edge') {
-                tasks.push(this.edgeCache.setEdgeCache(this.ctx, key, data, expirationAt, schema));
+                tasks.push(this.edgeCache.setEdgeCacheRaw(this.ctx, key, serialized, expirationAt));
             }
             if (mode === 'all' || mode === 'kv') {
-                tasks.push(this.kvCache.setKVCache(this.ctx, key, data, expirationAt, schema));
+                tasks.push(this.kvCache.setKVCacheRaw(this.ctx, key, serialized, expirationAt));
             }
             if (tasks.length > 0) {
-                await Promise.allSettled(tasks);
+                this.ctx.defer(Promise.allSettled(tasks));
             }
         } catch (error) {
             return;
@@ -104,7 +113,8 @@ export default class CacheableObject {
                 this.kvCacheNotUsed = false;
                 const kvCacheKey = kvCache.raw.key;
                 const expirationAt = kvCache.raw.expirationAt;
-                await this.edgeCache.setEdgeCache(this.ctx, kvCacheKey, kvCache.data, expirationAt, schema);
+                const serialized = JSON.stringify({ data: kvCache.data, expirationAt, key: kvCacheKey });
+                this.ctx.defer(this.edgeCache.setEdgeCacheRaw(this.ctx, kvCacheKey, serialized, expirationAt));
                 if (expirationAt < this.minExpirationTime) {
                     this.minExpirationTime = expirationAt
                 }

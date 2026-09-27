@@ -65,45 +65,57 @@ export default class BiliCrypto {
             const signTs = Date.now()
             this.ctx.header('X-Bcrypto-Cookies-Cache', 'MISS')
             this.ctx.header('X-Bcrypto-Sign-Time', String(signTs))
-            let buvid3 = this.BILI_DEFAULT_BUVID3;
-            let buvid4 = null;
+            let buvid3: string = this.BILI_DEFAULT_BUVID3;
+            let buvid4: string | null = null;
             let ticket: string | null = null
             let biliTicketExpires: number | null = null
             let cookieCacheOk = true
-            try {
-                const res = await proxyFetch(this.BILI_FINGER_SPI);
-                const json = await res.json<BiliTypes.BAPI.FingerSPI>();
-                if (json.data?.b_3) buvid3 = json.data.b_3;
-                if (json.data?.b_4) buvid4 = json.data.b_4;
 
-            } catch (e) {
+            const [spiResult, ticketResult] = await Promise.allSettled([
+                (async () => {
+                    const res = await proxyFetch(this.BILI_FINGER_SPI);
+                    const json = await res.json<BiliTypes.BAPI.FingerSPI>();
+                    return json
+                })(),
+                (async () => {
+                    const ts = Math.floor(Date.now() / 1000);
+                    const hexsign = hmacSha256('XgwSnGZ1p', 'ts' + ts);
+                    const webTicketURL = new URL(this.BILI_WEB_TICKET_API)
+                    webTicketURL.searchParams.append('key_id', 'ec02')
+                    webTicketURL.searchParams.append('hexsign', hexsign)
+                    webTicketURL.searchParams.append('context[ts]', String(ts))
+                    webTicketURL.searchParams.append('csrf', '')
+                    const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": this.BROWSER_UA } });
+                    const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
+                    return json
+                })()
+            ])
+
+            if (spiResult.status === 'fulfilled') {
+                const spi: BiliTypes.BAPI.FingerSPI = spiResult.value
+                if (spi.data?.b_3) buvid3 = spi.data.b_3;
+                if (spi.data?.b_4) buvid4 = spi.data.b_4;
+            }
+            else {
                 cookieCacheOk = false
             }
-            try {
-                const ts = Math.floor(Date.now() / 1000);
-                const hexsign = hmacSha256('XgwSnGZ1p', 'ts' + ts);
-                const webTicketURL = new URL(this.BILI_WEB_TICKET_API)
-                webTicketURL.searchParams.append('key_id', 'ec02')
-                webTicketURL.searchParams.append('hexsign', hexsign)
-                webTicketURL.searchParams.append('context[ts]', String(ts))
-                webTicketURL.searchParams.append('csrf', '')
-
-                const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": this.BROWSER_UA } });
-                const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
-                console.log(json)
-                if (json.data?.ticket) {
-                    ticket = json.data.ticket
+            if (ticketResult.status === 'fulfilled') {
+                const ticketJson: BiliTypes.BAPI.BiliWebTicket = ticketResult.value
+                if (ticketJson.data?.ticket) {
+                    ticket = ticketJson.data.ticket
                 }
-                if (json.data?.created_at && json.data?.ttl) {
-                    biliTicketExpires = json.data.created_at + json.data.ttl
+                if (ticketJson.data?.created_at && ticketJson.data?.ttl) {
+                    biliTicketExpires = ticketJson.data.created_at + ticketJson.data.ttl
                 }
-                if (json.data?.nav) {
-                    this.wbiImgUrl = json.data.nav.img
-                    this.wbiSubUrl = json.data.nav.sub
+                if (ticketJson.data?.nav) {
+                    this.wbiImgUrl = ticketJson.data.nav.img
+                    this.wbiSubUrl = ticketJson.data.nav.sub
                 }
-            } catch (e) {
+            }
+            else {
                 cookieCacheOk = false
             }
+
             cookies = {
                 "enable_web_push": "DISABLE",
                 "b_lsid": this.randomBlsid(signTs),

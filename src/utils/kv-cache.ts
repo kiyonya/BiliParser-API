@@ -7,18 +7,11 @@ export default class KVCache {
     constructor(kvbind: string) {
         this.kvnamespace = kvbind
     }
-    public async setKVCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, schema?: z.ZodType<Data>): Promise<void> {
-        const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? schema.safeParse(data).success : true) : true
-        if (!isDataValid) { return }
+    public async setKVCacheRaw(ctx: AppContext, key: string, serialized: string, expirationAt: number): Promise<void> {
         //@ts-ignore
         const ns: KVNamespace | undefined = ctx.env[this.kvnamespace]
         if (!ns) { return }
-        const warp: CacheWarp<Data> = {
-            data: data,
-            expirationAt: expirationAt,
-            key: key
-        }
-        await ns.put(key, JSON.stringify(warp), {
+        await ns.put(key, serialized, {
             expiration: expirationAt
         })
     }

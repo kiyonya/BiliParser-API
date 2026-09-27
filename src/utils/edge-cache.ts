@@ -49,10 +49,8 @@ export default class EdgeCache {
         }
     }
 
-    public async setEdgeCache<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number, schema?: z.ZodType<Data>) {
+    public async setEdgeCacheRaw(ctx: AppContext, key: string, serialized: string, expirationAt: number) {
         try {
-            const isDataValid = Config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? schema.safeParse(data).success : true) : true
-            if (!isDataValid) { return }
             const vCacheKey = this.createVCacheKey(ctx, key)
             const cacheHeaders = new Headers()
             const nowS = Math.floor(Date.now() / 1000)
@@ -61,12 +59,7 @@ export default class EdgeCache {
             cacheHeaders.set('Cache-Control', `public, max-age=${maxAge}`)
             cacheHeaders.set('X-Cache-Type', 'cf-vcache')
             cacheHeaders.set('X-ExpirationAt', String(expirationAt))
-            const warp: CacheWarp<Data> = {
-                data: data,
-                expirationAt: expirationAt,
-                key: key
-            }
-            const jsonlikeResponse = new Response(JSON.stringify(warp), {
+            const jsonlikeResponse = new Response(serialized, {
                 headers: cacheHeaders,
                 status: 200
             })
