@@ -29,7 +29,7 @@
 - **搜索** - 支持视频、UP 主、直播间搜索,支持分页与排序
 - **用户合集** - 获取 UP 主某个合集(UGC 合集)下的视频列表
 - **用户收藏夹** - 获取用户收藏夹信息与其中的视频列表,支持关键词过滤与分页
-- **自动 CDN 换源** - 根据cfcolo对不同请求地区自动匹配最优 CDN (可通过参数强制指定，CDN策略可配置),优化视频加载速度
+- **自动 CDN 换源** - 根据cfcolo对不同请求地区自动匹配最优 CDN (可通过参数强制指定，CDN策略与 CDN 列表均可配置),优化视频加载速度
 - **动态缓存** - 视频信息和播放地址分离缓存,依据视频时长与播放地址有效期动态计算缓存时间;短时间多人播放只解析一次
 - **多级缓存** - Cloudflare CDN 响应缓存 → Edge Cache(边缘节点缓存)→ Workers KV → Cookies 缓存,使用 `ctag` 版本化缓存键,配合缓存数据校验保证数据有效性
 - **绕过 IP 限制** - 通过 Vercel Serverless Functions 代理解析,绕过 B 站对 Cloudflare IP 的限制
@@ -347,19 +347,27 @@ curl "https://your.workers.domain/subtitle/BV1UT42167xb?lang=zh-Hans&type=srt"
 
 #### `GET /cdn`
 
-返回可用的视频 CDN 列表(upos 系列):
+返回可用的视频 CDN 列表(upos 系列)与当前 CDN 策略:
 
 ```json
 {
   "code": 200,
   "message": "Success",
   "data": {
-    "ali": "upos-sz-mirrorali.bilivideo.com",
-    "aliov": "upos-sz-mirroraliov.bilivideo.com",
-    "alib": "upos-sz-mirroralib.bilivideo.com"
+    "cdns": {
+      "ali": "upos-sz-mirrorali.bilivideo.com",
+      "aliov": "upos-sz-mirroraliov.bilivideo.com",
+      "alib": "upos-sz-mirroralib.bilivideo.com"
+    },
+    "strategy": [
+      { "continent": "AS", "area": "CN", "cdn": "alib", "priority": 2 },
+      { "continent": "*", "area": "*", "cdn": "aliov", "priority": 0 }
+    ]
   }
 }
 ```
+
+> CDN 列表可通过 `CONFIG_VideoCDN` 环境变量自定义,CDN 策略通过 `CONFIG_VideoCDNStrategy` 配置。
 
 ### 直播相关
 
@@ -455,6 +463,15 @@ curl "https://your.workers.domain/search/live?keyword=VRChat"
 ```
 
 ### 其他
+
+#### `GET /cookie`
+
+返回一组生成的 bilibili 匿名 cookies(防爬 cookies,含 `buvid3` / `bili_ticket` / `b_lsid` 等),以纯文本形式返回,可用于自行携带 cookies 请求 Bilibili 接口:
+
+```bash
+curl "https://your.workers.domain/cookie"
+# enable_web_push=DISABLE; b_lsid=...; buvid3=...; bili_ticket=...
+```
 
 #### `GET /ipregion`
 
@@ -566,6 +583,7 @@ npm install
 | `CONFIG_CookiesSignCacheTime` | `3600` | 匿名 cookies 缓存时间(秒) |
 | `CONFIG_UseProxyFetch` | `true` | 使用代理服务器 |
 | `CONFIG_ProxyToken` | - | 代理服务器 Token(Bearer 认证) |
+| `CONFIG_ProxyTokenHeader` | `X-Proxy-Token` | 向代理服务器传递 Token 时使用的请求头名称 |
 | `CONFIG_ProxyServerUrl` | - | 代理服务器地址 |
 | `CONFIG_ProxyFetchTimeout` | `10000` | 代理超时时间(毫秒) |
 | `CONFIG_ProxyFetchMaxRetries` | `3` | 代理请求失败最大重试次数(指数退避) |
@@ -580,6 +598,7 @@ npm install
 | `CONFIG_BiliUserFavCacheTime` | `3600` | 用户收藏夹缓存时间(秒) |
 | `CONFIG_BiliDanmakuCacheTime` | `1800` | 弹幕缓存时间(秒) |
 | `CONFIG_BiliSearchCacheTime` | `360` | 搜索缓存时间(秒) |
+| `CONFIG_VideoCDN` | 内置完整 upos 列表 | 自定义视频 CDN 列表,格式 `名称,域名;...`,例如 `ali,upos-sz-mirrorali.bilivideo.com;aliov,upos-sz-mirroraliov.bilivideo.com` |
 | `CONFIG_VideoCDNStrategy` | `AS,CN,alib;*,*,aliov` | CDN 策略组,格式 `大洲,地区,CDN名;...`,`*` 表示任意匹配,优先级高于通用规则。例如 `AS,CN,alib;*,*,aliov` |
 | `SERVER_VERSION` | - | 服务端版本号,会写入 `X-Server-Version` 响应头 |
 
@@ -594,6 +613,7 @@ npm install
     "CONFIG_CookiesSignCacheTime": 3600,
     "CONFIG_UseProxyFetch": true,
     "CONFIG_ProxyToken": "Your Proxy Token",
+    "CONFIG_ProxyTokenHeader": "X-Proxy-Token",
     "CONFIG_ProxyServerUrl": "Your Proxy Server URL",
     "CONFIG_ProxyFetchMaxRetries": 3,
     "CONFIG_ProxyFetchTimeout": 10000,
@@ -609,7 +629,8 @@ npm install
     "CONFIG_BiliDanmakuCacheTime": 1800,
     "CONFIG_BiliSearchCacheTime": 360,
     "CONFIG_VideoCDNStrategy": "AS,CN,alib;*,*,aliov",
-    "SERVER_VERSION": "3.2.5.20260826"
+    "CONFIG_VideoCDN": "ali,upos-sz-mirrorali.bilivideo.com;aliov,upos-sz-mirroraliov.bilivideo.com;alib,upos-sz-mirroralib.bilivideo.com",
+    "SERVER_VERSION": "6.8.0.20260926"
 }
 ```
 
