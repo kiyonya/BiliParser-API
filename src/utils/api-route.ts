@@ -46,7 +46,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
         if (!schema) { return data }
         const parsed = await schema.safeParseAsync(data)
         if (parsed.success) {
-            return data
+            return parsed.data
         }
         else {
             if (throwIfNotValid) {
@@ -100,8 +100,8 @@ export default abstract class APIRoute extends OpenAPIRoute {
         danmakuJSON: (bvid: string, p: number) => {
             return `${this.CACHE_DATA_VERSION}:danmakuJSON:${bvid}:${p}`
         },
-        live: (roomId: number) => {
-            return `${this.CACHE_DATA_VERSION}:live:${roomId}`
+        live: (roomId: number,platform: "xlive" | "h5",codec:"avc" | "hevc",format: "fmp4" | "flv" | "ts",protocol: "stream" | "hls") => {
+            return `${this.CACHE_DATA_VERSION}:live:${roomId}:${platform}:${codec}:${format}:${protocol}`
         },
         search: (keyword: string, type: BiliTypes.RES.Search.SearchType, page: number, pageSize: number, order?: string) => {
             const keywordHash = md5String(keyword.trim())
