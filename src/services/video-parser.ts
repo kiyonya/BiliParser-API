@@ -293,26 +293,35 @@ export default class BiliVideoParser extends Parser {
             () => this.createWbiReqUrl(bvid, cid, qn, platform, format)
         ]
         for (const urlFunc of urls) {
-            const url = await urlFunc()
-            const headers = new Headers({
-                ...this.FAKE_BROWSER_HEADERS,
-                'referer': this.BILI_REFERER
-            })
-            headers.append('Cookie', cookie)
-            const req = await proxyFetch(url, {
-                headers: headers,
-            })
-            if (format === 'dash') {
-                const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
-                if (dataDash.code === 0 && dataDash.data.dash) {
-                    return this.createPlayDash(dataDash, cid, platform as any, format)
+            try {
+                const url = await urlFunc()
+                const headers = new Headers({
+                    ...this.FAKE_BROWSER_HEADERS,
+                    'referer': this.BILI_REFERER
+                })
+                headers.append('Cookie', cookie)
+                const req = await proxyFetch(url, {
+                    headers: headers,
+                })
+                if (req.status !== 200) {
+                    throw new Error("invalid response")
                 }
-            }
-            else if (format === 'mp4') {
-                const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
-                if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
-                    return this.createPlayUrl(dataMp4, cid, platform as any, format)
+                if (format === 'dash') {
+                    const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
+                    if (dataDash.code === 0 && dataDash.data.dash) {
+                        return this.createPlayDash(dataDash, cid, platform as any, format)
+                    }
+                    throw new Error("cannot get dash")
                 }
+                else if (format === 'mp4') {
+                    const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
+                    if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
+                        return this.createPlayUrl(dataMp4, cid, platform as any, format)
+                    }
+                    throw new Error("cannot get mp4")
+                }
+            } catch (error) {
+                //-
             }
         }
         throw new Error(`cannot get video stream by web with format:${format},platform:${platform};if your platform is html5 and format is dash,it requires the server login,or an error will be throw like this;retry platform:pc with format:dash`)
@@ -340,21 +349,30 @@ export default class BiliVideoParser extends Parser {
             async () => [await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.tv, format), BiliCrypto.PLATFORM_KEY.tv.ua]
         ]
         for (const urlFunc of urls) {
-            const [url, ua] = await urlFunc()
-            const req = await proxyFetch(url, {
-                headers: { 'User-Agent': ua }
-            })
-            if (format === 'dash') {
-                const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
-                if (dataDash.code === 0 && dataDash.data.dash) {
-                    return this.createPlayDash(dataDash, cid, platform as any, format)
+            try {
+                const [url, ua] = await urlFunc()
+                const req = await proxyFetch(url, {
+                    headers: { 'User-Agent': ua }
+                })
+                if (req.status !== 200) {
+                    throw new Error("invalid response")
                 }
-            }
-            else if (format === 'mp4') {
-                const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
-                if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
-                    return this.createPlayUrl(dataMp4, cid, platform as any, format)
+                if (format === 'dash') {
+                    const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
+                    if (dataDash.code === 0 && dataDash.data.dash) {
+                        return this.createPlayDash(dataDash, cid, platform as any, format)
+                    }
+                    throw new Error("cannot get dash")
                 }
+                else if (format === 'mp4') {
+                    const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
+                    if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
+                        return this.createPlayUrl(dataMp4, cid, platform as any, format)
+                    }
+                    throw new Error("cannot get mp4")
+                }
+            } catch (error) {
+                //-
             }
         }
         throw new Error("cannot get video stream by app")
