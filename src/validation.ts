@@ -129,8 +129,8 @@ export abstract class Validation extends MemoObject {
         }))
     }
 
-    public static get liveSchema(): z.ZodType<BiliTypes.RES.Live.Live> {
-        return this.memo("liveSchema", () => z.object({
+    public static get liveInfoSchema(): z.ZodType<BiliTypes.RES.Live.LiveInfo> {
+        return this.memo("liveInfoSchema", () => z.object({
             isLiving: z.boolean(),
             uid: z.number(),
             roomId: z.number().int().positive(),
@@ -145,10 +145,14 @@ export abstract class Validation extends MemoObject {
             keyframe: z.string(),
             title: z.string(),
             liveTime: z.string(),
-            stream: z.union([
-                this.liveStreamSchema, z.null()
-            ])
         }))
+    }
+
+    public static get liveSchema(): z.ZodType<BiliTypes.RES.Live.Live> {
+        return this.memo("liveSchema", () => z.intersection(this.liveInfoSchema, z.object({
+            stream: z.union([z.null(), this.liveStreamSchema]),
+            streamExpirationAt:z.number().nullable()
+        })))
     }
 
     public static get bangumiInfoSchema(): z.ZodType<BiliTypes.RES.Bangumi.BangumiInfo> {

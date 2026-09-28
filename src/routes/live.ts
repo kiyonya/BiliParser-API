@@ -4,8 +4,6 @@ import BiliLiveParser from "../services/live-parser";
 import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
 import { Config } from "../config";
-import { GeoContext, Geolib } from "../utils/geolib";
-
 
 export class BiliLiveRoute extends APIRoute {
 
@@ -15,7 +13,10 @@ export class BiliLiveRoute extends APIRoute {
         codec: z.enum(['avc', 'hevc']).default('avc'),
         format: z.enum(['fmp4', 'flv', 'ts']).default('fmp4'),
         protocol: z.enum(['hls', 'stream']).default('hls'),
-        ov: z.coerce.boolean().optional(),
+        ov: z.string().optional().transform(ov => {
+            if (!ov || !["true", "false"].includes(ov)) { return undefined }
+            return ov === "true"
+        }),
         roomId: z.coerce.number().optional(),
         url: z.url("*://live.bilibili.com/*").optional()
     }).superRefine((args, ctx) => {
@@ -62,6 +63,49 @@ export class BiliLiveRoute extends APIRoute {
         }
     }
 
+    private async parseLive(ctx: AppContext, roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls"): Promise<BiliTypes.RES.Live.Live> {
+        const liveCacheKey = this.CacheKey.live(roomId, platform, codec, format, protocol)
+        let live = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(liveCacheKey, undefined, 'edge', true), Validation.liveSchema)
+        if (!live) {
+            const parser = new BiliLiveParser(ctx)
+            const liveInfo: BiliTypes.RES.Live.LiveInfo = await parser.getLiveInfo(roomId)
+            const livef: BiliTypes.RES.Live.Live = {
+                ...liveInfo,
+                stream: null,
+                streamExpirationAt:null
+            }
+            const isLiving = liveInfo.isLiving
+            let streamMinExpirationAt: number | null = null
+            if (isLiving) {
+                const realRoomId = liveInfo.roomId
+                const formatNumber = this.formatNumberMap[format]
+                const codecNumber = this.codecNumberMap[codec]
+                const protocolNumber = this.protocolNumberMap[protocol]
+                const liveStream: BiliTypes.RES.Live.LiveStream = await parser.getLivePlayStream(realRoomId, platform, formatNumber, codecNumber, protocolNumber)
+                livef.stream = liveStream
+
+                const streamExpirations = liveStream.urls.map(surl => {
+                    try {
+                        const url = new URL(surl.url)
+                        const expires = url.searchParams.get("expires")
+                        if (expires) {
+                            return Math.max(parseInt(expires), 0)
+                        }
+                    } catch (error) { }
+                    return undefined
+                }).filter(e => e !== undefined)
+
+                streamMinExpirationAt = Math.min(...streamExpirations)
+                livef.streamExpirationAt = streamMinExpirationAt
+                ctx.header('X-Live-Room',String(realRoomId))
+            }
+            live = await this.getSchemaValidData(livef, Validation.liveSchema, true)
+            let cacheTtl = streamMinExpirationAt ? Math.min(streamMinExpirationAt, this.nowS + Config.BILI_LIVE_CACHE_TIME) : this.nowS + Config.BILI_LIVE_CACHE_TIME
+            await ctx.cache.setCache(liveCacheKey, live, cacheTtl, undefined, 'edge')
+        }
+        return live
+    }
+
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
@@ -83,52 +127,28 @@ export class BiliLiveRoute extends APIRoute {
             if (!roomId) {
                 return ctx.jsonResp("cannot found roomId to parse", 400, null)
             }
-            const cacheKey = this.CacheKey.live(roomId)
-            //edgeonly Validation.liveSchema
-            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(cacheKey, undefined, 'edge'), Validation.liveSchema)
-            if (!result) {
-                const parser: BiliLiveParser = new BiliLiveParser(ctx)
 
-                const info = await parser.getLiveInfo(roomId)
-
-                result = {
-                    ...info,
-                    stream: null
-                }
-                if (info.isLiving) {
-                    const realRoomId = info.roomId
-                    const formatNumber = this.formatNumberMap[format]
-                    const codecNumber = this.codecNumberMap[codec]
-                    const protocolNumber = this.protocolNumberMap[protocol]
-                    const playStream = await parser.getLivePlayStream(realRoomId, platform, formatNumber, codecNumber, protocolNumber)
-                    result.stream = playStream
-                }
-
-                result = await this.getSchemaValidData(result, Validation.liveSchema, true)
-                await ctx.cache.setCache(cacheKey, result, this.nowS + Config.BILI_LIVE_CACHE_TIME, undefined, 'edge')
-            }
-
-            if (result.stream) {
-                ctx.header('X-Stream-Parse-Platform', result.stream.platform)
-                if (result.stream.platform === 'xlive') {
+            const live = await this.parseLive(ctx, roomId, platform, codec, format, protocol)
+            if (live.stream && live.isLiving) {
+                ctx.header('X-Stream-Parse-Platform', live.stream.platform)
+                if (live.stream.platform === 'xlive') {
                     ctx.header('X-Stream-Format', format)
                     ctx.header('X-Stream-Codec', codec)
                     ctx.header('X-Stream-Protocol', protocol)
                 }
-                const { server } = this.utils.switchStreamCDN(ctx, result.stream, ov)
+                const { server } = this.utils.switchStreamCDN(ctx, live.stream, ov)
                 ctx.header('X-Stream-Server', server)
             }
 
             switch (type) {
                 case "json":
-                    return ctx.jsonResp('Success', 200, result)
+                    return ctx.jsonResp('Success', 200, live)
                 case "stream":
                 default:
-                    //选取流
-                    if (!result.stream) {
+                    if (!live.stream) {
                         return ctx.text('', 404)
                     }
-                    const streamURL = result.stream.urls[0]?.url
+                    const streamURL = live.stream.urls[0]?.url
                     if (!streamURL) {
                         return ctx.text('', 404)
                     }

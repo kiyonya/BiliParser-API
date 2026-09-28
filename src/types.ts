@@ -203,7 +203,8 @@ export namespace BiliTypes {
             }
 
             export interface Live extends LiveInfo {
-                stream: LiveStream | null
+                stream: LiveStream | null,
+                streamExpirationAt:number | null
             }
         }
 

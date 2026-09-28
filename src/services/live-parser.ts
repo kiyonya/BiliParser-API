@@ -43,7 +43,6 @@ export default class BiliLiveParser extends Parser {
                 const stream = await task()
                 return stream
             } catch (error) {
-
             }
         }
         throw new Error('cannot get live play url')
