@@ -10,7 +10,7 @@ export async function proxyFetch(
         maxDelay?: number;
         backoffFactor?: number;
         timeout?: number;
-        retryCondition?: (error: any) => boolean;
+        retryCondition?: (response: Response) => boolean;
     }
 ) {
     const {
@@ -19,33 +19,26 @@ export async function proxyFetch(
         initialDelay = 1000,
         maxDelay = 30000,
         backoffFactor = 2,
-        retryCondition = (error: any) => {
-            if (error instanceof Response) {
-                return error.status >= 500 || error.status === 429;
-            }
-            return true;
+        retryCondition = (response: Response) => {
+            return response.status >= 500 || response.status === 429;
         }
     } = options || {};
 
-    let lastError: any;
-    let delay = initialDelay;
-
-    for (let attempt = 1; attempt <= retries; attempt++) {
+    const makeRequest = async (): Promise<Response | Error> => {
         try {
             const signal = init?.signal ?? AbortSignal.timeout(timeout);
             const response = await (useProxy
                 ? (() => {
                     const token = Config.PROXY_SERVER_TOKEN
                     const proxyServerUrl = Config.PROXY_SERVER_URL
-                    if(!proxyServerUrl){
+                    if (!proxyServerUrl) {
                         throw new Error("no proxy server added")
                     }
                     const proxyUrl = new URL(proxyServerUrl);
                     const headers = new Headers(init?.headers);
-                    
+
                     if (token) {
-                        //传递token的方式
-                        headers.set(Config.PROXY_TOKEN_HEADER,token)
+                        headers.set(Config.PROXY_TOKEN_HEADER, token)
                     }
                     proxyUrl.searchParams.set('url', url.toString());
                     return fetch(proxyUrl, {
@@ -58,21 +51,36 @@ export async function proxyFetch(
                     ...init,
                     signal: signal
                 }));
-            if (!response.ok && retryCondition(response)) {
-                throw response;
-            }
             return response;
-
         } catch (error) {
-            lastError = error;
-            if (attempt === retries) {
-                throw error;
-            }
-            const jitter = Math.random() * 0.3 * delay;
-            await new Promise(resolve => setTimeout(resolve, delay + jitter));
-            delay = Math.min(delay * backoffFactor, maxDelay);
+            if (error instanceof Error) { return error }
+            return new Error(error ? String(error) : 'request failed')
         }
     }
 
-    throw lastError;
+    let lastError: Error | null = null
+    let delay = initialDelay;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        const result = await makeRequest()
+        if (result instanceof Response) {
+            const isResponseNeedRetry = retryCondition(result)
+            if (!isResponseNeedRetry) {
+                return result
+            }
+            else{
+                lastError = new Error(`request failed with code:${result.status}`)
+            }
+        }
+        else {
+            lastError = result
+        }
+        if (attempt === retries) {
+            break
+        }
+        const jitter = Math.random() * 0.3 * delay;
+        await new Promise(resolve => setTimeout(resolve, delay + jitter));
+        delay = Math.min(delay * backoffFactor, maxDelay);
+    }
+
+    throw (lastError instanceof Error) ? lastError : new Error("request failed");
 }
