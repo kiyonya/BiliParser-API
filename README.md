@@ -17,6 +17,10 @@
 - 直播播放: [https://bili.nekocha.top/live/5055636](https://bili.nekocha.top/live/5055636)
 - 直播信息: [https://bili.nekocha.top/live/5055636?type=json](https://bili.nekocha.top/live/5055636?type=json)
 
+> [!TIP]
+> 使用VR头显时复制浏览器的文本和编辑链接并不方便? **试试油猴脚本**
+> [查看代码及说明](./tampermonkey/README.md)
+
 ## Features
 
 - **视频播放** - 通过 BV 号重定向(302)到视频直链接,支持多 P(分P)视频,支持 MP4 单文件直链与 DASH 多音视频流,支持 `html5` / `pc` / `app` 三平台播放源
