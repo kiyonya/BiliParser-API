@@ -7,7 +7,6 @@ export class BiliIpRegionRoute extends APIRoute {
 
     public override async handle(ctx: AppContext) {
         try {
-            const url = new URL(ctx.req.url)
             const headers = new Headers()
             headers.append('User-Agent', this.BROWSER_UA)
             const req = await proxyFetch(this.BILI_NAV_IPR, {

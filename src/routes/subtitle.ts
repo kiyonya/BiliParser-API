@@ -15,13 +15,12 @@ export class SubtitleRoute extends APIRoute {
         type: z.enum(["srt", "json", "info"]).optional().default("info")
     }).transform(async (args) => {
         let { bvid, p, url } = args
-        if (url) {
-            const processed = await this.utils.getUrlBv(url)
-            if (!processed) {
-                throw new Error("cannot get bvid from url")
+       if (url) {
+            const result = await this.utils.resolveBiliUrl(url)
+            if(result && result?.type === 'video'){
+                bvid = result.bvid
+                p = result.p || 1
             }
-            bvid = processed.bvid
-            p = processed.p
         }
         return { ...args, bvid, p }
     }).superRefine((args, ctx) => {

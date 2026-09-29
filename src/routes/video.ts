@@ -5,6 +5,7 @@ import APIRoute from "../utils/api-route";
 import { Validation } from "../validation";
 import { Config } from "../config";
 
+
 export class BiliVideoRoute extends APIRoute {
 
     private readonly PARAMS = z.object({
@@ -19,12 +20,11 @@ export class BiliVideoRoute extends APIRoute {
     }).transform(async (args) => {
         let { bvid, p, url, qn, platform } = args
         if (url) {
-            const processed = await this.utils.getUrlBv(url)
-            if (!processed) {
-                throw new Error("cannot get bvid from url")
+            const result = await this.utils.resolveBiliUrl(url)
+            if(result && result?.type === 'video'){
+                bvid = result.bvid
+                p = result.p || 1
             }
-            bvid = processed.bvid
-            p = processed.p
         }
         if (!Config.IS_SERVER_LOGIN) {
             qn = Math.min(qn, 80)
@@ -123,8 +123,8 @@ export class BiliVideoRoute extends APIRoute {
                 result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn)
             }
             else {
-                result.play.url = this.utils.switchCDN(ctx, result.play.url, cdn)
-                result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchCDN(ctx, i, cdn))
+                result.play.url = this.utils.switchVideoCDN(ctx, result.play.url, cdn)
+                result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchVideoCDN(ctx, i, cdn))
             }
 
             if (result.play.isDash) {

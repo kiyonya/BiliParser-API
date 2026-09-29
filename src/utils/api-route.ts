@@ -1,6 +1,5 @@
 import { OpenAPIRoute } from "chanfana";
 import { AppContext, BiliTypes } from "../types";
-import { b23Parser } from "./b23-parse";
 import z from "zod";
 import { Config } from "../config";
 import { md5String } from "./hashlib";
@@ -13,18 +12,40 @@ export interface APIResponse<Data = any> {
     data: Data,
 }
 
+export namespace ResolveBiliURL {
+
+    export interface Video {
+        type: "video",
+        bvid: string,
+        p: number
+    }
+
+    export interface Live {
+        type: "live",
+        roomId: number
+    }
+
+    export type Resolved = Video | Live
+}
+
+
 export default abstract class APIRoute extends OpenAPIRoute {
 
     public SERVER_VERSION = process.env.SERVER_VERSION
     public CACHE_DATA_VERSION = Config.CACHE_DATA_VERSION
     protected CF_CACHE_BASEURL = "https://bili.internal/cache"
     protected BILI_REFERER = "https://www.bilibili.com"
-    protected BILI_VIDEO_PATTERN = new URLPattern("*://*bilibili.com/video/*")
-    protected BILI_B23TV_PATTERN = new URLPattern("*://*b23.tv/*")
 
     protected readonly BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
     protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
     protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
+
+    protected readonly URLPatterns = {
+        BILI_HOST: new URLPattern("*://*bilibili.com/*"),
+        B23_TV: new URLPattern("*://b23.tv/*"),
+        BILI_VIDEO: new URLPattern("*://*bilibili.com/video/*"),
+        BILI_LIVE: new URLPattern('*://live.bilibili.com/*')
+    }
 
     public abstract handle(ctx: AppContext, ...args: any[]): Response | Promise<Response>
 
@@ -100,7 +121,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
         danmakuJSON: (bvid: string, p: number) => {
             return `${this.CACHE_DATA_VERSION}:danmakuJSON:${bvid}:${p}`
         },
-        live: (roomId: number,platform: "xlive" | "h5",codec:"avc" | "hevc",format: "fmp4" | "flv" | "ts",protocol: "stream" | "hls") => {
+        live: (roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls") => {
             return `${this.CACHE_DATA_VERSION}:live:${roomId}:${platform}:${codec}:${format}:${protocol}`
         },
         search: (keyword: string, type: BiliTypes.RES.Search.SearchType, page: number, pageSize: number, order?: string) => {
@@ -111,7 +132,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
     }
 
     protected readonly utils = {
-        switchCDN: (ctx: AppContext, url: string, cdn?: string) => {
+        switchVideoCDN: (ctx: AppContext, url: string, cdn?: string) => {
             let cdnHostname: string | undefined = undefined
             if (cdn && Config.VIDEO_CDN[cdn]) {
                 cdnHostname = Config.VIDEO_CDN[cdn]
@@ -135,8 +156,8 @@ export default abstract class APIRoute extends OpenAPIRoute {
         },
         switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: string) => {
             const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
-                dashItem.baseUrl = this.utils.switchCDN(ctx, dashItem.baseUrl, cdn)
-                dashItem.backupUrl = dashItem.backupUrl.map(u => this.utils.switchCDN(ctx, u, cdn))
+                dashItem.baseUrl = this.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn)
+                dashItem.backupUrl = dashItem.backupUrl.map(u => this.utils.switchVideoCDN(ctx, u, cdn))
                 return dashItem
             }
             dash.video = dash.video ? dash.video.map(replaceHost) : dash.video
@@ -166,22 +187,59 @@ export default abstract class APIRoute extends OpenAPIRoute {
             }
             return { stream: stream, server: isUseOvStream ? 'ov' : 'cn' }
         },
-        getUrlBv: async (biliurl: string | URL): Promise<{ bvid: string, p: number } | null> => {
+        getShortLinkRedirectUrl: async (b23Url: string | URL): Promise<URL | null> => {
+            const url = b23Url instanceof URL ? b23Url : new URL(b23Url)
+            try {
+                if (this.URLPatterns.B23_TV.test(url)) {
+                    const req = await fetch(url, {
+                        method: "HEAD",
+                        redirect: 'manual'
+                    })
+                    const location = req.headers.get("location")
+                    if (!location) {
+                        return null
+                    }
+                    const targetUrl = new URL(location)
+                    if (this.URLPatterns.BILI_HOST.test(targetUrl)) {
+                        return targetUrl
+                    }
+                    return null
+                }
+            } catch (error) { }
+            return null
+        },
+        resolveBiliUrl: async (biliurl: string | URL): Promise<ResolveBiliURL.Resolved | null> => {
             try {
                 let url: URL = new URL(biliurl)
-                if (this.BILI_B23TV_PATTERN.test(url)) {
-                    const rawURL = await b23Parser(url.toString())
-                    url = new URL(rawURL)
+                if (this.URLPatterns.B23_TV.test(url)) {
+                    const targetUrl = await this.utils.getShortLinkRedirectUrl(url)
+                    if (targetUrl) { url = targetUrl }
                 }
 
-                if (this.BILI_VIDEO_PATTERN.test(url)) {
+                if (this.URLPatterns.BILI_VIDEO.test(url)) {
                     const pathname = url.pathname
                     const bvpart = pathname.match(/(BV[a-zA-Z0-9]{10})/)?.[1]
                     const part = url.searchParams.get("p") || undefined
                     const bvid = z.string().trim().nullable().default(null).safeParse(bvpart).data
-                    const p = z.coerce.number().default(1).safeParse(part).data
+                    const p = z.coerce.number().int().nonnegative().default(1).transform(p => p === 0 ? 1 : p).safeParse(part).data
                     if (bvid && p) {
-                        return { bvid: bvid, p: p }
+                        const result: ResolveBiliURL.Video = {
+                            type: "video",
+                            bvid: bvid,
+                            p: p
+                        }
+                        return result
+                    }
+                }
+                else if (this.URLPatterns.BILI_LIVE.test(url)) {
+                    const pathname = url.pathname
+                    const roomId = z.coerce.number().int().positive().safeParse(pathname.substring(1).split("/").shift()).data
+                    if (roomId) {
+                        const result: ResolveBiliURL.Live = {
+                            type: "live",
+                            roomId: roomId
+                        }
+                        return result
                     }
                 }
                 return null

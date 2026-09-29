@@ -18,21 +18,22 @@ export class BiliLiveRoute extends APIRoute {
             return ov === "true"
         }),
         roomId: z.coerce.number().optional(),
-        url: z.url("*://live.bilibili.com/*").optional()
-    }).superRefine((args, ctx) => {
-        if (!args.roomId && !args.url) {
-            ctx.addIssue("roomId or url needed to parse")
-        }
-    }).transform((args) => {
-        let { roomId, url } = args
-        if (!roomId && url) {
-            const processed = this.getRoomIdFromURL(url)
-            if (processed) {
-                roomId = processed
-            }
-        }
-        return { ...args, roomId }
+        url: z.url().optional()
     })
+        .transform(async (args) => {
+            let { roomId, url } = args
+            if (url) {
+                const result = await this.utils.resolveBiliUrl(url)
+                if (result && result.type === 'live') {
+                    roomId = result.roomId
+                }
+            }
+            return { ...args, roomId }
+        }).superRefine((args, ctx) => {
+            if (!args.roomId) {
+                ctx.addIssue("roomId or url needed to parse")
+            }
+        })
 
     private readonly formatNumberMap: Record<'fmp4' | 'flv' | 'ts', number> = {
         flv: 0,
@@ -48,21 +49,6 @@ export class BiliLiveRoute extends APIRoute {
         hls: 1
     }
 
-    private getRoomIdFromURL(url: string): number | null {
-        try {
-            const u = new URL(url)
-            const BILI_LIVE_PATTERN = new URLPattern('*://live.bilibili.com/*')
-            if (BILI_LIVE_PATTERN.test(u)) {
-                const pathname = u.pathname
-                const roomId = pathname.substring(1).split("/").shift() as string
-                return parseInt(roomId)
-            }
-            return null
-        } catch (error) {
-            return null
-        }
-    }
-
     private async parseLive(ctx: AppContext, roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls"): Promise<BiliTypes.RES.Live.Live> {
         const liveCacheKey = this.CacheKey.live(roomId, platform, codec, format, protocol)
         let live = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(liveCacheKey, undefined, 'edge', true), Validation.liveSchema)
@@ -72,7 +58,7 @@ export class BiliLiveRoute extends APIRoute {
             const livef: BiliTypes.RES.Live.Live = {
                 ...liveInfo,
                 stream: null,
-                streamExpirationAt:null
+                streamExpirationAt: null
             }
             const isLiving = liveInfo.isLiving
             let streamMinExpirationAt: number | null = null
@@ -97,7 +83,7 @@ export class BiliLiveRoute extends APIRoute {
 
                 streamMinExpirationAt = Math.min(...streamExpirations)
                 livef.streamExpirationAt = streamMinExpirationAt
-                ctx.header('X-Live-Room',String(realRoomId))
+                ctx.header('X-Live-Room', String(realRoomId))
             }
             live = await this.getSchemaValidData(livef, Validation.liveSchema, true)
             let cacheTtl = streamMinExpirationAt ? Math.min(streamMinExpirationAt, this.nowS + Config.BILI_LIVE_CACHE_TIME) : this.nowS + Config.BILI_LIVE_CACHE_TIME
@@ -109,7 +95,7 @@ export class BiliLiveRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = this.PARAMS.safeParse({
+            const params = await this.PARAMS.safeParseAsync({
                 roomId: ctx.req.param('roomId') || url.searchParams.get('roomId') || undefined,
                 type: url.searchParams.get('type') || undefined,
                 codec: url.searchParams.get('codec') || undefined,

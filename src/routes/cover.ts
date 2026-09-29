@@ -14,11 +14,10 @@ export class BiliCoverRoute extends APIRoute {
     }).transform(async (args) => {
         let { bvid, url } = args
         if (url) {
-            const processed = await this.utils.getUrlBv(url)
-            if (!processed) {
-                throw new Error("cannot get bvid from url")
+            const result = await this.utils.resolveBiliUrl(url)
+            if(result && result?.type === 'video'){
+                bvid = result.bvid
             }
-            bvid = processed.bvid
         }
         return { ...args, bvid }
     }).superRefine((args, ctx) => {
