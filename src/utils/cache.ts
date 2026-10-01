@@ -10,13 +10,19 @@ export type CacheMode = "kv" | "edge" | "all"
 export default class CacheableObject {
 
     protected ctx: AppContext
-    public edgeCache: EdgeCache
-    public kvCache: KVCache
+    protected edgeCache: EdgeCache
+    protected kvCache?: KVCache
 
-    constructor(ctx: AppContext, kvns: string = "BILI_API_CACHE") {
+    constructor(ctx: AppContext) {
         this.ctx = ctx
         this.edgeCache = new EdgeCache()
-        this.kvCache = new KVCache(kvns)
+        const kvBinding = Config.KV_CACHE_BINGDING
+        if (kvBinding &&
+            // @ts-ignore
+            ctx.env[kvBinding]
+        ) {
+            this.kvCache = new KVCache(kvBinding)
+        }
     }
 
     protected kvCacheHits = new Set<string>()
@@ -25,11 +31,19 @@ export default class CacheableObject {
     public minExpirationTime: number = Infinity
 
     public get cacheHeaders(): Record<string, string> {
-
         const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
         const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
+        const cacheHeaderParts: string[] = []
+        if (this.edgeCache) {
+            cacheHeaderParts.push(`edge;hit="${edgeHits || "MISS"}"`)
+        }
+        if (this.kvCache) {
+            cacheHeaderParts.push(`kv;hit="${kvHits || (this.kvCacheNotUsed ? "UNUSED" : "MISS")}"`)
+        } else {
+            cacheHeaderParts.push(`kv;hit="DISABLED"`)
+        }
         const headers: Record<string, string> = {}
-        headers['X-Server-Cache-Status'] = `edge;hit="${edgeHits || "MISS"}",kv;hit="${kvHits || (this.kvCacheNotUsed ? "UNUSED" : "MISS")}"`
+        headers['X-Server-Cache-Status'] = cacheHeaderParts.join(", ")
         return headers
     }
 
@@ -59,6 +73,7 @@ export default class CacheableObject {
                 tasks.push(this.edgeCache.setEdgeCacheRaw(this.ctx, key, serialized, expirationAt));
             }
             if (mode === 'all' || mode === 'kv') {
+                if (!this.kvCache) { return }
                 tasks.push(this.kvCache.setKVCacheRaw(this.ctx, key, serialized, expirationAt));
             }
             if (tasks.length > 0) {
@@ -94,6 +109,7 @@ export default class CacheableObject {
                 }
             }
             else if (mode === 'kv') {
+                if (!this.kvCache) { return null }
                 const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key);
                 if (kvCache) {
                     addkey && this.kvCacheHits.add(key)
@@ -120,6 +136,7 @@ export default class CacheableObject {
                         return data
                     }
                 }
+                if (!this.kvCache) { return null }
                 const kvCache = await this.kvCache.getKVCache<Data>(this.ctx, key);
                 if (kvCache) {
                     addkey && this.kvCacheHits.add(key)

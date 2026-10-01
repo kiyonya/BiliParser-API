@@ -111,6 +111,10 @@ export abstract class Config extends MemoObject {
         return this.memo('RESPONSE_MAX_CACHE_TIME', () => numberEnv(3600).safeParse(process.env.CONFIG_ResponseMaxCacheTime).data ?? 3600)
     }
 
+   public static get KV_CACHE_BINGDING():string | undefined {
+        return this.memo("KV_CACHE_BINDING",()=>stringEnv.safeParse(process.env.CONFIG_KVCacheBinding).data)
+    }
+
     //cookies
     public static get ENABLE_CUSTOM_COOKIES(): boolean {
         return this.memo("ENABLE_CUSTOM_COOKIES", () => booleanEnv(process.env.CONFIG_EnableCustomCookies, false))
