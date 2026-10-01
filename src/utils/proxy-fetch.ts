@@ -1,18 +1,46 @@
 import { Config } from "../config";
 
-export async function proxyFetch(
-    url: string | URL,
-    init?: RequestInit,
-    useProxy: boolean = Config.ENABLE_PROXY_SERVER,
-    options?: {
-        retries?: number;
+export interface ProxyFetchOptions {
+    retries?: number;
         initialDelay?: number;
         maxDelay?: number;
         backoffFactor?: number;
         timeout?: number;
         retryCondition?: (response: Response) => boolean;
+}
+
+export async function proxyFetch(request:Request,useProxy?:boolean,options?:ProxyFetchOptions):Promise<Response>
+export async function proxyFetch(url: string | URL,init?: RequestInit,useProxy?:boolean,options?:ProxyFetchOptions):Promise<Response>
+export async function proxyFetch(
+    urlOrRequest: string | URL | Request,
+    initOrUseProxy?: RequestInit | boolean,
+    useProxyOrOptions: boolean | ProxyFetchOptions = Config.ENABLE_PROXY_SERVER,
+    maybeOptions?: ProxyFetchOptions
+): Promise<Response> {
+    let url: string | URL;
+    let init: RequestInit | undefined;
+    let useProxy: boolean;
+    let options: ProxyFetchOptions | undefined;
+
+    if (urlOrRequest instanceof Request) {
+        url = urlOrRequest.url;
+        init = {
+            method: urlOrRequest.method,
+            headers: urlOrRequest.headers,
+            signal: urlOrRequest.signal
+        };
+        if (urlOrRequest.body) { init.body = urlOrRequest.body; }
+        useProxy = typeof initOrUseProxy === "boolean" ? initOrUseProxy : Config.ENABLE_PROXY_SERVER;
+        options = useProxyOrOptions && typeof useProxyOrOptions === "object"
+            ? useProxyOrOptions as ProxyFetchOptions
+            : maybeOptions;
+    } else {
+        url = urlOrRequest;
+        init = initOrUseProxy as RequestInit | undefined;
+        useProxy = typeof useProxyOrOptions === "boolean" ? useProxyOrOptions : Config.ENABLE_PROXY_SERVER;
+        options = maybeOptions;
     }
-) {
+
     const {
         retries = Config.PROXY_SERVER_FETCH_MAX_RETRIES,
         timeout = Config.PROXY_SERVER_TIMEOUT,
