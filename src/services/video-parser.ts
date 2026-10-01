@@ -288,33 +288,40 @@ export default class BiliVideoParser extends Parser {
         format: 'mp4'
     ): Promise<BiliTypes.RES.Video.PlayURL>;
     protected async getStreamWebLike(bvid: string, cid: number, cookie: string, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
-        const urls: (() => URL | Promise<URL>)[] = [
-            () => this.createReqUrl(bvid, cid, qn, platform, format),
-            () => this.createWbiReqUrl(bvid, cid, qn, platform, format)
-        ]
-        for (const urlFunc of urls) {
-            try {
-                const url = await urlFunc()
-                const headers = new Headers({
+        const requests: (() => Request | Promise<Request>)[] = [
+            () => new Request(this.createReqUrl(bvid, cid, qn, platform, format), {
+                headers: {
                     ...this.FAKE_BROWSER_HEADERS,
-                    'referer': this.BILI_REFERER
-                })
-                headers.append('Cookie', cookie)
-                const req = await proxyFetch(url, {
-                    headers: headers,
-                })
-                if (req.status !== 200) {
+                    'referer': this.BILI_REFERER,
+                    'Cookie': cookie
+                },
+                method: "GET"
+            }),
+            async () => new Request(await this.createWbiReqUrl(bvid, cid, qn, platform, format), {
+                headers: {
+                    ...this.FAKE_BROWSER_HEADERS,
+                    'Referer': this.BILI_REFERER,
+                    'Cookie': cookie
+                },
+                method: "GET"
+            })
+        ]
+        for (const getRequest of requests) {
+            try {
+                const request = await getRequest()
+                const response = await proxyFetch(request)
+                if (response.status !== 200) {
                     throw new Error("invalid response")
                 }
                 if (format === 'dash') {
-                    const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
+                    const dataDash = await response.json<BiliTypes.BAPI.BiliPlayDash>()
                     if (dataDash.code === 0 && dataDash.data.dash) {
                         return this.createPlayDash(dataDash, cid, platform as any, format)
                     }
                     throw new Error("cannot get dash")
                 }
                 else if (format === 'mp4') {
-                    const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
+                    const dataMp4 = await response.json<BiliTypes.BAPI.BiliPlayURL>()
                     if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
                         return this.createPlayUrl(dataMp4, cid, platform as any, format)
                     }
@@ -344,28 +351,38 @@ export default class BiliVideoParser extends Parser {
         format: 'mp4'
     ): Promise<BiliTypes.RES.Video.PlayURL>;
     protected async getStreamAppLike(bvid: string, cid: number, cookie: string, qn: number, platform: "app", format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL> {
-        const urls: (() => Promise<[URL, string]>)[] = [
-            async () => [await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.ios, format), BiliCrypto.PLATFORM_KEY.ios.ua],
-            async () => [await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.tv, format), BiliCrypto.PLATFORM_KEY.tv.ua]
+
+        const requests: (() => Promise<Request>)[] = [
+            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.ios, format), {
+                headers: {
+                    "User-Agent": BiliCrypto.PLATFORM_KEY.ios.ua
+                },
+                method: "GET"
+            }),
+            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.tv, format), {
+                headers: {
+                    "User-Agent": BiliCrypto.PLATFORM_KEY.tv.ua
+                },
+                method: "GET"
+            }),
         ]
-        for (const urlFunc of urls) {
+
+        for (const getRequest of requests) {
             try {
-                const [url, ua] = await urlFunc()
-                const req = await proxyFetch(url, {
-                    headers: { 'User-Agent': ua }
-                })
-                if (req.status !== 200) {
+                const request = await getRequest()
+                const response = await proxyFetch(request)
+                if (response.status !== 200) {
                     throw new Error("invalid response")
                 }
                 if (format === 'dash') {
-                    const dataDash = await req.json<BiliTypes.BAPI.BiliPlayDash>()
+                    const dataDash = await response.json<BiliTypes.BAPI.BiliPlayDash>()
                     if (dataDash.code === 0 && dataDash.data.dash) {
                         return this.createPlayDash(dataDash, cid, platform as any, format)
                     }
                     throw new Error("cannot get dash")
                 }
                 else if (format === 'mp4') {
-                    const dataMp4 = await req.json<BiliTypes.BAPI.BiliPlayURL>()
+                    const dataMp4 = await response.json<BiliTypes.BAPI.BiliPlayURL>()
                     if (dataMp4.code === 0 && dataMp4.data.durl[0]) {
                         return this.createPlayUrl(dataMp4, cid, platform as any, format)
                     }
