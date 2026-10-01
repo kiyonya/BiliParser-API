@@ -7,7 +7,7 @@ import { Config } from "../config";
 
 export class SubtitleRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         url: z.url().optional(),
         bvid: z.string().optional(),
         p: z.coerce.number().nonnegative().int().optional().default(1).transform(p => p === 0 ? 1 : p),
@@ -105,7 +105,7 @@ export class SubtitleRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = await this.PARAMS.safeParseAsync({
+            const params = await this.paramSchema.safeParseAsync({
                 url: url.searchParams.get("url") || undefined,
                 bvid: ctx.req.param("bvid") || url.searchParams.get("bvid") || undefined,
                 p: ctx.req.param("p") || url.searchParams.get("p") || undefined,

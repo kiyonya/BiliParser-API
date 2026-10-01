@@ -7,7 +7,7 @@ import { Config } from "../config";
 
 export class BiliLiveRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         type: z.enum(['json', 'stream']).default('stream'),
         platform: z.enum(['xlive', 'h5']).default('xlive'),
         codec: z.enum(['avc', 'hevc']).default('avc'),
@@ -95,7 +95,7 @@ export class BiliLiveRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = await this.PARAMS.safeParseAsync({
+            const params = await this.paramSchema.safeParseAsync({
                 roomId: ctx.req.param('roomId') || url.searchParams.get('roomId') || undefined,
                 type: url.searchParams.get('type') || undefined,
                 codec: url.searchParams.get('codec') || undefined,

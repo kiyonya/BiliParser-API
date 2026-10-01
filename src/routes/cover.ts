@@ -7,7 +7,7 @@ import { Validation } from "../validation";
 
 export class BiliCoverRoute extends APIRoute {
 
-    protected readonly PARAMS = z.object({
+    protected readonly paramSchema = z.object({
         url: z.url().optional(),
         bvid: z.string().optional(),
         type: z.enum(['url', 'redirect']).optional()
@@ -29,7 +29,7 @@ export class BiliCoverRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = await this.PARAMS.safeParseAsync({
+            const params = await this.paramSchema.safeParseAsync({
                 url: url.searchParams.get('url') || undefined,
                 bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
                 type: url.searchParams.get('type') || undefined

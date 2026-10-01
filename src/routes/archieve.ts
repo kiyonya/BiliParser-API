@@ -7,7 +7,7 @@ import { Config } from "../config";
 
 export class BiliArchieveRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         mid: z.coerce.number(),
         seasonId: z.coerce.number(),
         page: z.coerce.number().default(1),
@@ -17,7 +17,7 @@ export class BiliArchieveRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = this.PARAMS.safeParse({
+            const params = this.paramSchema.safeParse({
                 mid: ctx.req.param('mid') || url.searchParams.get('mid') || undefined,
                 seasonId: ctx.req.param('sid') || url.searchParams.get('sid') || undefined,
                 page: url.searchParams.get('page') || undefined,

@@ -9,7 +9,7 @@ type SearchResult = BiliTypes.RES.Search.SearchLiveItem | BiliTypes.RES.Search.S
 
 export class SearchRoute extends APIRoute {
 
-    private readonly paramsSchema = z.object({
+    private readonly paramSchema = z.object({
         keyword: z.string().transform(i => i.trim()),
         type: z.enum(['video', 'up', 'live']).default("video"),
         page: z.coerce.number().default(1).transform(p => p === 0 ? 1 : p),
@@ -20,7 +20,7 @@ export class SearchRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = await this.paramsSchema.safeParse({
+            const params = await this.paramSchema.safeParse({
                 keyword: url.searchParams.get("keyword") || undefined,
                 type: ctx.req.param("type") || url.searchParams.get("type") || undefined,
                 page: url.searchParams.get("page") || undefined,

@@ -8,7 +8,7 @@ import xml2js from 'xml2js'
 
 export class BiliDanmakuRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         bvid: z.string().optional(),
         type: z.enum(['xml', 'json']).optional().default('xml'),
         url: z.url().optional(),
@@ -112,7 +112,7 @@ export class BiliDanmakuRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = await this.PARAMS.safeParseAsync({
+            const params = await this.paramSchema.safeParseAsync({
                 bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
                 type: url.searchParams.get('type') || undefined,
                 url: url.searchParams.get('url') || undefined,

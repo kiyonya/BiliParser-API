@@ -7,7 +7,7 @@ import { Config } from "../config";
 
 export class BiliFavListRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         fid: z.coerce.number(),
         keyword: z.string().optional().transform(o => o?.trim()),
         page: z.coerce.number().default(1).transform(p => p === 0 ? 1 : p),
@@ -17,7 +17,7 @@ export class BiliFavListRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = this.PARAMS.safeParse({
+            const params = this.paramSchema.safeParse({
                 fid: ctx.req.param('fid') || url.searchParams.get('fid') || undefined,
                 keyword: url.searchParams.get('keyword') || undefined,
                 page: url.searchParams.get('page') || undefined,

@@ -8,7 +8,7 @@ import { Config } from "../config";
 
 export class BiliVideoRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         type: z.enum(["video", "json"]).default("video"),
         cdn: z.enum(Object.keys(Config.VIDEO_CDN)).optional(),
         qn: z.enum(["6", "16", "32", "64", "74", "80", "100", "112", "116", "120", "125", "126", "127", "129"]).default("64").transform((qn) => parseInt(qn)),
@@ -100,7 +100,7 @@ export class BiliVideoRoute extends APIRoute {
     public override async handle(ctx: AppContext): Promise<Response> {
         try {
             const reqUrl = new URL(ctx.req.url)
-            const parmas = await this.PARAMS.safeParseAsync({
+            const parmas = await this.paramSchema.safeParseAsync({
                 type: reqUrl.searchParams.get('type') || undefined,
                 platform: reqUrl.searchParams.get('platform') || undefined,
                 format: reqUrl.searchParams.get("format") || undefined,

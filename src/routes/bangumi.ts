@@ -7,7 +7,7 @@ import { Config } from "../config";
 
 export class BiliBangumiInfoRoute extends APIRoute {
 
-    private readonly PARAMS = z.object({
+    private readonly paramSchema = z.object({
         ssid: z.coerce.number().optional(),
         mdid: z.coerce.number().optional(),
         epid: z.coerce.number().optional()
@@ -27,7 +27,7 @@ export class BiliBangumiInfoRoute extends APIRoute {
 
         try {
             const url = new URL(ctx.req.url)
-            const params = this.PARAMS.safeParse({
+            const params = this.paramSchema.safeParse({
                 ssid: url.searchParams.get('ssid')?.replace('ss', '') || undefined,
                 mdid: url.searchParams.get('mdid')?.replace('md', '') || undefined,
                 epid: url.searchParams.get('epid')?.replace('ep', '') || undefined
@@ -55,7 +55,7 @@ export class BiliBangumiInfoRoute extends APIRoute {
 
 export class BiliBangumiEpisodesRoute extends APIRoute {
 
-    private PARAMS = z.object({
+    protected readonly paramSchema = z.object({
         ssid: z.coerce.number().optional(),
         mdid: z.coerce.number().optional()
     }).transform((args) => {
@@ -72,7 +72,7 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
     public override async handle(ctx: AppContext) {
         try {
             const url = new URL(ctx.req.url)
-            const params = this.PARAMS.safeParse({
+            const params = this.paramSchema.safeParse({
                 ssid: url.searchParams.get('ssid')?.replace('ss', '') || undefined,
                 mdid: url.searchParams.get('mdid')?.replace('md', '') || undefined,
             })
