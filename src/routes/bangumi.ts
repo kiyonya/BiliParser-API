@@ -1,11 +1,12 @@
 import z from "zod";
 import BiliBangumiParser from "../services/bangumi-parser";
 import { AppContext, BiliTypes } from "../types";
-import APIRoute from "../utils/api-route";
-import { Validation } from "../validation";
-import { Config } from "../config";
+import Route from "../utils/api-route";
+import { Schema } from "../shared/schema";
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
-export class BiliBangumiInfoRoute extends APIRoute {
+export class BiliBangumiInfoRoute extends Route {
 
     private readonly paramSchema = z.object({
         ssid: z.coerce.number().optional(),
@@ -38,11 +39,11 @@ export class BiliBangumiInfoRoute extends APIRoute {
             }
             const { seasonId, episodeId } = params.data
 
-            const key = this.CacheKey.bangumiInfo(seasonId, episodeId)
-            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(key), Validation.bangumiInfoSchema)
+            const key = SharedData.cacheKey.bangumiInfo(seasonId, episodeId)
+            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiInfo>(key), Schema.bangumiInfoSchema)
             if (!result) {
                 const parser: BiliBangumiParser = new BiliBangumiParser(ctx)
-                result = await this.getSchemaValidData(await parser.getBangumiInfo(seasonId, episodeId), Validation.bangumiInfoSchema, true)
+                result = await this.getSchemaValidData(await parser.getBangumiInfo(seasonId, episodeId), Schema.bangumiInfoSchema, true)
                 await ctx.cache.setCache(key, result, this.nowS + Config.BILI_BANGUMI_INFO_CACHE_TIME)
             }
             return ctx.jsonResp('Success', 200, result)
@@ -53,7 +54,7 @@ export class BiliBangumiInfoRoute extends APIRoute {
     }
 }
 
-export class BiliBangumiEpisodesRoute extends APIRoute {
+export class BiliBangumiEpisodesRoute extends Route {
 
     protected readonly paramSchema = z.object({
         ssid: z.coerce.number().optional(),
@@ -80,11 +81,11 @@ export class BiliBangumiEpisodesRoute extends APIRoute {
                 return ctx.jsonResp(params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { seasonId } = params.data
-            const key = this.CacheKey.bangumiEpisodes(seasonId)
-            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(key), Validation.bangumiEpisodeSchema)
+            const key = SharedData.cacheKey.bangumiEpisodes(seasonId)
+            let result = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Bangumi.BangumiEpisode>(key), Schema.bangumiEpisodeSchema)
             if (!result) {
                 const parser: BiliBangumiParser = new BiliBangumiParser(ctx)
-                result = await this.getSchemaValidData(await parser.getBangumiEpisodes(seasonId), Validation.bangumiEpisodeSchema, true)
+                result = await this.getSchemaValidData(await parser.getBangumiEpisodes(seasonId), Schema.bangumiEpisodeSchema, true)
                 await ctx.cache.setCache(key, result, this.nowS + Config.BILI_BANGUMI_EPISODES_CACHE_TIME)
             }
 

@@ -1,8 +1,9 @@
-import { Config } from "../config";
-import { AppContext } from "../types";
-import APIRoute from "../utils/api-route";
 
-export class BiliVideoCDNRoute extends APIRoute {
+import { Config } from "../shared/config";
+import { AppContext } from "../types";
+import Route from "../utils/api-route";
+
+export class BiliVideoCDNRoute extends Route {
     public override async handle(ctx: AppContext): Promise<Response> {
         try {
             return ctx.jsonResp( 'Success', 200,{

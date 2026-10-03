@@ -1,9 +1,9 @@
 import { OpenAPIRoute } from "chanfana";
-import { AppContext, BiliTypes } from "../types";
+import { AppContext, BiliTypes, CDNStrategy } from "../types";
 import z from "zod";
-import { Config } from "../config";
-import { md5String } from "./hashlib";
 import { Geolib } from "./geolib";
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
 export interface APIResponse<Data = any> {
     code: number,
@@ -28,110 +28,19 @@ export namespace ResolveBiliURL {
     export type Resolved = Video | Live
 }
 
+export default abstract class Route extends OpenAPIRoute {
 
-export default abstract class APIRoute extends OpenAPIRoute {
-
-    public SERVER_VERSION = process.env.SERVER_VERSION
-    public CACHE_DATA_VERSION = Config.CACHE_DATA_VERSION
-    protected CF_CACHE_BASEURL = "https://bili.internal/cache"
-    protected BILI_REFERER = "https://www.bilibili.com"
-
-    protected readonly BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
-    protected readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
-    protected readonly BILI_NAV_IPR = "https://api.bilibili.com/x/web-interface/nav"
-
-    protected readonly URLPatterns = {
-        BILI_HOST: new URLPattern("*://*bilibili.com/*"),
-        B23_TV: new URLPattern("*://b23.tv/*"),
-        BILI_VIDEO: new URLPattern("*://*bilibili.com/video/*"),
-        BILI_LIVE: new URLPattern('*://live.bilibili.com/*')
-    }
-
-    public abstract handle(ctx: AppContext, ...args: any[]): Response | Promise<Response>
-
-    protected async getSchemaValidData<Data>(
-        data: Data,
-        schema: z.ZodType<Data> | undefined,
-        throwIfNotValid: true
-    ): Promise<Data>;
-    protected async getSchemaValidData<Data>(
-        data: Data,
-        schema?: z.ZodType<Data>,
-        throwIfNotValid?: false
-    ): Promise<Data | null>;
-    protected async getSchemaValidData<Data>(
-        data: Data,
-        schema?: z.ZodType<Data>,
-        throwIfNotValid: boolean = false
-    ): Promise<Data | null> {
-        if (!schema) { return data }
-        const parsed = await schema.safeParseAsync(data)
-        if (parsed.success) {
-            return parsed.data
-        }
-        else {
-            if (throwIfNotValid) {
-                throw parsed.error || new Error("data schema validation failed")
-            }
-            else {
-                return null
-            }
-        }
-    }
-
-    get nowS() {
-        return Math.floor(Date.now() / 1000)
-    }
-
-    protected readonly CacheKey = {
-        videoInfo: (bvid: string) => {
-            return `${this.CACHE_DATA_VERSION}:videoInfo:${bvid}`
+    public static readonly utils = {
+        matchStrategy: (strategies: CDNStrategy[], cf?: CfProperties): CDNStrategy | undefined => {
+            return strategies.find(strategy =>
+                (strategy.continent === '*' || cf?.continent === strategy.continent) &&
+                (strategy.area === '*' || cf?.country === strategy.area)
+            )
         },
-        videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat, loginKey: string) => {
-            return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${loginKey}:${cid}:${qn}:${platform}:${format}`
+        isCNArea: (cf?: CfProperties) => {
+            if (!cf) { return false }
+            return cf.continent === 'AS' && cf.country === 'CN'
         },
-        videoSubtitles: (cid: number) => {
-            return `${this.CACHE_DATA_VERSION}:subtitle:${cid}`
-        },
-        userArchieves: (mid: number, seasonId: number, page: number, pageSize: number) => {
-            return `${this.CACHE_DATA_VERSION}:userArchieves:${mid}:${seasonId}:${page}:${pageSize}`
-        },
-        userFav: (fid: number, keyword: string | undefined, page: number, pageSize: number) => {
-            const keywordHash = keyword ? md5String(keyword.trim()) : "all"
-            return `${this.CACHE_DATA_VERSION}:userFav:${fid}:${keywordHash}:${page}:${pageSize}`
-        },
-        bangumiInfo: (seasonId?: number, episodeId?: number) => {
-            if (seasonId) {
-                return `${this.CACHE_DATA_VERSION}:bangumiInfo:season:${seasonId}`
-            }
-            return `${this.CACHE_DATA_VERSION}:bangumiInfo:episode:${episodeId}`
-        },
-        bangumiEpisodes: (seasonId?: number) => {
-            return `${this.CACHE_DATA_VERSION}:bangumiEpisodes:season:${seasonId}`
-        },
-        /**
-         * @deprecated
-         */
-        bangumiPlayUrl: (epid: number, qn: number) => {
-            return `${this.CACHE_DATA_VERSION}:bangumiPlayUrl:${epid}:${qn}`
-        },
-        danmaku: (cid: number) => {
-            return `${this.CACHE_DATA_VERSION}:danmaku:${cid}`
-        },
-        danmakuJSON: (bvid: string, p: number) => {
-            return `${this.CACHE_DATA_VERSION}:danmakuJSON:${bvid}:${p}`
-        },
-        live: (roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls") => {
-            return `${this.CACHE_DATA_VERSION}:live:${roomId}:${platform}:${codec}:${format}:${protocol}`
-        },
-        search: (keyword: string, type: BiliTypes.RES.Search.SearchType, page: number, pageSize: number, order?: string) => {
-            const keywordHash = md5String(keyword.trim())
-            const key = `${this.CACHE_DATA_VERSION}:search:${type}:${keywordHash}:${page}:${pageSize}:${order ? order : "common_order"}`
-            return key
-        }
-    }
-
-    protected readonly utils = {
         switchVideoCDN: (ctx: AppContext, url: string, cdn?: string) => {
             let cdnHostname: string | undefined = undefined
             if (cdn && Config.VIDEO_CDN[cdn]) {
@@ -156,8 +65,8 @@ export default abstract class APIRoute extends OpenAPIRoute {
         },
         switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: string) => {
             const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
-                dashItem.baseUrl = this.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn)
-                dashItem.backupUrl = dashItem.backupUrl.map(u => this.utils.switchVideoCDN(ctx, u, cdn))
+                dashItem.baseUrl = Route.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn)
+                dashItem.backupUrl = dashItem.backupUrl.map(u => Route.utils.switchVideoCDN(ctx, u, cdn))
                 return dashItem
             }
             dash.video = dash.video ? dash.video.map(replaceHost) : dash.video
@@ -190,7 +99,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
         getShortLinkRedirectUrl: async (b23Url: string | URL): Promise<URL | null> => {
             const url = b23Url instanceof URL ? b23Url : new URL(b23Url)
             try {
-                if (this.URLPatterns.B23_TV.test(url)) {
+                if (SharedData.URLPatterns.B23_TV.test(url)) {
                     const req = await fetch(url, {
                         method: "HEAD",
                         redirect: 'manual'
@@ -200,7 +109,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
                         return null
                     }
                     const targetUrl = new URL(location)
-                    if (this.URLPatterns.BILI_HOST.test(targetUrl)) {
+                    if (SharedData.URLPatterns.BILI_HOST.test(targetUrl)) {
                         return targetUrl
                     }
                     return null
@@ -211,12 +120,12 @@ export default abstract class APIRoute extends OpenAPIRoute {
         resolveBiliUrl: async (biliurl: string | URL): Promise<ResolveBiliURL.Resolved | null> => {
             try {
                 let url: URL = new URL(biliurl)
-                if (this.URLPatterns.B23_TV.test(url)) {
-                    const targetUrl = await this.utils.getShortLinkRedirectUrl(url)
+                if (SharedData.URLPatterns.B23_TV.test(url)) {
+                    const targetUrl = await Route.utils.getShortLinkRedirectUrl(url)
                     if (targetUrl) { url = targetUrl }
                 }
 
-                if (this.URLPatterns.BILI_VIDEO.test(url)) {
+                if (SharedData.URLPatterns.BILI_VIDEO.test(url)) {
                     const pathname = url.pathname
                     const bvpart = pathname.match(/(BV[a-zA-Z0-9]{10})/)?.[1]
                     const part = url.searchParams.get("p") || undefined
@@ -231,7 +140,7 @@ export default abstract class APIRoute extends OpenAPIRoute {
                         return result
                     }
                 }
-                else if (this.URLPatterns.BILI_LIVE.test(url)) {
+                else if (SharedData.URLPatterns.BILI_LIVE.test(url)) {
                     const pathname = url.pathname
                     const roomId = z.coerce.number().int().positive().safeParse(pathname.substring(1).split("/").shift()).data
                     if (roomId) {
@@ -244,6 +153,40 @@ export default abstract class APIRoute extends OpenAPIRoute {
                 }
                 return null
             } catch (error) {
+                return null
+            }
+        }
+    }
+    protected readonly utils = Route.utils
+    get nowS() {
+        return Math.floor(Date.now() / 1000)
+    }
+
+    protected async getSchemaValidData<Data>(
+        data: Data,
+        schema: z.ZodType<Data> | undefined,
+        throwIfNotValid: true
+    ): Promise<Data>;
+    protected async getSchemaValidData<Data>(
+        data: Data,
+        schema?: z.ZodType<Data>,
+        throwIfNotValid?: false
+    ): Promise<Data | null>;
+    protected async getSchemaValidData<Data>(
+        data: Data,
+        schema?: z.ZodType<Data>,
+        throwIfNotValid: boolean = false
+    ): Promise<Data | null> {
+        if (!schema) { return data }
+        const parsed = await schema.safeParseAsync(data)
+        if (parsed.success) {
+            return parsed.data
+        }
+        else {
+            if (throwIfNotValid) {
+                throw parsed.error || new Error("data schema validation failed")
+            }
+            else {
                 return null
             }
         }

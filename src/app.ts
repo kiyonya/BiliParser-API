@@ -16,7 +16,7 @@ import CacheableObject from "./utils/cache";
 import { AppContext, ContextInject } from "./types";
 import { APIResponse } from "./utils/api-route";
 import z from "zod";
-import { Config } from "./config";
+import { Config } from "./shared/config";
 import { ResponseHeader } from "hono/utils/headers";
 import { BiliCookieRoute } from "./routes/cookie";
 
@@ -48,10 +48,10 @@ async function useAppContext(ctx: HonoContext, next: Next) {
         const responseJson: Response = mctx.json(response, code as any)
         return responseJson
     }
-    mctx.defer = (promise:Promise<any>)=>{
+    mctx.defer = (promise: Promise<any>) => {
         try {
             ctx.executionCtx.waitUntil(promise)
-        } catch (error) {}
+        } catch (error) { }
     }
     for (const [k, v] of Object.entries(DEFAULT_HEADERS)) {
         ctx.header(k, v)
@@ -72,9 +72,9 @@ async function useRespCacheHeaders(ctx: HonoContext, next: Next) {
 
 async function useResponseCache(ctx: HonoContext, next: Next) {
     await next()
-    if (!Config.RESPONSE_WORKER_CACHING) { 
+    if (!Config.RESPONSE_WORKER_CACHING) {
         ctx.res.headers.set('Cache-Control', 'no-store')
-        return 
+        return
     }
     if (ctx.res.headers.has("Cache-Control")) {
         return
@@ -123,6 +123,6 @@ openapi.get('/ipregion', BiliIpRegionRoute)
 openapi.get('/user/archieve/:mid?/:sid?', BiliArchieveRoute)
 openapi.get('/user/fav/:fid?', BiliFavListRoute)
 openapi.get('/search/:type?', SearchRoute)
-openapi.get('/cookie',BiliCookieRoute)
+openapi.get('/cookie', BiliCookieRoute)
 
 export default app

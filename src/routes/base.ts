@@ -1,11 +1,12 @@
+import { Config } from "../shared/config";
 import { AppContext } from "../types";
-import APIRoute from "../utils/api-route";
+import Route from "../utils/api-route";
 
-export class BaseRoute extends APIRoute {
+export class BaseRoute extends Route {
 
     public override async handle(ctx: AppContext) {
 
-        const serverVersion = this.SERVER_VERSION
+        const serverVersion = Config.SERVER_VERSION
         const url = new URL(ctx.req.url)
         const hostname = url.hostname
         const protocol = url.protocol

@@ -1,11 +1,12 @@
 import { BiliTypes } from "../types"
 import Parser from "../utils/parser"
 import { proxyFetch } from "../utils/proxy-fetch"
+import SharedData from "../shared/data"
 
 export default class BiliBangumiParser extends Parser {
 
     public async getBangumiInfo(seasonId?: number, episodeId?: number): Promise<BiliTypes.RES.Bangumi.BangumiInfo> {
-        const url = new URL(this.BILI_BANGUMI_INFO_API)
+        const url = new URL(SharedData.BILI_BANGUMI_INFO_API)
         if (seasonId) {
             url.searchParams.append('season_id', String(seasonId))
         }
@@ -17,7 +18,7 @@ export default class BiliBangumiParser extends Parser {
         }
         const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
-            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...SharedData.FAKE_BROWSER_HEADERS, 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie }
         })
         const data = await req.json<BiliTypes.BAPI.BiliBangumiInfo>()
         if (data.code !== 0 || !data.result) {
@@ -40,14 +41,14 @@ export default class BiliBangumiParser extends Parser {
     }
 
     public async getBangumiEpisodes(seasonId?: number): Promise<BiliTypes.RES.Bangumi.BangumiEpisode> {
-        const url = new URL(this.BILI_BANGUMI_EPISODE_API)
+        const url = new URL(SharedData.BILI_BANGUMI_EPISODE_API)
         if (!seasonId) {
             throw new Error("missing seasonId")
         }
         url.searchParams.append('season_id', String(seasonId))
         const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
-            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...SharedData.FAKE_BROWSER_HEADERS, 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie }
         })
         const data = await req.json<BiliTypes.BAPI.BiliBangumiEpisode>()
         if (data.code !== 0 || !data.result || !data.result?.main_section?.episodes?.length) {
@@ -73,7 +74,7 @@ export default class BiliBangumiParser extends Parser {
     }
 
     public async getBangumiPlayUrl(epid: number, qn: number): Promise<BiliTypes.RES.Bangumi.BangumiPlayURL> {
-        const url = new URL(this.BILI_BANGUMI_PLAYURL_API)
+        const url = new URL(SharedData.BILI_BANGUMI_PLAYURL_API)
         url.searchParams.append('ep_id', String(epid))
         url.searchParams.append('qn', String(qn))
         url.searchParams.append('fnver', '0')
@@ -81,7 +82,7 @@ export default class BiliBangumiParser extends Parser {
 
         const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
-            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...SharedData.FAKE_BROWSER_HEADERS, 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie }
         })
 
         const data = await req.json<BiliTypes.BAPI.BiliBangumiPlayURL>()

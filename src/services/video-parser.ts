@@ -2,6 +2,7 @@ import { BiliTypes } from "../types"
 import BiliCrypto from "../utils/bili-crypto"
 import Parser from "../utils/parser"
 import { proxyFetch } from "../utils/proxy-fetch"
+import SharedData from "../shared/data"
 
 export interface GetPlayURLTaskReturns {
     url: string, quality: number, platform: BiliTypes.BVideoPlatform
@@ -17,7 +18,7 @@ export default class BiliVideoParser extends Parser {
 
     public async getVideoInfo(bvid: string): Promise<BiliTypes.RES.Video.VideoInfo> {
         const cookie = await this.BCrypto.getBiliCookie();
-        const videoViewInfoURL = new URL(this.BILI_VIDEO_VIEW_API)
+        const videoViewInfoURL = new URL(SharedData.BILI_VIDEO_VIEW_API)
         videoViewInfoURL.searchParams.append('bvid', bvid)
         const videoViewReq = await proxyFetch(videoViewInfoURL, {
             headers: new Headers({
@@ -60,11 +61,11 @@ export default class BiliVideoParser extends Parser {
             return info
         }
 
-        const videoCidURL = new URL(this.BILI_CID_BACKUP_API)
+        const videoCidURL = new URL(SharedData.BILI_CID_BACKUP_API)
         videoCidURL.searchParams.append('bvid', bvid)
         const videoCidReq = await proxyFetch(videoCidURL, {
             headers: new Headers({
-                'Referer': this.BILI_REFERER, 'Cookie': cookie
+                'Referer': SharedData.BILI_REFERER, 'Cookie': cookie
             })
         })
         const videoCidData = await videoCidReq.json<BiliTypes.BAPI.BiliVideoCidInfo>()
@@ -222,7 +223,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     private createReqUrl(bvid: string, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): URL {
-        const url = new URL(this.BILI_VIDEO_PLAYURL_API)
+        const url = new URL(SharedData.BILI_VIDEO_PLAYURL_API)
         url.searchParams.append("bvid", String(bvid))
         url.searchParams.append('cid', String(cid))
         url.searchParams.append('qn', String(qn))
@@ -237,7 +238,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     private async createWbiReqUrl(bvid: string, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
-        const wbiUrl = new URL(this.BILI_VIDEO_WBI_PLAYURL_API)
+        const wbiUrl = new URL(SharedData.BILI_VIDEO_WBI_PLAYURL_API)
         const params: Record<string, any> = {
             bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format], fourk: 1, fnver: 0
         }
@@ -261,7 +262,7 @@ export default class BiliVideoParser extends Parser {
             fnver: 0
         };
         const sign = await this.BCrypto.signApp(params, platform);
-        const url = new URL(this.BILI_VIDEO_PLAYURL_API)
+        const url = new URL(SharedData.BILI_VIDEO_PLAYURL_API)
         for (const [key, value] of Object.entries(sign)) {
             url.searchParams.append(key, value)
         }
@@ -291,16 +292,16 @@ export default class BiliVideoParser extends Parser {
         const requests: (() => Request | Promise<Request>)[] = [
             () => new Request(this.createReqUrl(bvid, cid, qn, platform, format), {
                 headers: {
-                    ...this.FAKE_BROWSER_HEADERS,
-                    'referer': this.BILI_REFERER,
+                    ...SharedData.FAKE_BROWSER_HEADERS,
+                    'referer': SharedData.BILI_REFERER,
                     'Cookie': cookie
                 },
                 method: "GET"
             }),
             async () => new Request(await this.createWbiReqUrl(bvid, cid, qn, platform, format), {
                 headers: {
-                    ...this.FAKE_BROWSER_HEADERS,
-                    'Referer': this.BILI_REFERER,
+                    ...SharedData.FAKE_BROWSER_HEADERS,
+                    'Referer': SharedData.BILI_REFERER,
                     'Cookie': cookie
                 },
                 method: "GET"
@@ -419,8 +420,8 @@ export default class BiliVideoParser extends Parser {
             const headReq = await fetch(videoUrl, {
                 method: "HEAD",
                 headers: {
-                    "User-Agent": this.BROWSER_UA,
-                    "Referer": this.BILI_REFERER
+                    "User-Agent": SharedData.BROWSER_UA,
+                    "Referer": SharedData.BILI_REFERER
                 }
             })
             const headers = headReq.headers
@@ -436,10 +437,10 @@ export default class BiliVideoParser extends Parser {
 
     public async getVideoDanmakuXML(cid: number): Promise<string | null> {
         const cookie = await this.BCrypto.getBiliCookie();
-        const url = new URL(this.BILI_DANMAKU_API)
+        const url = new URL(SharedData.BILI_DANMAKU_API)
         url.pathname = `${cid}.xml`
         const req = await proxyFetch(url, {
-            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...SharedData.FAKE_BROWSER_HEADERS, 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie }
         })
         const isXML = req.headers.get('content-type') === 'text/xml' || req.headers.get('content-type') === 'application/xml'
         if (isXML) {
@@ -451,7 +452,7 @@ export default class BiliVideoParser extends Parser {
 
     public async getVideoSubtitles(bvid: string, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const cookie = await this.BCrypto.getBiliCookie()
-        const url = new URL(this.BILI_PLAYERV2_API)
+        const url = new URL(SharedData.BILI_PLAYERV2_API)
         const params: Record<string, string> = {
             bvid: bvid,
             cid: String(cid)
@@ -461,7 +462,7 @@ export default class BiliVideoParser extends Parser {
             url.searchParams.append(key, value)
         }
         const req = await proxyFetch(url, {
-            headers: { ...this.FAKE_BROWSER_HEADERS, 'Referer': this.BILI_REFERER, 'Cookie': cookie }
+            headers: { ...SharedData.FAKE_BROWSER_HEADERS, 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie }
         });
         const data = await req.json() as BiliTypes.BAPI.BiliPlayerV2
         if (data.code === 0) {

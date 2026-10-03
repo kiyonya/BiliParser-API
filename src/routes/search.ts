@@ -1,13 +1,14 @@
 import z from "zod";
 import { AppContext, BiliTypes } from "../types";
-import APIRoute from "../utils/api-route";
 import BiliSearchParser from "../services/search-parser";
-import { Config } from "../config";
-import { Validation } from "../validation";
+import { Schema } from "../shared/schema";
+import { Config } from "../shared/config";
+import Route from "../utils/api-route";
+import SharedData from "../shared/data";
 
 type SearchResult = BiliTypes.RES.Search.SearchLiveItem | BiliTypes.RES.Search.SearchUserItem | BiliTypes.RES.Search.SearchVideoItem
 
-export class SearchRoute extends APIRoute {
+export class SearchRoute extends Route {
 
     private readonly paramSchema = z.object({
         keyword: z.string().transform(i => i.trim()),
@@ -32,14 +33,14 @@ export class SearchRoute extends APIRoute {
             }
             const { type, keyword, page, pageSize, order } = params.data
 
-            const key = this.CacheKey.search(keyword, type, page, pageSize, order)
+            const key = SharedData.cacheKey.search(keyword, type, page, pageSize, order)
 
-            let searchResult = await this.getSchemaValidData(await ctx.cache.getCache<SearchResult>(key), Validation.searchResultSchema)
+            let searchResult = await this.getSchemaValidData(await ctx.cache.getCache<SearchResult>(key), Schema.searchResultSchema)
 
             if (!searchResult) {
                 const parser = new BiliSearchParser(ctx)
 
-                searchResult = await this.getSchemaValidData(await parser.search(keyword, type as any, page, pageSize, order), Validation.searchResultSchema, true)
+                searchResult = await this.getSchemaValidData(await parser.search(keyword, type as any, page, pageSize, order), Schema.searchResultSchema, true)
 
                 await ctx.cache.setCache(key, searchResult, () => this.nowS + Config.BILI_SEARCH_CACHE_TIME)
             }

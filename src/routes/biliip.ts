@@ -1,25 +1,27 @@
 import { AppContext, BiliTypes } from "../types";
-import APIRoute from "../utils/api-route";
-import { Validation } from "../validation";
+import Route from "../utils/api-route";
+import { Schema } from "../shared/schema";
 import { proxyFetch } from "../utils/proxy-fetch";
+import SharedData from "../shared/data";
 
-export class BiliIpRegionRoute extends APIRoute {
+export class BiliIpRegionRoute extends Route {
 
     public override async handle(ctx: AppContext) {
         try {
-            const headers = new Headers()
-            headers.append('User-Agent', this.BROWSER_UA)
-            const req = await proxyFetch(this.BILI_NAV_IPR, {
+            const req = await proxyFetch(SharedData.BILI_WEB_NAV, {
                 method: "GET",
-                headers: headers
+                headers: {
+                    'Referer': SharedData.BILI_REFERER,
+                    ...SharedData.FAKE_BROWSER_HEADERS
+                }
             })
             const res = await req.json<BiliTypes.BAPI.BiliNav>()
             const ipRegion = res.data.ip_region
-            return ctx.jsonResp( 'Success', 200, {
+            return ctx.jsonResp('Success', 200, {
                 ipRegion: ipRegion
-            }, Validation.ipRegionSchema)
+            }, Schema.ipRegionSchema)
         } catch (error) {
-            return ctx.jsonResp( (error as Error)?.message, 500, null)
+            return ctx.jsonResp((error as Error)?.message, 500, null)
         }
     }
 }

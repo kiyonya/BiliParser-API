@@ -1,8 +1,8 @@
 import z from "zod";
-import { BiliTypes } from "./types";
-import { MemoObject } from "./utils/memo";
+import { BiliTypes } from "../types";
+import { MemoObject } from "../utils/memo";
 
-export abstract class Validation extends MemoObject {
+export abstract class Schema extends MemoObject {
 
     public static get videoPartSchema(): z.ZodType<BiliTypes.RES.Video.VideoPart> {
         return this.memo("videoPartSchema", () => z.object({

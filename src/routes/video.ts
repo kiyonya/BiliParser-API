@@ -1,12 +1,12 @@
 import z from "zod";
 import { type BiliTypes, type AppContext } from "../types";
 import BiliVideoParser from "../services/video-parser";
-import APIRoute from "../utils/api-route";
-import { Validation } from "../validation";
-import { Config } from "../config";
+import Route from "../utils/api-route";
+import { Schema } from "../shared/schema";
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
-
-export class BiliVideoRoute extends APIRoute {
+export class BiliVideoRoute extends Route {
 
     private readonly paramSchema = z.object({
         type: z.enum(["video", "json"]).default("video"),
@@ -21,7 +21,7 @@ export class BiliVideoRoute extends APIRoute {
         let { bvid, p, url, qn, platform } = args
         if (url) {
             const result = await this.utils.resolveBiliUrl(url)
-            if(result && result?.type === 'video'){
+            if (result && result?.type === 'video') {
                 bvid = result.bvid
                 p = result.p || 1
             }
@@ -42,11 +42,11 @@ export class BiliVideoRoute extends APIRoute {
     private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
 
         const parser = new BiliVideoParser(ctx)
-        const infoKey = this.CacheKey.videoInfo(bvid)
-        let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Validation.videoInfoSchema)
+        const infoKey = SharedData.cacheKey.videoInfo(bvid)
+        let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
-            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Validation.videoInfoSchema, true)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
             await ctx.cache.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
         }
         if (p > videoInfo.parts.length) {
@@ -58,14 +58,14 @@ export class BiliVideoRoute extends APIRoute {
         }
 
         const targetCid = targetPart.cid
-        const urlKey = this.CacheKey.videoPlayUrl(targetCid, qn, platform, format, Config.SERVER_LOGIN_HASHKEY)
+        const urlKey = SharedData.cacheKey.videoPlayUrl(targetCid, qn, platform, format, Config.SERVER_LOGIN_HASHKEY)
 
-        let videoPlay = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey), Validation.videoPlaySchema)
+        let videoPlay = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey), Schema.videoPlaySchema)
 
         if (!videoPlay) {
             const duration = videoInfo.duration
 
-            videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Validation.videoPlaySchema, true)
+            videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Schema.videoPlaySchema, true)
 
             await ctx.cache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, videoPlay, (data) => {
                 let videoBufferTimeS: number

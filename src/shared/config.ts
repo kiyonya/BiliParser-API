@@ -1,7 +1,7 @@
 import z from "zod"
-import { md5String } from "./utils/hashlib"
-import { MemoObject } from "./utils/memo"
-import { CDNStrategy } from "./types"
+import { md5String } from "../utils/hashlib"
+import { MemoObject } from "../utils/memo"
+import { CDNStrategy } from "../types"
 
 const numberEnv = (def: number) => z.coerce.number().default(def)
 const stringEnv = z.coerce.string().optional()
@@ -9,6 +9,8 @@ const booleanEnv = (raw: string | undefined, def: boolean): boolean =>
     raw ? raw === "true" : def
 
 export abstract class Config extends MemoObject {
+
+    public static SERVER_VERSION = process.env.SERVER_VERSION
 
     protected static DEFAULT_CDN_STRATEGE = "AS,CN,alib;*,*,aliov"
     protected static DEFAULT_CDN = `

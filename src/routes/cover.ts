@@ -1,11 +1,12 @@
 import z from "zod";
-import APIRoute from "../utils/api-route";
+import Route from "../utils/api-route";
 import { AppContext, BiliTypes } from "../types";
 import BiliVideoParser from "../services/video-parser";
-import { Config } from "../config";
-import { Validation } from "../validation";
+import { Schema } from "../shared/schema";
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
-export class BiliCoverRoute extends APIRoute {
+export class BiliCoverRoute extends Route {
 
     protected readonly paramSchema = z.object({
         url: z.url().optional(),
@@ -40,13 +41,13 @@ export class BiliCoverRoute extends APIRoute {
             let { type } = params.data
             const bvid = params.data.bvid!
 
-            const key = this.CacheKey.videoInfo(bvid)
+            const key = SharedData.cacheKey.videoInfo(bvid)
 
-            let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(key), Validation.videoInfoSchema)
+            let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(key), Schema.videoInfoSchema)
 
             if (!videoInfo) {
                 const parser: BiliVideoParser = new BiliVideoParser(ctx)
-                videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Validation.videoInfoSchema, true)
+                videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
                 await ctx.cache.setCache(key, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
             }
             const imgUrl = videoInfo.pic

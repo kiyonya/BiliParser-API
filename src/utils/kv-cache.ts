@@ -1,5 +1,5 @@
 
-import { Config } from "../config"
+import { Config } from "../shared/config"
 import { AppContext, CacheResult, CacheWarp } from "../types"
 import z from "zod";
 export default class KVCache {

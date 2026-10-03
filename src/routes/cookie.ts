@@ -1,9 +1,9 @@
 
 import { AppContext } from "../types";
-import APIRoute from "../utils/api-route";
+import Route from "../utils/api-route";
 import BiliCrypto from "../utils/bili-crypto";
 
-export class BiliCookieRoute extends APIRoute {
+export class BiliCookieRoute extends Route {
     public override async handle(ctx: AppContext): Promise<Response> {
         try {
             const bCrypto = new BiliCrypto(ctx)

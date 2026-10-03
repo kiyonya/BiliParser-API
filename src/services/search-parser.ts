@@ -1,6 +1,7 @@
 import { BiliTypes } from "../types";
 import Parser from "../utils/parser";
 import { proxyFetch } from "../utils/proxy-fetch";
+import SharedData from "../shared/data";
 
 type SearchAPIResult = BiliTypes.BAPI.BiliSearchVideo | BiliTypes.BAPI.BiliSearchUser | BiliTypes.BAPI.BiliSearchLive
 type SearchResult = BiliTypes.RES.Search.SearchLiveItem | BiliTypes.RES.Search.SearchUserItem | BiliTypes.RES.Search.SearchVideoItem
@@ -11,7 +12,7 @@ export default class BiliSearchParser extends Parser {
     public async search(keyword: string, type: "live", page?: number, pageSize?: number, order?: string): Promise<BiliTypes.RES.Search.SearchLiveItem>
     public async search(keyword: string, type: BiliTypes.RES.Search.SearchType, page: number = 1, pageSize: number = 20, order?: string): Promise<SearchResult> {
         const cookie = await this.BCrypto.getBiliCookie()
-        const url = new URL(this.BILI_SEARCH_TYPE_API)
+        const url = new URL(SharedData.BILI_SEARCH_TYPE_API)
         const params: Record<string, string> = {
             keyword: keyword,
             page: String(page),
@@ -39,7 +40,7 @@ export default class BiliSearchParser extends Parser {
         }
         const req = await proxyFetch(url, {
             headers: {
-                ...this.FAKE_BROWSER_HEADERS, 'Cookie': cookie, 'Referer': this.BILI_SEARCH_REFERER
+                ...SharedData.FAKE_BROWSER_HEADERS, 'Cookie': cookie, 'Referer': SharedData.BILI_SEARCH_REFERER
             }
         })
         const data = await req.json<SearchAPIResult>()

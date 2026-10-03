@@ -1,6 +1,6 @@
 import z from "zod"
 import { AppContext, CacheWarp } from "../types"
-import { Config } from "../config"
+import { Config } from "../shared/config"
 import EdgeCache from "./edge-cache"
 import KVCache from "./kv-cache"
 import { md5String } from "./hashlib"

@@ -1,11 +1,12 @@
 import { AppContext, BiliTypes } from "../types";
 import z from "zod";
 import BiliLiveParser from "../services/live-parser";
-import APIRoute from "../utils/api-route";
-import { Validation } from "../validation";
-import { Config } from "../config";
+import Route from "../utils/api-route";
+import { Schema } from "../shared/schema";
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
-export class BiliLiveRoute extends APIRoute {
+export class BiliLiveRoute extends Route {
 
     private readonly paramSchema = z.object({
         type: z.enum(['json', 'stream']).default('stream'),
@@ -50,8 +51,8 @@ export class BiliLiveRoute extends APIRoute {
     }
 
     private async parseLive(ctx: AppContext, roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls"): Promise<BiliTypes.RES.Live.Live> {
-        const liveCacheKey = this.CacheKey.live(roomId, platform, codec, format, protocol)
-        let live = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(liveCacheKey, undefined, 'edge', true), Validation.liveSchema)
+        const liveCacheKey = SharedData.cacheKey.live(roomId, platform, codec, format, protocol)
+        let live = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Live.Live>(liveCacheKey, undefined, 'edge', true), Schema.liveSchema)
         if (!live) {
             const parser = new BiliLiveParser(ctx)
             const liveInfo: BiliTypes.RES.Live.LiveInfo = await parser.getLiveInfo(roomId)
@@ -85,7 +86,7 @@ export class BiliLiveRoute extends APIRoute {
                 livef.streamExpirationAt = streamMinExpirationAt
                 ctx.header('X-Live-Room', String(realRoomId))
             }
-            live = await this.getSchemaValidData(livef, Validation.liveSchema, true)
+            live = await this.getSchemaValidData(livef, Schema.liveSchema, true)
             let cacheTtl = streamMinExpirationAt ? Math.min(streamMinExpirationAt, this.nowS + Config.BILI_LIVE_CACHE_TIME) : this.nowS + Config.BILI_LIVE_CACHE_TIME
             await ctx.cache.setCache(liveCacheKey, live, cacheTtl, undefined, 'edge')
         }

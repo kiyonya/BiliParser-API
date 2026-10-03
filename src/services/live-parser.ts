@@ -1,15 +1,16 @@
 import { BiliTypes } from "../types"
 import Parser from "../utils/parser"
 import { proxyFetch } from "../utils/proxy-fetch"
+import SharedData from "../shared/data"
 
 export default class BiliLiveParser extends Parser {
 
     public async getLiveInfo(roomId: number): Promise<BiliTypes.RES.Live.LiveInfo> {
         const cookie = await this.BCrypto.getBiliCookie()
-        const liveInfoUrl = new URL(this.BILI_LIVE_INFO_API)
+        const liveInfoUrl = new URL(SharedData.BILI_LIVE_INFO_API)
         liveInfoUrl.searchParams.append('room_id', String(roomId))
         const liveInfoReq = await proxyFetch(liveInfoUrl, {
-            headers: { 'User-Agent': this.MOBILE_UA, 'Referer': this.BILI_LIVE_REFERER, 'Cookie': cookie }
+            headers: { 'User-Agent': SharedData.MOBILE_UA, 'Referer':SharedData.BILI_LIVE_REFERER, 'Cookie': cookie }
         })
         const liveInfoData = await liveInfoReq.json<BiliTypes.BAPI.BiliLiveInfo>()
         // 拿到真实的id 因为有些主播的房间号有别名(short_id)
@@ -50,13 +51,13 @@ export default class BiliLiveParser extends Parser {
 
     public async getLiveByH5(roomId: number, cookie: string): Promise<BiliTypes.RES.Live.LiveStream> {
 
-        const url = new URL(this.BILI_LIVE_PLAYURL_API)
+        const url = new URL(SharedData.BILI_LIVE_PLAYURL_API)
         url.searchParams.append('cid', String(roomId))
         url.searchParams.append('platform', 'h5')
         url.searchParams.append('quality', '4')
         const req = await proxyFetch(url, {
             method: 'GET',
-            headers: { 'User-Agent': this.MOBILE_UA, 'Referer': this.BILI_LIVE_REFERER, 'Cookie': cookie }
+            headers: { 'User-Agent': SharedData.MOBILE_UA, 'Referer': SharedData.BILI_LIVE_REFERER, 'Cookie': cookie }
         })
         const data = await req.json<BiliTypes.BAPI.BiliLivePlayURL>()
         if (data.code !== 0 || !data.data.durl.length || !data.data.durl.every(i => Boolean(i.url))) {
@@ -77,7 +78,7 @@ export default class BiliLiveParser extends Parser {
     }
 
     public async getLiveByXlive(roomId: number, cookie: string, format: number, codec: number, protocol: number): Promise<BiliTypes.RES.Live.LiveStream> {
-        const url = new URL(this.BILI_LIVE_XLIVE_API)
+        const url = new URL(SharedData.BILI_LIVE_XLIVE_API)
 
         url.searchParams.append('room_id', String(roomId))
         url.searchParams.append('platform', 'h5')
@@ -88,7 +89,7 @@ export default class BiliLiveParser extends Parser {
 
         const req = await proxyFetch(url, {
             method: 'GET',
-            headers: { 'User-Agent': this.MOBILE_UA, 'Referer': this.BILI_LIVE_REFERER, 'Cookie': cookie }
+            headers: { 'User-Agent': SharedData.MOBILE_UA, 'Referer': SharedData.BILI_LIVE_REFERER, 'Cookie': cookie }
         })
 
         const data = await req.json<BiliTypes.BAPI.BiliXLivePlayInfo>()

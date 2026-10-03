@@ -3,12 +3,13 @@
 import { BiliTypes } from "../types";
 import Parser from "../utils/parser";
 import { proxyFetch } from "../utils/proxy-fetch";
+import SharedData from "../shared/data";
 
 export default class BiliUserParser extends Parser {
 
     public async getUserSeasonArchieves(mid: number, seasonId: number, sortReverse: boolean = false, page: number = 1, pageSize: number = 30): Promise<BiliTypes.RES.User.UserArchieves> {
 
-        const url = new URL(this.BILI_SEASONS_ARCHIVES_API)
+        const url = new URL(SharedData.BILI_SEASONS_ARCHIVES_API)
         url.searchParams.append('mid', String(mid))
         url.searchParams.append('season_id', String(seasonId))
         url.searchParams.append('sort_reverse', String(sortReverse))
@@ -18,7 +19,7 @@ export default class BiliUserParser extends Parser {
         const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: {
-                'Cookie': cookie, 'Referer': this.BILI_REFERER, ...this.FAKE_BROWSER_HEADERS
+                'Cookie': cookie, 'Referer': SharedData.BILI_REFERER, ...SharedData.FAKE_BROWSER_HEADERS
             }
         })
 
@@ -47,8 +48,8 @@ export default class BiliUserParser extends Parser {
         return result
     }
 
-    public async getUserFavList(fid: number, keyword?: string, page: number = 1, pageSize: number = 40):Promise<BiliTypes.RES.User.UserFav> {
-        const url = new URL(this.BILI_FAV_LIST_API)
+    public async getUserFavList(fid: number, keyword?: string, page: number = 1, pageSize: number = 40): Promise<BiliTypes.RES.User.UserFav> {
+        const url = new URL(SharedData.BILI_FAV_LIST_API)
         url.searchParams.set("media_id", String(fid))
         keyword && url.searchParams.set("keyword", String(keyword))
         url.searchParams.set("pn", String(page))
@@ -58,7 +59,7 @@ export default class BiliUserParser extends Parser {
         const cookie = await this.BCrypto.getBiliCookie()
         const req = await proxyFetch(url, {
             headers: {
-                'Cookie': cookie, 'Referer': this.BILI_REFERER, ...this.FAKE_BROWSER_HEADERS
+                'Cookie': cookie, 'Referer': SharedData.BILI_REFERER, ...SharedData.FAKE_BROWSER_HEADERS
             }
         })
         const res = await req.json<BiliTypes.BAPI.BiliUserFav>()

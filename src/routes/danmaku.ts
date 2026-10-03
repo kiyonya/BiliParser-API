@@ -1,12 +1,13 @@
 import z from "zod";
 import { AppContext, BiliTypes } from "../types";
-import APIRoute from "../utils/api-route";
+import Route from "../utils/api-route";
 import BiliVideoParser from "../services/video-parser";
-import { Validation } from "../validation";
-import { Config } from "../config";
+import { Schema } from "../shared/schema";
 import xml2js from 'xml2js'
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
-export class BiliDanmakuRoute extends APIRoute {
+export class BiliDanmakuRoute extends Route {
 
     private readonly paramSchema = z.object({
         bvid: z.string().optional(),
@@ -31,13 +32,13 @@ export class BiliDanmakuRoute extends APIRoute {
 
     private async getDanmakuXML(ctx: AppContext, bvid: string, p: number = 1): Promise<string | null> {
         const parser = new BiliVideoParser(ctx)
-        const infoKey = this.CacheKey.videoInfo(bvid)
+        const infoKey = SharedData.cacheKey.videoInfo(bvid)
 
         //Validation.videoInfoSchema
-        let videoInfo = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Validation.videoInfoSchema)
+        let videoInfo = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
-            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Validation.videoInfoSchema, true)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
             await ctx.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
         }
         if (p > videoInfo.parts.length) {
@@ -51,11 +52,11 @@ export class BiliDanmakuRoute extends APIRoute {
         ctx?.header("x-url-cid", String(cid))
         ctx?.header("x-url-vpart", String(p))
 
-        const key = this.CacheKey.danmaku(cid)
+        const key = SharedData.cacheKey.danmaku(cid)
 
-        let danmakuXML = await this.getSchemaValidData(await ctx.cache?.getCache<string>(key), Validation.danmakuSchema)
+        let danmakuXML = await this.getSchemaValidData(await ctx.cache?.getCache<string>(key), Schema.danmakuSchema)
         if (!danmakuXML) {
-            danmakuXML = await this.getSchemaValidData(await parser.getVideoDanmakuXML(cid), Validation.danmakuSchema, true)
+            danmakuXML = await this.getSchemaValidData(await parser.getVideoDanmakuXML(cid), Schema.danmakuSchema, true)
             if (danmakuXML) {
                 await ctx.cache?.setCache<string>(key, danmakuXML, this.nowS + Config.BILI_DANMAKU_CACHE_TIME)
             }
@@ -128,14 +129,14 @@ export class BiliDanmakuRoute extends APIRoute {
             switch (type) {
                 case "json": {
                     //序列化结果缓存
-                    const jsonKey = this.CacheKey.danmakuJSON(bvid, page)
-                    let xmlJson = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Danmaku.DanmakuJSON>(jsonKey), Validation.danmakuJSONSchema)
+                    const jsonKey = SharedData.cacheKey.danmakuJSON(bvid, page)
+                    let xmlJson = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Danmaku.DanmakuJSON>(jsonKey), Schema.danmakuJSONSchema)
                     if (!xmlJson) {
                         const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
                         if (!danmakuXML) {
                             throw new Error('failed to parse danmaku via cid')
                         }
-                        xmlJson = await this.getSchemaValidData(await this.parseXML2JSON(danmakuXML), Validation.danmakuJSONSchema, true)
+                        xmlJson = await this.getSchemaValidData(await this.parseXML2JSON(danmakuXML), Schema.danmakuJSONSchema, true)
                         await ctx.cache?.setCache(jsonKey, xmlJson, this.nowS + Config.BILI_DANMAKU_CACHE_TIME)
                     }
                     return ctx.jsonResp('Success', 200, xmlJson)

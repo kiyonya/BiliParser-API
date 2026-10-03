@@ -1,11 +1,12 @@
 import z from "zod";
-import APIRoute from "../utils/api-route";
+import Route from "../utils/api-route";
 import { AppContext, BiliTypes } from "../types";
 import BiliVideoParser from "../services/video-parser";
-import { Validation } from "../validation";
-import { Config } from "../config";
+import { Schema } from "../shared/schema";
+import { Config } from "../shared/config";
+import SharedData from "../shared/data";
 
-export class SubtitleRoute extends APIRoute {
+export class SubtitleRoute extends Route {
 
     private readonly paramSchema = z.object({
         url: z.url().optional(),
@@ -34,12 +35,12 @@ export class SubtitleRoute extends APIRoute {
 
     protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const parser = new BiliVideoParser(ctx)
-        const infoKey = this.CacheKey.videoInfo(bvid)
+        const infoKey = SharedData.cacheKey.videoInfo(bvid)
 
-        let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Validation.videoInfoSchema)
+        let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
-            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Validation.videoInfoSchema, true)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
 
             await ctx.cache.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
         }
@@ -52,13 +53,13 @@ export class SubtitleRoute extends APIRoute {
         }
         const targetCid = targetPart.cid
 
-        const subtitlesKey = this.CacheKey.videoSubtitles(targetCid)
+        const subtitlesKey = SharedData.cacheKey.videoSubtitles(targetCid)
 
-        let subtitles = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(subtitlesKey), z.array(Validation.videoSubtitleItemSchema))
+        let subtitles = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Subtitle.SubtitleItem[]>(subtitlesKey), z.array(Schema.videoSubtitleItemSchema))
 
         if (!subtitles) {
 
-            subtitles = await this.getSchemaValidData(await parser.getVideoSubtitles(bvid, targetCid), z.array(Validation.videoSubtitleItemSchema), true)
+            subtitles = await this.getSchemaValidData(await parser.getVideoSubtitles(bvid, targetCid), z.array(Schema.videoSubtitleItemSchema), true)
 
             if (subtitles.length) {
                 await ctx.cache.setCache(subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
