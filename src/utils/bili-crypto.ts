@@ -50,10 +50,10 @@ export default class BiliCrypto {
         const cookiesCacheKey = SharedData.cacheKey.cookie()
         let cookies = noCache ? null : await this.ctx.cache.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
         if (!cookies) {
-            const signTs = Date.now()
+            const signTs = Math.floor(Date.now() / 1000)
             this.ctx.header('X-Bcrypto-Cookies-Cache', 'MISS')
             this.ctx.header('X-Bcrypto-Sign-Time', String(signTs))
-            let buvid3: string = SharedData.BILI_DEFAULT_BUVID3;
+            let buvid3: string | null = null
             let buvid4: string | null = null;
             let ticket: string | null = null
             let biliTicketExpires: number | null = null
@@ -66,12 +66,11 @@ export default class BiliCrypto {
                     return json
                 })(),
                 (async () => {
-                    const ts = Math.floor(Date.now() / 1000);
-                    const hexsign = hmacSha256('XgwSnGZ1p', 'ts' + ts);
+                    const hexsign = hmacSha256('XgwSnGZ1p', 'ts' + signTs);
                     const webTicketURL = new URL(SharedData.BILI_WEB_TICKET_API)
                     webTicketURL.searchParams.append('key_id', 'ec02')
                     webTicketURL.searchParams.append('hexsign', hexsign)
-                    webTicketURL.searchParams.append('context[ts]', String(ts))
+                    webTicketURL.searchParams.append('context[ts]', String(signTs))
                     webTicketURL.searchParams.append('csrf', '')
                     const res = await proxyFetch(webTicketURL, { method: 'POST', headers: { "User-Agent": SharedData.BROWSER_UA } });
                     const json = await res.json<BiliTypes.BAPI.BiliWebTicket>();
@@ -81,9 +80,10 @@ export default class BiliCrypto {
 
             if (spiResult.status === 'fulfilled') {
                 const spi: BiliTypes.BAPI.FingerSPI = spiResult.value
-                if (spi.data?.b_3) buvid3 = spi.data.b_3;
+                if (spi.data?.b_3) buvid3 = spi.data.b_3
                 if (spi.data?.b_4) buvid4 = spi.data.b_4;
             }
+            if (!buvid3) { buvid3 = SharedData.BILI_DEFAULT_BUVID3 }
             else {
                 cookieCacheOk = false
             }
@@ -119,7 +119,7 @@ export default class BiliCrypto {
                 "lang": "zh-Hans"
             }
             if (cookieCacheOk && !noCache) {
-                const expirationAt = Math.floor(signTs / 1000) + Config.COOKIES_SIGN_CACHE_TIME
+                const expirationAt = signTs + Config.COOKIES_SIGN_CACHE_TIME
                 await this.ctx.cache.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
                 }, undefined, 'kv')

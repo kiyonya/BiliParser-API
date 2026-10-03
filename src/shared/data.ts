@@ -1,7 +1,7 @@
 import { Config } from "./config"
 import { BiliTypes } from "../types"
 import { md5String } from "../utils/hashlib"
-
+import crypto from 'crypto'
 export default abstract class SharedData {
     public static readonly SERVER_VERSION = Config.SERVER_VERSION
     public static readonly CACHE_DATA_VERSION = Config.CACHE_DATA_VERSION
@@ -39,7 +39,15 @@ export default abstract class SharedData {
     public static readonly BILI_WEB_TICKET_API = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
     public static readonly BILI_WEB_NAV = "https://api.bilibili.com/x/web-interface/nav"
     public static readonly BILI_MIXIN_KEY_ENC = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]
-    public static readonly BILI_DEFAULT_BUVID3 = "0A4418BE-BDC0-7F8C-39DE-3A6BBBB9A04D59416infoc"
+    public static readonly HEXCHAR = '0123456789ABCDEF';
+    public static get BILI_DEFAULT_BUVID3() {
+        let hex = '';
+        for (let i = 0; i < 37; i++) {
+            hex += SharedData.HEXCHAR[crypto.randomInt(16)];
+        }
+        const key = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        return `${key}infoc`
+    }
     public static readonly PLATFORM_KEY: { ios: BiliTypes.PlatformAPPKEY, tv: BiliTypes.PlatformAPPKEY } = {
         ios: { appkey: 'YvirImLGlLANCLvM', appsec: 'JNlZNgfNGKZEpaDTkCdPQVXntXhuiJEM', platform: 'ios', ua: 'Bilibili/8.0.0 (bbcallen@gmail.com)' },
         tv: { appkey: '4409e2ce8ffd12b8', appsec: '59b43e04ad6965f34319062b478f83dd', platform: 'android', ua: 'Bilibili Freedoooooom/MOD' }
