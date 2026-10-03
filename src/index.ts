@@ -39,7 +39,7 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 		const serverLoginHashkey = Config.SERVER_LOGIN_HASHKEY
 
 		const ctagParams = {
-			cdnStrategy: Route.utils.matchStrategy(Config.VIDEO_CDN_STRATEGE, request.cf),
+			cdnAllocation: Route.utils.matchCDNAllocation(Config.VIDEO_CDN_ALLOCATION, request.cf),
 			isCN: Route.utils.isCNArea(request.cf),
 			isServerLogin: isServerLogin,
 			loginHash: serverLoginHashkey,

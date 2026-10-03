@@ -8,7 +8,7 @@ export class BiliVideoCDNRoute extends Route {
         try {
             return ctx.jsonResp( 'Success', 200,{
                 cdns: Config.VIDEO_CDN,
-                strategy:Config.VIDEO_CDN_STRATEGE
+                strategy:Config.VIDEO_CDN_ALLOCATION
             })
         } catch (error) {
             return ctx.jsonResp( (error as Error)?.message, 500, null)

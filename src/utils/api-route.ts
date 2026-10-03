@@ -1,9 +1,10 @@
 import { OpenAPIRoute } from "chanfana";
-import { AppContext, BiliTypes, CDNStrategy } from "../types";
+import { AppContext, BiliTypes, CDNAllocation } from "../types";
 import z from "zod";
 import { Geolib } from "./geolib";
 import { Config } from "../shared/config";
 import SharedData from "../shared/data";
+import { parseCDNAllocation } from "../shared/cdn";
 
 export interface APIResponse<Data = any> {
     code: number,
@@ -31,28 +32,33 @@ export namespace ResolveBiliURL {
 export default abstract class Route extends OpenAPIRoute {
 
     public static readonly utils = {
-        matchStrategy: (strategies: CDNStrategy[], cf?: CfProperties): CDNStrategy | undefined => {
-            return strategies.find(strategy =>
-                (strategy.continent === '*' || cf?.continent === strategy.continent) &&
-                (strategy.area === '*' || cf?.country === strategy.area)
+        matchCDNAllocation: (allocations: CDNAllocation[], cf?: CfProperties): CDNAllocation | undefined => {
+            return allocations.find(allocation =>
+                (allocation.continent === '*' || cf?.continent === allocation.continent) &&
+                (allocation.area === '*' || cf?.country === allocation.area)
             )
         },
         isCNArea: (cf?: CfProperties) => {
             if (!cf) { return false }
             return cf.continent === 'AS' && cf.country === 'CN'
         },
-        switchVideoCDN: (ctx: AppContext, url: string, cdn?: string) => {
+        switchVideoCDN: (ctx: AppContext, url: string, cdn?: string, customAllocation?: string) => {
             let cdnHostname: string | undefined = undefined
             if (cdn && Config.VIDEO_CDN[cdn]) {
                 cdnHostname = Config.VIDEO_CDN[cdn]
             }
             else {
-                const geo = Geolib.geo(ctx.req.raw.cf)
-                const match = Geolib.matchStrategy(Config.VIDEO_CDN_STRATEGE, geo)
+                let allocation = Config.VIDEO_CDN_ALLOCATION
+                if (customAllocation) {
+                    try {
+                        allocation = parseCDNAllocation(customAllocation)
+                    } catch (error) { }
+                }
+                const match = this.utils.matchCDNAllocation(allocation, ctx.req.raw.cf)
                 if (match) {
                     const cdnName = match.cdn as string
                     cdnHostname = Config.VIDEO_CDN[cdnName]
-                    ctx.header('X-CDN-Strategy', `${match.continent},${match.area},${cdnName}`)
+                    ctx.header('X-CDN-Allocation', `${match.continent},${match.area},${cdnName}`)
                 }
             }
             if (cdnHostname) {
@@ -63,10 +69,10 @@ export default abstract class Route extends OpenAPIRoute {
             }
             return url
         },
-        switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: string) => {
+        switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: string, customAllocation?: string) => {
             const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
-                dashItem.baseUrl = Route.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn)
-                dashItem.backupUrl = dashItem.backupUrl.map(u => Route.utils.switchVideoCDN(ctx, u, cdn))
+                dashItem.baseUrl = Route.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn, customAllocation)
+                dashItem.backupUrl = dashItem.backupUrl.map(u => Route.utils.switchVideoCDN(ctx, u, cdn, customAllocation))
                 return dashItem
             }
             dash.video = dash.video ? dash.video.map(replaceHost) : dash.video

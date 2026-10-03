@@ -16,7 +16,8 @@ export class BiliVideoRoute extends Route {
         platform: z.enum(['html5', 'pc', 'app']).default('html5'),
         url: z.url().optional(),
         bvid: z.string().optional(),
-        p: z.coerce.number().nonnegative().int().default(1).transform(p => p === 0 ? 1 : p)
+        p: z.coerce.number().nonnegative().int().default(1).transform(p => p === 0 ? 1 : p),
+        allocation: z.string().optional()
     }).transform(async (args) => {
         let { bvid, p, url, qn, platform } = args
         if (url) {
@@ -99,32 +100,33 @@ export class BiliVideoRoute extends Route {
 
     public override async handle(ctx: AppContext): Promise<Response> {
         try {
-            const reqUrl = new URL(ctx.req.url)
+            const url = new URL(ctx.req.url)
             const parmas = await this.paramSchema.safeParseAsync({
-                type: reqUrl.searchParams.get('type') || undefined,
-                platform: reqUrl.searchParams.get('platform') || undefined,
-                format: reqUrl.searchParams.get("format") || undefined,
-                cdn: reqUrl.searchParams.get('cdn') || undefined,
-                qn: reqUrl.searchParams.get('qn') || undefined,
-                bvid: ctx.req.param('bvid') || reqUrl.searchParams.get('bvid') || undefined,
-                url: reqUrl.searchParams.get('url') || undefined,
-                p: ctx.req.param("p") || reqUrl.searchParams.get('p') || undefined
+                type: url.searchParams.get('type') || undefined,
+                platform: url.searchParams.get('platform') || undefined,
+                format: url.searchParams.get("format") || undefined,
+                cdn: url.searchParams.get('cdn') || undefined,
+                qn: url.searchParams.get('qn') || undefined,
+                bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
+                url: url.searchParams.get('url') || undefined,
+                p: ctx.req.param("p") || url.searchParams.get('p') || undefined,
+                allocation: url.searchParams.get("allocation") || undefined
             })
 
             if (!parmas.success) {
                 return ctx.jsonResp(parmas.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            const { type, platform, cdn, qn, p: page, format } = parmas.data
+            const { type, platform, cdn, qn, p: page, format, allocation } = parmas.data
             const bvid = parmas.data.bvid!
 
 
             const result = await this.parseBiliVideo(ctx, bvid, page, qn, platform, format)
             if (result.play.isDash) {
-                result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn)
+                result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn, allocation)
             }
             else {
-                result.play.url = this.utils.switchVideoCDN(ctx, result.play.url, cdn)
-                result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchVideoCDN(ctx, i, cdn))
+                result.play.url = this.utils.switchVideoCDN(ctx, result.play.url, cdn, allocation)
+                result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchVideoCDN(ctx, i, cdn, allocation))
             }
 
             if (result.play.isDash) {

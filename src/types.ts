@@ -10,7 +10,7 @@ export interface ContextInject {
     defer:(promise:Promise<any>)=>void
 }
 
-export interface CDNStrategy {
+export interface CDNAllocation {
     continent: string
     area: string
     cdn: string

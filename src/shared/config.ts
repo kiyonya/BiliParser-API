@@ -1,7 +1,8 @@
 import z from "zod"
 import { md5String } from "../utils/hashlib"
 import { MemoObject } from "../utils/memo"
-import { CDNStrategy } from "../types"
+import { CDNAllocation } from "../types"
+import { parseCDN, parseCDNAllocation } from "./cdn"
 
 const numberEnv = (def: number) => z.coerce.number().default(def)
 const stringEnv = z.coerce.string().optional()
@@ -12,7 +13,7 @@ export abstract class Config extends MemoObject {
 
     public static SERVER_VERSION = process.env.SERVER_VERSION
 
-    protected static DEFAULT_CDN_STRATEGE = "AS,CN,alib;*,*,aliov"
+    protected static DEFAULT_CDN_ALLOCATION = "AS,CN,alib;*,*,aliov"
     protected static DEFAULT_CDN = `
     ali,upos-sz-mirrorali.bilivideo.com;
     aliov,upos-sz-mirroraliov.bilivideo.com;
@@ -39,42 +40,6 @@ export abstract class Config extends MemoObject {
     rali,upos-sz-mirrorrali.bilivideo.com;
     akam,upos-hz-mirrorakam.akamaized.net`
 
-    public static parseCDNStrategy(strategies?: string): CDNStrategy[] {
-        const raw = strategies?.trim()
-        if (!raw) { return [] }
-        return raw.split(';').map(s => s.trim()).filter(Boolean).map(entry => {
-            const [continent, area, cdn] = entry.split(',').map(v => v.trim())
-            let priority = 2
-            if (area === '*') {
-                priority--
-            }
-            if (continent === '*') {
-                priority--
-            }
-            return {
-                continent: continent as string,
-                area: area as string,
-                cdn: cdn as string,
-                priority: priority as number
-            }
-        }).filter(s => s.continent && s.area && s.cdn).sort((a, b) => b.priority - a.priority)
-    }
-
-    public static parseCDN(cdn?: string): Record<string, string> {
-        if (!cdn) { return {} }
-        cdn = cdn.trim()
-        const cdns: Record<string, string> = {}
-        for (let c of cdn.split(";")) {
-            const parts = c.split(",").map(i => i.trim())
-            const key = parts[0]
-            const host = parts[1]
-            if (key && host) {
-                cdns[key] = host
-            }
-        }
-        return cdns
-    }
-
     //auth
     public static get IS_SERVER_LOGIN() {
         return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies !== undefined)
@@ -88,12 +53,12 @@ export abstract class Config extends MemoObject {
     }
 
     //cdn
-    public static get VIDEO_CDN_STRATEGE(): CDNStrategy[] {
-        return this.memo("VIDEO_CDN_STRATEGE", () => this.parseCDNStrategy(process.env.CONFIG_VideoCDNStrategy ?? this.DEFAULT_CDN_STRATEGE)) || []
+    public static get VIDEO_CDN_ALLOCATION(): CDNAllocation[] {
+        return this.memo("VIDEO_CDN_ALLOCATION", () => parseCDNAllocation(process.env.CONFIG_VideoCDNAllocation ?? process.env.CONFIG_VideoCDNStrategy ?? this.DEFAULT_CDN_ALLOCATION)) || []
     }
 
     public static get VIDEO_CDN(): Record<string, string> {
-        return this.memo('VIDEO_CDN', () => this.parseCDN(process.env.CONFIG_VideoCDN ?? this.DEFAULT_CDN)) || {}
+        return this.memo('VIDEO_CDN', () => parseCDN(process.env.CONFIG_VideoCDN ?? this.DEFAULT_CDN)) || {}
     }
 
     //cache
@@ -113,8 +78,8 @@ export abstract class Config extends MemoObject {
         return this.memo('RESPONSE_MAX_CACHE_TIME', () => numberEnv(3600).safeParse(process.env.CONFIG_ResponseMaxCacheTime).data ?? 3600)
     }
 
-   public static get KV_CACHE_BINGDING():string | undefined {
-        return this.memo("KV_CACHE_BINDING",()=>stringEnv.safeParse(process.env.CONFIG_KVCacheBinding).data)
+    public static get KV_CACHE_BINGDING(): string | undefined {
+        return this.memo("KV_CACHE_BINDING", () => stringEnv.safeParse(process.env.CONFIG_KVCacheBinding).data)
     }
 
     //cookies
