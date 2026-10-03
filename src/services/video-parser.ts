@@ -354,15 +354,15 @@ export default class BiliVideoParser extends Parser {
     protected async getStreamAppLike(bvid: string, cid: number, cookie: string, qn: number, platform: "app", format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL> {
 
         const requests: (() => Promise<Request>)[] = [
-            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.ios, format), {
+            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, SharedData.PLATFORM_KEY.ios, format), {
                 headers: {
-                    "User-Agent": BiliCrypto.PLATFORM_KEY.ios.ua
+                    "User-Agent": SharedData.PLATFORM_KEY.ios.ua
                 },
                 method: "GET"
             }),
-            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, BiliCrypto.PLATFORM_KEY.tv, format), {
+            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, SharedData.PLATFORM_KEY.tv, format), {
                 headers: {
-                    "User-Agent": BiliCrypto.PLATFORM_KEY.tv.ua
+                    "User-Agent": SharedData.PLATFORM_KEY.tv.ua
                 },
                 method: "GET"
             }),
