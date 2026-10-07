@@ -57,7 +57,6 @@ export default class BiliCrypto {
             let buvid4: string | null = null;
             let ticket: string | null = null
             let biliTicketExpires: number | null = null
-            let cookieCacheOk = true
 
             const [spiResult, ticketResult] = await Promise.allSettled([
                 (async () => {
@@ -78,15 +77,18 @@ export default class BiliCrypto {
                 })()
             ])
 
+            let cookieCacheOk = spiResult.status === 'fulfilled' && ticketResult.status === 'fulfilled'
+
             if (spiResult.status === 'fulfilled') {
                 const spi: BiliTypes.BAPI.FingerSPI = spiResult.value
-                if (spi.data?.b_3) buvid3 = spi.data.b_3
-                if (spi.data?.b_4) buvid4 = spi.data.b_4;
+                if (spi.data?.b_3) {
+                    buvid3 = spi.data.b_3
+                }
+                if (spi.data?.b_4) {
+                    buvid4 = spi.data.b_4
+                }
             }
-            if (!buvid3) { buvid3 = SharedData.BILI_DEFAULT_BUVID3 }
-            else {
-                cookieCacheOk = false
-            }
+
             if (ticketResult.status === 'fulfilled') {
                 const ticketJson: BiliTypes.BAPI.BiliWebTicket = ticketResult.value
                 if (ticketJson.data?.ticket) {
@@ -100,16 +102,13 @@ export default class BiliCrypto {
                     this.wbiSubUrl = ticketJson.data.nav.sub
                 }
             }
-            else {
-                cookieCacheOk = false
-            }
 
             cookies = {
                 "enable_web_push": "DISABLE",
                 "b_lsid": this.randomBlsid(signTs),
                 "theme_style": "light",
                 "_uuid": this.randomUUID(signTs),
-                "buvid3": buvid3,
+                "buvid3": buvid3 || SharedData.BILI_DEFAULT_BUVID3,
                 ...(ticket ? { "bili_ticket": ticket } : {}),
                 ...(buvid4 ? { "buvid4": buvid4 } : {}),
                 ...(biliTicketExpires ? { "bili_ticket_expires": String(biliTicketExpires) } : {}),
@@ -118,6 +117,7 @@ export default class BiliCrypto {
                 "CURRENT_FNVAL": "2000",
                 "lang": "zh-Hans"
             }
+
             if (cookieCacheOk && !noCache) {
                 const expirationAt = signTs + Config.COOKIES_SIGN_CACHE_TIME
                 await this.ctx.cache.setCache(cookiesCacheKey, cookies, () => {
