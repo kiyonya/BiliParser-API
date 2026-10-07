@@ -10,7 +10,7 @@ export default class EdgeCache {
         const reqUrl = new URL(ctx.req.url);
         const keyMd5 = md5String(cacheKey);
         const keyUrl = new URL(`${reqUrl.protocol}//${reqUrl.hostname}`);
-        keyUrl.pathname = `${reqUrl.pathname}/${keyMd5}`;
+        keyUrl.pathname = `/edgecache/${keyMd5}`;
         return keyUrl
     }
 

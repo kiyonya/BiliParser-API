@@ -1,13 +1,13 @@
 import type { Context } from "hono";
 import CacheableObject from "./utils/cache";
-import z from "zod";
+import z, { int } from "zod";
 
 
 export interface ContextInject {
     cache: CacheableObject,
     jsonResp: <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>) => Response,
     entryTrusted: boolean,
-    defer:(promise:Promise<any>)=>void
+    defer: (promise: Promise<any>) => void
 }
 
 export interface CDNAllocation {
@@ -48,9 +48,9 @@ export namespace BiliTypes {
             }
 
             export interface VideoInfo {
-                bvid: string,
+                bvid: string | null,
                 cid: number,
-                aid: number,
+                aid: number | null,
                 title: string,
                 pic: string
                 duration: number,
@@ -204,7 +204,7 @@ export namespace BiliTypes {
 
             export interface Live extends LiveInfo {
                 stream: LiveStream | null,
-                streamExpirationAt:number | null
+                streamExpirationAt: number | null
             }
         }
 
@@ -411,11 +411,11 @@ export namespace BiliTypes {
 
         export interface BiliWebTicket extends Response<{
             ticket: string,
-            created_at:number,
-            ttl:number,
-            nav:{
-                img:string,
-                sub:string
+            created_at: number,
+            ttl: number,
+            nav: {
+                img: string,
+                sub: string
             }
         }> { }
 
@@ -824,6 +824,7 @@ export namespace BiliTypes {
 
     export type BVideoPlatform = "web" | 'app'
     export type BLivePlatform = 'h5' | 'xlive'
+    export type BVideoId = { type: "avid", id: number} | { type: "bvid", id: string}
 
 }
 

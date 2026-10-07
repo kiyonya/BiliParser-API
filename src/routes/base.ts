@@ -16,16 +16,20 @@ export class BaseRoute extends Route {
         const ray = ctx.req.header("cf-ray")
 
         const demoBvid = "BV1JTRGBBEy2"
+        const demoAvid = "av248637970"
 
         const demoUrls: Record<string, string> = {
             "video play": `${demoUrl}/video/${demoBvid}`,
             "video part": `${demoUrl}/video/BV1LCzTByEBY/2`,
             "video info": `${demoUrl}/video/${demoBvid}?type=json`,
             "video dash": `${demoUrl}/video/${demoBvid}?format=dash&platform=pc&qn=80`,
+            "video play av": `${demoUrl}/video/${demoAvid}`,
+            "video info av": `${demoUrl}/video/${demoAvid}?type=json`,
             "video cover": `${demoUrl}/cover/${demoBvid}`,
             "video subtitle": `${demoUrl}/subtitle/BV1vnbPz4ECg`,
             "video subtitle part": `${demoUrl}/subtitle/BV1vnbPz4ECg/1`,
             "video subtitle advance": `${demoUrl}/subtitle/BV1vnbPz4ECg?lang=zh-Hans&type=srt`,
+            "video cdn allocations": `${demoUrl}/cdn`,
             "search video": `${demoUrl}/search/video?keyword=宇多田光`,
             "search uploader": `${demoUrl}/search/up?keyword=宇多田光`,
             "search live": `${demoUrl}/search/live?keyword=VRChat`,
@@ -73,17 +77,20 @@ export class BaseRoute extends Route {
         
         <body>
         <h2>Cloudflare BiliParser API</h2>
-        <span>${Object.keys(infos).map(k=>`${k}: ${infos[k]}`).join("&nbsp;&nbsp;|&nbsp;&nbsp")}</span>
+        <span>${Object.keys(infos).map(k => `${k}: ${infos[k]}`).join("&nbsp;&nbsp;|&nbsp;&nbsp")}</span>
 
         <br />
         <br />
         
         <h3>Introduction</h3>
         
-        <p>A server running on Cloudflare Workers used to parse Bilibili videos, covers, danmaku list, live streams, bangumis, and archives.</p>
+        <p>A free and lightweight server running on Cloudflare Workers used to parse Bilibili videos, covers, danmaku list, live streams, bangumis, archives, search and favourite playlist.</p>
+
         <p>It was designed to play videos and live streams in VRChat. It also provides an API interface that lets you call it whenever you need.</p>
+
         <p>The server will determine your approximate country or region to assign the appropriate CDN server. Your information won't be collected and will be deleted after the request is completed.</p>
         <p><b>Please don't use it for illegal or unauthorized purposes</b></p>
+        <p><b>No crawlers or bots</b></p>
         <br />
         <p>
         <a href="${github}">Github</a>

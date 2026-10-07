@@ -1,7 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { AppContext, BiliTypes, CDNAllocation } from "../types";
-import z from "zod";
-import { Geolib } from "./geolib";
+import z, { util } from "zod";
 import { Config } from "../shared/config";
 import SharedData from "../shared/data";
 import { parseCDNAllocation } from "../shared/cdn";
@@ -11,22 +10,6 @@ export interface APIResponse<Data = any> {
     message: string,
     time?: number,
     data: Data,
-}
-
-export namespace ResolveBiliURL {
-
-    export interface Video {
-        type: "video",
-        bvid: string,
-        p: number
-    }
-
-    export interface Live {
-        type: "live",
-        roomId: number
-    }
-
-    export type Resolved = Video | Live
 }
 
 export default abstract class Route extends OpenAPIRoute {
@@ -62,10 +45,12 @@ export default abstract class Route extends OpenAPIRoute {
                 }
             }
             if (cdnHostname) {
-                const _ = new URL(url)
-                _.hostname = cdnHostname
-                url = _.toString()
+                const replaceUrl = new URL(url)
+                const originHostname = replaceUrl.hostname
+                replaceUrl.hostname = cdnHostname
+                url = replaceUrl.toString()
                 ctx.header('X-Bili-CDN', cdnHostname)
+                ctx.header('X-Bili-Origin-CDN',originHostname)
             }
             return url
         },
@@ -87,8 +72,7 @@ export default abstract class Route extends OpenAPIRoute {
                 isUseOvStream = ov
             }
             else {
-                const geo = Geolib.geo(ctx.req.raw.cf)
-                isUseOvStream = !Geolib.isCN(geo)
+                isUseOvStream = this.utils.isCNArea(ctx.req.raw.cf)
             }
             if (isUseOvStream) {
                 stream.urls.forEach(ug => {
@@ -123,44 +107,88 @@ export default abstract class Route extends OpenAPIRoute {
             } catch (error) { }
             return null
         },
-        resolveBiliUrl: async (biliurl: string | URL): Promise<ResolveBiliURL.Resolved | null> => {
-            try {
-                let url: URL = new URL(biliurl)
-                if (SharedData.URLPatterns.B23_TV.test(url)) {
-                    const targetUrl = await Route.utils.getShortLinkRedirectUrl(url)
-                    if (targetUrl) { url = targetUrl }
-                }
-
-                if (SharedData.URLPatterns.BILI_VIDEO.test(url)) {
-                    const pathname = url.pathname
-                    const bvpart = pathname.match(/(BV[a-zA-Z0-9]{10})/)?.[1]
-                    const part = url.searchParams.get("p") || undefined
-                    const bvid = z.string().trim().nullable().default(null).safeParse(bvpart).data
-                    const p = z.coerce.number().int().nonnegative().default(1).transform(p => p === 0 ? 1 : p).safeParse(part).data
-                    if (bvid && p) {
-                        const result: ResolveBiliURL.Video = {
-                            type: "video",
-                            bvid: bvid,
-                            p: p
-                        }
-                        return result
-                    }
-                }
-                else if (SharedData.URLPatterns.BILI_LIVE.test(url)) {
-                    const pathname = url.pathname
-                    const roomId = z.coerce.number().int().positive().safeParse(pathname.substring(1).split("/").shift()).data
-                    if (roomId) {
-                        const result: ResolveBiliURL.Live = {
-                            type: "live",
-                            roomId: roomId
-                        }
-                        return result
-                    }
-                }
-                return null
-            } catch (error) {
-                return null
+        resolveBvid: (i: string): string | null => {
+            i = i.trim()
+            const bvLike = i.match(SharedData.BVID_REG)?.[1]?.trim()
+            if (bvLike && bvLike.startsWith("BV")) { return bvLike }
+            return null
+        },
+        resolveAvid: (i: string): number | null => {
+            i = i.trim();
+            const avid = i.match(SharedData.AVID_REG)?.[1]?.trim();
+            if (avid) {
+                const avNumber = parseInt(avid, 10);
+                return Number.isNaN(avNumber) ? null : avNumber;
             }
+            return null;
+        },
+        resolveVideoEntryFromUrl: async (iurl: URL | string): Promise<{ videoId: BiliTypes.BVideoId, p: number } | null> => {
+            let url: URL = iurl instanceof URL ? iurl : new URL(iurl)
+            if (SharedData.URLPatterns.B23_TV.test(url)) {
+                const targetUrl = await Route.utils.getShortLinkRedirectUrl(url)
+                if (targetUrl) { url = targetUrl }
+            }
+            if (SharedData.URLPatterns.BILI_VIDEO.test(url)) {
+                const pathname = url.pathname
+                const p = Math.max(url.searchParams.has("p") ? parseInt(url.searchParams.get("p")!) : 1, 1)
+                const bv = this.utils.resolveBvid(pathname)
+                if (bv) {
+                    return { videoId: { type: "bvid", id: bv }, p: p }
+                }
+                const av = this.utils.resolveAvid(pathname)
+                if (av) {
+                    return { videoId: { type: "avid", id: av }, p: p }
+                }
+            }
+            return null
+        },
+        resolveLiveRoomIdFromUrl: async (iurl: URL | string): Promise<number | null> => {
+            let url: URL = iurl instanceof URL ? iurl : new URL(iurl)
+            if (SharedData.URLPatterns.B23_TV.test(url)) {
+                const targetUrl = await Route.utils.getShortLinkRedirectUrl(url)
+                if (targetUrl) { url = targetUrl }
+            }
+            if (SharedData.URLPatterns.BILI_LIVE.test(url)) {
+                const roomIdLike = url.pathname.split('/').filter(i => i.length)[0]
+                if (roomIdLike) {
+                    const roomId = parseInt(roomIdLike, 10)
+                    if (!Number.isNaN(roomId) && roomId > 0) {
+                        return roomId
+                    }
+                }
+            }
+            return null
+        },
+        zodBiliUrl: (patterns: URLPattern[], message?: string) => {
+            return z.url().refine(
+                (u) => patterns.some(p => p.test(u)),
+                message ?? "url is not a supported bilibili url"
+            )
+        },
+        zodBiliVideoIdTransformer: async <T>(args: T) => {
+            //@ts-ignore
+            const { id, url, p } = args
+            if (url) {
+                const resolved = await this.utils.resolveVideoEntryFromUrl(url)
+                if (resolved) {
+                    return { ...args, videoId: resolved.videoId, p: resolved.p ?? p }
+                }
+            }
+            else if (id) {
+                const bvid = this.utils.resolveBvid(id)
+                if (bvid) { return { ...args, videoId: { type: "bvid", id: bvid } as BiliTypes.BVideoId } }
+                const avid = this.utils.resolveAvid(id)
+                if (avid) { return { ...args, videoId: { type: "avid", id: avid } as BiliTypes.BVideoId } }
+            }
+            return { ...args, videoId: null }
+        },
+        zodAlignVideoQualityTransformer: <T>(args: T) => {
+            //@ts-ignore
+            let { qn } = args
+            if (!Config.IS_SERVER_LOGIN) {
+                qn = Math.min(qn, 80)
+            }
+            return { ...args, qn }
         }
     }
     protected readonly utils = Route.utils

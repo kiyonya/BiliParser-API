@@ -14,42 +14,40 @@ export class BiliVideoRoute extends Route {
         qn: z.enum(["6", "16", "32", "64", "74", "80", "100", "112", "116", "120", "125", "126", "127", "129"]).default("64").transform((qn) => parseInt(qn)),
         format: z.enum(['mp4', 'dash']).default('mp4'),
         platform: z.enum(['html5', 'pc', 'app']).default('html5'),
-        url: z.url().optional(),
-        bvid: z.string().optional(),
-        p: z.coerce.number().nonnegative().int().default(1).transform(p => p === 0 ? 1 : p),
-        allocation: z.string().optional()
-    }).transform(async (args) => {
-        let { bvid, p, url, qn, platform } = args
-        if (url) {
-            const result = await this.utils.resolveBiliUrl(url)
-            if (result && result?.type === 'video') {
-                bvid = result.bvid
-                p = result.p || 1
-            }
-        }
-        if (!Config.IS_SERVER_LOGIN) {
-            qn = Math.min(qn, 80)
-        }
-        return { ...args, p: p, bvid: bvid, platform, qn }
-    }).superRefine((args, ctx) => {
-        if (!args.bvid) {
-            ctx.addIssue("cannot find bvid to parse")
-        }
-        if (args.format === 'dash' && args.platform === 'html5' && !Config.IS_SERVER_LOGIN) {
-            ctx.addIssue("Your request is fine, but when the platform is html5 and the format is dash, the server must be logged in. The current server is running offline, so please try changing the platform to app or pc.")
-        }
+        allocation: z.string().optional(),
+        url: this.utils.zodBiliUrl([SharedData.URLPatterns.BILI_VIDEO, SharedData.URLPatterns.B23_TV], "url must be a bilibili video page or b23.tv short link").optional(),
+        id: z.string().optional(),
+        p: z.coerce.number().nonnegative().int().default(1).transform(p => p === 0 ? 1 : p)
     })
+        .transform(this.utils.zodBiliVideoIdTransformer)
+        .transform(this.utils.zodAlignVideoQualityTransformer)
+        .superRefine((args, ctx) => {
+            if (!args.videoId) {
+                ctx.addIssue("cannot resolve video id: no valid url, bvid or avid was provided, so the video cannot be parsed")
+            }
+            if (args.format === 'dash' && args.platform === 'html5' && !Config.IS_SERVER_LOGIN) {
+                ctx.addIssue("Your request is fine, but when the platform is html5 and the format is dash, the server must be logged in. The current server is running offline, so please try changing the platform to app or pc.")
+            }
+        })
 
-    private async parseBiliVideo(ctx: AppContext, bvid: string, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
-
+    private async parseBiliVideo(ctx: AppContext, videoId: BiliTypes.BVideoId, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
         const parser = new BiliVideoParser(ctx)
-        const infoKey = SharedData.cacheKey.videoInfo(bvid)
+
+        const infoKey = videoId.type === 'bvid' ? SharedData.cacheKey.videoInfoBv(videoId.id) : SharedData.cacheKey.videoInfoAv(videoId.id)
         let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
-            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
-            await ctx.cache.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(videoId), Schema.videoInfoSchema, true)
+            const setCacheTasks: Promise<void>[] = []
+            if (videoInfo.bvid) {
+                setCacheTasks.push(ctx.cache.setCache(SharedData.cacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME))
+            }
+            if (videoInfo.aid) {
+                setCacheTasks.push(ctx.cache.setCache(SharedData.cacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME))
+            }
+            await Promise.allSettled(setCacheTasks)
         }
+
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
         }
@@ -66,7 +64,7 @@ export class BiliVideoRoute extends Route {
         if (!videoPlay) {
             const duration = videoInfo.duration
 
-            videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(bvid, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Schema.videoPlaySchema, true)
+            videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(videoId, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Schema.videoPlaySchema, true)
 
             await ctx.cache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, videoPlay, (data) => {
                 let videoBufferTimeS: number
@@ -107,20 +105,23 @@ export class BiliVideoRoute extends Route {
                 format: url.searchParams.get("format") || undefined,
                 cdn: url.searchParams.get('cdn') || undefined,
                 qn: url.searchParams.get('qn') || undefined,
-                bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
+                id: ctx.req.param("id") || url.searchParams.get('bvid') || url.searchParams.get("avid") || undefined,
                 url: url.searchParams.get('url') || undefined,
                 p: ctx.req.param("p") || url.searchParams.get('p') || undefined,
+
                 allocation: url.searchParams.get("allocation") || undefined
             })
 
             if (!parmas.success) {
                 return ctx.jsonResp(parmas.error.issues[0]?.message ?? "invalid params", 400, null)
             }
-            const { type, platform, cdn, qn, p: page, format, allocation } = parmas.data
-            const bvid = parmas.data.bvid!
+            const { type, platform, cdn, qn, format, allocation, p } = parmas.data
 
+            const videoId = parmas.data.videoId!
+            ctx.header("X-Video-Id", `${videoId.type}:${videoId.id}`)
 
-            const result = await this.parseBiliVideo(ctx, bvid, page, qn, platform, format)
+            const result = await this.parseBiliVideo(ctx, videoId, p, qn, platform, format)
+
             if (result.play.isDash) {
                 result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn, allocation)
             }
@@ -138,7 +139,6 @@ export class BiliVideoRoute extends Route {
                         return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result)
                     case "video":
                     default:
-                        ctx.header("X-Bili-Bvid", bvid)
                         return ctx.redirect(result.play.url, 302)
                 }
             }

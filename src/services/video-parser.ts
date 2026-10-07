@@ -1,5 +1,4 @@
 import { BiliTypes } from "../types"
-import BiliCrypto from "../utils/bili-crypto"
 import Parser from "../utils/parser"
 import { proxyFetch } from "../utils/proxy-fetch"
 import SharedData from "../shared/data"
@@ -16,22 +15,29 @@ export default class BiliVideoParser extends Parser {
         dash: 4048
     }
 
-    public async getVideoInfo(bvid: string): Promise<BiliTypes.RES.Video.VideoInfo> {
+    public async getVideoInfo(videoId: BiliTypes.BVideoId): Promise<BiliTypes.RES.Video.VideoInfo> {
         const cookie = await this.BCrypto.getBiliCookie();
         const videoViewInfoURL = new URL(SharedData.BILI_VIDEO_VIEW_API)
-        videoViewInfoURL.searchParams.append('bvid', bvid)
-        const videoViewReq = await proxyFetch(videoViewInfoURL, {
-            headers: new Headers({
-                //headless
-                'cookie': cookie
-            })
-        })
 
+        switch (videoId.type) {
+            case "avid":
+                videoViewInfoURL.searchParams.append('aid', String(videoId.id))
+                break
+            case "bvid":
+                videoViewInfoURL.searchParams.append('bvid', videoId.id)
+
+        }
+        const videoViewReq = await proxyFetch(videoViewInfoURL, {
+            headers: {
+                'cookie': cookie
+            }
+        })
         const videoViewData = await videoViewReq.json<BiliTypes.BAPI.BiliVideoViewInfo>()
         if (videoViewData.code === 0) {
             const headData = videoViewData.data
             const duration = headData.duration
-            const aid = headData.aid
+            const bvid = videoViewData.data.bvid || null
+            const aid = headData.aid > 0 ? headData.aid : null
             const cid = headData.cid
             const cover = headData.pic || ""
             const title = headData.title || ""
@@ -62,7 +68,14 @@ export default class BiliVideoParser extends Parser {
         }
 
         const videoCidURL = new URL(SharedData.BILI_CID_BACKUP_API)
-        videoCidURL.searchParams.append('bvid', bvid)
+        switch (videoId.type) {
+            case "avid":
+                videoCidURL.searchParams.append('aid', String(videoId.id))
+                break
+            case "bvid":
+                videoCidURL.searchParams.append('bvid', videoId.id)
+
+        }
         const videoCidReq = await proxyFetch(videoCidURL, {
             headers: new Headers({
                 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie
@@ -77,7 +90,8 @@ export default class BiliVideoParser extends Parser {
             }
             const cid = pageData.cid as number
             const duration = pageData.duration as number
-            const aid = -1
+            const bvid = videoId.type === 'bvid' ? videoId.id : null
+            const aid = null
             const cover = pageData.first_frame || ""
             const title = pageData.part || ""
             const desc = ""
@@ -152,12 +166,11 @@ export default class BiliVideoParser extends Parser {
         return adash
     }
 
-    private getUrlExpirationAt(url: string): number {
+    private getUrlExpirationAt(url: URL): number {
         let urlExpirationAt: number
         try {
-            const playURL = new URL(url)
-            if (playURL.searchParams.has('deadline')) {
-                urlExpirationAt = (parseInt(playURL.searchParams.get('deadline') as string))
+            if (url.searchParams.has('deadline')) {
+                urlExpirationAt = (parseInt(url.searchParams.get('deadline') as string))
             }
             else {
                 urlExpirationAt = Math.floor(Date.now() / 1000) + 3600
@@ -173,10 +186,11 @@ export default class BiliVideoParser extends Parser {
         if (!dash) {
             throw new Error("cannot create dash")
         }
-        const vurl = dash.video[0]?.baseUrl
-        if (!vurl) {
+        const baseUrl = dash.video[0]?.baseUrl
+        if(!baseUrl){
             throw new Error("source is got,but no video found")
         }
+        const vurl = new URL(baseUrl)
         const playDash: BiliTypes.RES.Video.PlayDash = {
             duration: dash.duration,
             isDash: true,
@@ -197,16 +211,17 @@ export default class BiliVideoParser extends Parser {
     }
 
     private createPlayUrl(playUrl: BiliTypes.BAPI.BiliPlayURL, cid: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): BiliTypes.RES.Video.PlayURL {
-        const durl = playUrl.data.durl[0]
+        const durlItem = playUrl.data.durl[0]
         const quality = playUrl.data.quality
-        if (!durl) {
+        if (!durlItem) {
             throw new Error("cannot create durl")
         }
-        const url = durl.url
-        if (!url) {
+        const durl = durlItem.url
+        if (!durl) {
             throw new Error("source is got,but no video found")
         }
-        const duration = Math.floor(durl.length / 1000)
+        const url = new URL(durl)
+        const duration = Math.floor(durlItem.length / 1000)
         const pUrl: BiliTypes.RES.Video.PlayURL = {
             isDash: false,
             duration: duration,
@@ -214,17 +229,24 @@ export default class BiliVideoParser extends Parser {
             urlExpirationAt: this.getUrlExpirationAt(url),
             platform: platform,
             format: format,
-            url: url,
-            backupUrl: durl.backup_url || [],
+            url: url.toString(),
+            backupUrl: durlItem.backup_url || [],
             quality: quality,
             realQuality: quality
         }
         return pUrl;
     }
 
-    private createReqUrl(bvid: string, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): URL {
+    private createReqUrl(videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): URL {
         const url = new URL(SharedData.BILI_VIDEO_PLAYURL_API)
-        url.searchParams.append("bvid", String(bvid))
+        switch (videoId.type) {
+            case "avid":
+                url.searchParams.append("avid", String(videoId.id))
+                break
+            case "bvid":
+                url.searchParams.append("bvid", String(videoId.id))
+                break
+        }
         url.searchParams.append('cid', String(cid))
         url.searchParams.append('qn', String(qn))
         url.searchParams.append('otype', 'json')
@@ -237,10 +259,18 @@ export default class BiliVideoParser extends Parser {
         return url
     }
 
-    private async createWbiReqUrl(bvid: string, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
+    private async createWbiReqUrl(videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
         const wbiUrl = new URL(SharedData.BILI_VIDEO_WBI_PLAYURL_API)
         const params: Record<string, any> = {
-            bvid, cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format], fourk: 1, fnver: 0
+            cid, qn, try_look: 1, platform: platform, high_quality: 1, otype: "json", fnval: this.formatFnvalMap[format], fourk: 1, fnver: 0
+        }
+        switch (videoId.type) {
+            case "avid":
+                params["avid"] = String(videoId.id)
+                break
+            case "bvid":
+                params["bvid"] = String(videoId.id)
+                break
         }
         const sign = await this.BCrypto.signWbi(params)
         for (const [key, value] of Object.entries(sign)) {
@@ -249,9 +279,8 @@ export default class BiliVideoParser extends Parser {
         return wbiUrl
     }
 
-    private async createAppReqUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.PlatformAPPKEY, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
+    private async createAppReqUrl(videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: BiliTypes.PlatformAPPKEY, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<URL> {
         const params: Record<string, any> = {
-            bvid,
             cid: String(cid),
             qn: String(qn),
             platform: platform.platform,
@@ -261,6 +290,14 @@ export default class BiliVideoParser extends Parser {
             fourk: 1,
             fnver: 0
         };
+        switch (videoId.type) {
+            case "avid":
+                params["avid"] = String(videoId.id)
+                break
+            case "bvid":
+                params["bvid"] = String(videoId.id)
+                break
+        }
         const sign = await this.BCrypto.signApp(params, platform);
         const url = new URL(SharedData.BILI_VIDEO_PLAYURL_API)
         for (const [key, value] of Object.entries(sign)) {
@@ -273,7 +310,7 @@ export default class BiliVideoParser extends Parser {
      * @reload
      */
     protected async getStreamWebLike(
-        bvid: string,
+        videoId: BiliTypes.BVideoId,
         cid: number,
         cookie: string,
         qn: number,
@@ -281,16 +318,16 @@ export default class BiliVideoParser extends Parser {
         format: 'dash'
     ): Promise<BiliTypes.RES.Video.PlayDash>;
     protected async getStreamWebLike(
-        bvid: string,
+        videoId: BiliTypes.BVideoId,
         cid: number,
         cookie: string,
         qn: number,
         platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">,
         format: 'mp4'
     ): Promise<BiliTypes.RES.Video.PlayURL>;
-    protected async getStreamWebLike(bvid: string, cid: number, cookie: string, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
+    protected async getStreamWebLike(videoId: BiliTypes.BVideoId, cid: number, cookie: string, qn: number, platform: Omit<BiliTypes.RES.Video.VideoPlayPlatform, "app">, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
         const requests: (() => Request | Promise<Request>)[] = [
-            () => new Request(this.createReqUrl(bvid, cid, qn, platform, format), {
+            () => new Request(this.createReqUrl(videoId, cid, qn, platform, format), {
                 headers: {
                     ...SharedData.FAKE_BROWSER_HEADERS,
                     'referer': SharedData.BILI_REFERER,
@@ -298,7 +335,7 @@ export default class BiliVideoParser extends Parser {
                 },
                 method: "GET"
             }),
-            async () => new Request(await this.createWbiReqUrl(bvid, cid, qn, platform, format), {
+            async () => new Request(await this.createWbiReqUrl(videoId, cid, qn, platform, format), {
                 headers: {
                     ...SharedData.FAKE_BROWSER_HEADERS,
                     'Referer': SharedData.BILI_REFERER,
@@ -336,7 +373,7 @@ export default class BiliVideoParser extends Parser {
     }
 
     protected async getStreamAppLike(
-        bvid: string,
+        videoId: BiliTypes.BVideoId,
         cid: number,
         cookie: string,
         qn: number,
@@ -344,23 +381,23 @@ export default class BiliVideoParser extends Parser {
         format: 'dash'
     ): Promise<BiliTypes.RES.Video.PlayDash>;
     protected async getStreamAppLike(
-        bvid: string,
+        videoId: BiliTypes.BVideoId,
         cid: number,
         cookie: string,
         qn: number,
         platform: "app",
         format: 'mp4'
     ): Promise<BiliTypes.RES.Video.PlayURL>;
-    protected async getStreamAppLike(bvid: string, cid: number, cookie: string, qn: number, platform: "app", format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL> {
+    protected async getStreamAppLike(videoId: BiliTypes.BVideoId, cid: number, cookie: string, qn: number, platform: "app", format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL> {
 
         const requests: (() => Promise<Request>)[] = [
-            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, SharedData.PLATFORM_KEY.ios, format), {
+            async () => new Request(await this.createAppReqUrl(videoId, cid, qn, SharedData.PLATFORM_KEY.ios, format), {
                 headers: {
                     "User-Agent": SharedData.PLATFORM_KEY.ios.ua
                 },
                 method: "GET"
             }),
-            async () => new Request(await this.createAppReqUrl(bvid, cid, qn, SharedData.PLATFORM_KEY.tv, format), {
+            async () => new Request(await this.createAppReqUrl(videoId, cid, qn, SharedData.PLATFORM_KEY.tv, format), {
                 headers: {
                     "User-Agent": SharedData.PLATFORM_KEY.tv.ua
                 },
@@ -399,18 +436,18 @@ export default class BiliVideoParser extends Parser {
     /**
      * @reload
      */
-    public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "mp4"): Promise<BiliTypes.RES.Video.PlayURL>
-    public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "dash"): Promise<BiliTypes.RES.Video.PlayDash>
-    public async getVideoPlayUrl(bvid: string, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform = 'html5', format: BiliTypes.RES.Video.VideoPlayFormat = 'mp4'): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
+    public async getVideoPlayUrl(videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "mp4"): Promise<BiliTypes.RES.Video.PlayURL>
+    public async getVideoPlayUrl(videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: "dash"): Promise<BiliTypes.RES.Video.PlayDash>
+    public async getVideoPlayUrl(videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform = 'html5', format: BiliTypes.RES.Video.VideoPlayFormat = 'mp4'): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
         const cookie = await this.BCrypto.getBiliCookie();
         switch (platform) {
             case "html5":
             case "pc":
             default:
                 // 针对此实现的调用已成功，但重载的实现签名在外部不可见
-                return this.getStreamWebLike(bvid, cid, cookie, qn, platform, format as any)
+                return this.getStreamWebLike(videoId, cid, cookie, qn, platform, format as any)
             case "app":
-                return this.getStreamAppLike(bvid, cid, cookie, qn, platform, format as any)
+                return this.getStreamAppLike(videoId, cid, cookie, qn, platform, format as any)
         }
     }
 
@@ -450,12 +487,19 @@ export default class BiliVideoParser extends Parser {
         return null
     }
 
-    public async getVideoSubtitles(bvid: string, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
+    public async getVideoSubtitles(videoId: BiliTypes.BVideoId, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const cookie = await this.BCrypto.getBiliCookie()
         const url = new URL(SharedData.BILI_PLAYERV2_API)
         const params: Record<string, string> = {
-            bvid: bvid,
             cid: String(cid)
+        }
+        switch (videoId.type) {
+            case "avid":
+                params["avid"] = String(videoId.id)
+                break
+            case "bvid":
+                params["bvid"] = String(videoId.id)
+                break
         }
         const sign = await this.BCrypto.signWbi(params)
         for (const [key, value] of Object.entries(sign)) {

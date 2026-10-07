@@ -39,6 +39,8 @@ export default abstract class SharedData {
     public static readonly BILI_WEB_TICKET_API = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
     public static readonly BILI_WEB_NAV = "https://api.bilibili.com/x/web-interface/nav"
     public static readonly BILI_MIXIN_KEY_ENC = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]
+    public static readonly BVID_REG = /(BV[a-zA-Z0-9]{10})/
+    public static readonly AVID_REG = /(?:av)?(\d+)/i;
     public static readonly HEXCHAR = '0123456789ABCDEF';
     public static get BILI_DEFAULT_BUVID3() {
         let hex = '';
@@ -59,10 +61,14 @@ export default abstract class SharedData {
         BILI_LIVE: new URLPattern('*://live.bilibili.com/*')
     }
 
+
     public static readonly cacheKey = {
         cookie: () => `${SharedData.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`,
-        videoInfo: (bvid: string) => {
-            return `${SharedData.CACHE_DATA_VERSION}:videoInfo:${bvid}`
+        videoInfoBv: (bvid: string) => {
+            return `${SharedData.CACHE_DATA_VERSION}:videoInfo:bvid:${bvid}`
+        },
+        videoInfoAv: (avid: number) => {
+            return `${SharedData.CACHE_DATA_VERSION}:videoInfo:aid:${avid}`
         },
         videoPlayUrl: (cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat, loginKey: string) => {
             return `${SharedData.CACHE_DATA_VERSION}:videoPlayUrl:${loginKey}:${cid}:${qn}:${platform}:${format}`
@@ -89,8 +95,8 @@ export default abstract class SharedData {
         danmaku: (cid: number) => {
             return `${SharedData.CACHE_DATA_VERSION}:danmaku:${cid}`
         },
-        danmakuJSON: (bvid: string, p: number) => {
-            return `${SharedData.CACHE_DATA_VERSION}:danmakuJSON:${bvid}:${p}`
+        danmakuJSON: (cid: number) => {
+            return `${SharedData.CACHE_DATA_VERSION}:danmakuJSON:${cid}`
         },
         live: (roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls") => {
             return `${SharedData.CACHE_DATA_VERSION}:live:${roomId}:${platform}:${codec}:${format}:${protocol}`

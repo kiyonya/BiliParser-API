@@ -17,9 +17,9 @@ export abstract class Schema extends MemoObject {
 
     public static get videoInfoSchema(): z.ZodType<BiliTypes.RES.Video.VideoInfo> {
         return this.memo("videoInfoSchema", () => z.object({
-            bvid: z.string(),
+            bvid: z.string().nullable(),
             cid: z.number(),
-            aid: z.number(),
+            aid: z.number().nullable(),
             title: z.string(),
             pic: z.union([z.url(), z.string()]).default(""),
             duration: z.number().nonnegative(),

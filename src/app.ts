@@ -111,18 +111,18 @@ const openapi = fromHono(app, {
 });
 
 openapi.all('/', BaseRoute)
-openapi.get('/danmaku/:bvid?/:p?', BiliDanmakuRoute)
-openapi.get('/video/:bvid?/:p?', BiliVideoRoute)
-openapi.get('/subtitle/:bvid?/:p?', SubtitleRoute)
-openapi.get('/cover/:bvid?', BiliCoverRoute)
 openapi.get('/cdn', BiliVideoCDNRoute)
+openapi.get('/cookie', BiliCookieRoute)
+openapi.get('/ipregion', BiliIpRegionRoute)
+openapi.get('/video/:id?/:p?', BiliVideoRoute)
+openapi.get('/danmaku/:id?/:p?', BiliDanmakuRoute)
+openapi.get('/subtitle/:id?/:p?', SubtitleRoute)
+openapi.get('/cover/:id?', BiliCoverRoute)
 openapi.get('/live/:roomId?', BiliLiveRoute)
 openapi.get('/bangumi/info', BiliBangumiInfoRoute)
 openapi.get('/bangumi/episodes', BiliBangumiEpisodesRoute)
-openapi.get('/ipregion', BiliIpRegionRoute)
 openapi.get('/user/archieve/:mid?/:sid?', BiliArchieveRoute)
 openapi.get('/user/fav/:fid?', BiliFavListRoute)
 openapi.get('/search/:type?', SearchRoute)
-openapi.get('/cookie', BiliCookieRoute)
 
 export default app

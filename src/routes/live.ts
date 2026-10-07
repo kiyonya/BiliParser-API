@@ -19,17 +19,17 @@ export class BiliLiveRoute extends Route {
             return ov === "true"
         }),
         roomId: z.coerce.number().optional(),
-        url: z.url().optional()
+        url: this.utils.zodBiliUrl([SharedData.URLPatterns.BILI_LIVE, SharedData.URLPatterns.B23_TV], "url must be a live.bilibili.com room or b23.tv short link").optional()
     })
         .transform(async (args) => {
-            let { roomId, url } = args
+            const { url } = args
             if (url) {
-                const result = await this.utils.resolveBiliUrl(url)
-                if (result && result.type === 'live') {
-                    roomId = result.roomId
+                const resolvedRoomId = await this.utils.resolveLiveRoomIdFromUrl(url)
+                if (resolvedRoomId) {
+                    return { ...args, roomId: resolvedRoomId }
                 }
             }
-            return { ...args, roomId }
+            return args
         }).superRefine((args, ctx) => {
             if (!args.roomId) {
                 ctx.addIssue("roomId or url needed to parse")

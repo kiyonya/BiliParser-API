@@ -10,36 +10,32 @@ import SharedData from "../shared/data";
 export class BiliDanmakuRoute extends Route {
 
     private readonly paramSchema = z.object({
-        bvid: z.string().optional(),
+        url: this.utils.zodBiliUrl([SharedData.URLPatterns.BILI_VIDEO, SharedData.URLPatterns.B23_TV], "url must be a bilibili video page or b23.tv short link").optional(),
+        id: z.string().optional(),
         type: z.enum(['xml', 'json']).optional().default('xml'),
-        url: z.url().optional(),
         p: z.coerce.number().nonnegative().int().optional().default(1).transform(p => p === 0 ? 1 : p)
-    }).transform(async (args) => {
-        let { bvid, p, url } = args
-        if (url) {
-            const result = await this.utils.resolveBiliUrl(url)
-            if(result && result?.type === 'video'){
-                bvid = result.bvid
-                p = result.p || 1
-            }
-        }
-        return { ...args, bvid, p }
-    }).superRefine((args, ctx) => {
-        if (!args.bvid) {
-            ctx.addIssue("cannot find bvid to parse")
+    }).transform(this.utils.zodBiliVideoIdTransformer).superRefine((args, ctx) => {
+        if (!args.videoId) {
+            ctx.addIssue("cannot resolve video id: no valid url, bvid or avid was provided, so the video cannot be parsed")
         }
     })
 
-    private async getDanmakuXML(ctx: AppContext, bvid: string, p: number = 1): Promise<string | null> {
+    private async getVideoCid(ctx: AppContext, videoId: BiliTypes.BVideoId, p: number = 1): Promise<number> {
         const parser = new BiliVideoParser(ctx)
-        const infoKey = SharedData.cacheKey.videoInfo(bvid)
-
-        //Validation.videoInfoSchema
+        const infoKey = videoId.type === 'bvid' ? SharedData.cacheKey.videoInfoBv(videoId.id) : SharedData.cacheKey.videoInfoAv(videoId.id)
         let videoInfo = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
-            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
-            await ctx.cache?.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(videoId), Schema.videoInfoSchema, true)
+
+            const setCacheTasks: Promise<void>[] = []
+            if (videoInfo.bvid) {
+                setCacheTasks.push(ctx.cache.setCache(SharedData.cacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME))
+            }
+            if (videoInfo.aid) {
+                setCacheTasks.push(ctx.cache.setCache(SharedData.cacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME))
+            }
+            await Promise.allSettled(setCacheTasks)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -51,7 +47,11 @@ export class BiliDanmakuRoute extends Route {
         const cid = targetPart.cid
         ctx?.header("x-url-cid", String(cid))
         ctx?.header("x-url-vpart", String(p))
+        return cid
+    }
 
+    private async getDanmakuXML(ctx: AppContext, cid: number): Promise<string | null> {
+        const parser = new BiliVideoParser(ctx)
         const key = SharedData.cacheKey.danmaku(cid)
 
         let danmakuXML = await this.getSchemaValidData(await ctx.cache?.getCache<string>(key), Schema.danmakuSchema)
@@ -114,7 +114,7 @@ export class BiliDanmakuRoute extends Route {
         try {
             const url = new URL(ctx.req.url)
             const params = await this.paramSchema.safeParseAsync({
-                bvid: ctx.req.param('bvid') || url.searchParams.get('bvid') || undefined,
+                id: ctx.req.param('id') || url.searchParams.get('bvid') || url.searchParams.get('avid') || undefined,
                 type: url.searchParams.get('type') || undefined,
                 url: url.searchParams.get('url') || undefined,
                 p: ctx.req.param("p") || url.searchParams.get('p') || undefined
@@ -124,15 +124,17 @@ export class BiliDanmakuRoute extends Route {
                 return ctx.jsonResp(params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { type, p: page } = params.data
-            const bvid = params.data.bvid!
+            const videoId = params.data.videoId!
+
+            const cid = await this.getVideoCid(ctx, videoId, page)
 
             switch (type) {
                 case "json": {
                     //序列化结果缓存
-                    const jsonKey = SharedData.cacheKey.danmakuJSON(bvid, page)
+                    const jsonKey = SharedData.cacheKey.danmakuJSON(cid)
                     let xmlJson = await this.getSchemaValidData(await ctx.cache?.getCache<BiliTypes.RES.Danmaku.DanmakuJSON>(jsonKey), Schema.danmakuJSONSchema)
                     if (!xmlJson) {
-                        const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
+                        const danmakuXML = await this.getDanmakuXML(ctx, cid)
                         if (!danmakuXML) {
                             throw new Error('failed to parse danmaku via cid')
                         }
@@ -143,7 +145,7 @@ export class BiliDanmakuRoute extends Route {
                 }
                 case "xml":
                 default: {
-                    const danmakuXML = await this.getDanmakuXML(ctx, bvid, page)
+                    const danmakuXML = await this.getDanmakuXML(ctx, cid)
                     if (!danmakuXML) {
                         throw new Error('failed to parse danmaku via cid')
                     }

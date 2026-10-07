@@ -9,40 +9,39 @@ import SharedData from "../shared/data";
 export class SubtitleRoute extends Route {
 
     private readonly paramSchema = z.object({
-        url: z.url().optional(),
-        bvid: z.string().optional(),
+        url: this.utils.zodBiliUrl([SharedData.URLPatterns.BILI_VIDEO, SharedData.URLPatterns.B23_TV], "url must be a bilibili video page or b23.tv short link").optional(),
+        id: z.string().optional(),
         p: z.coerce.number().nonnegative().int().optional().default(1).transform(p => p === 0 ? 1 : p),
         lang: z.string().optional(),
         type: z.enum(["srt", "json", "info"]).optional().default("info")
-    }).transform(async (args) => {
-        let { bvid, p, url } = args
-       if (url) {
-            const result = await this.utils.resolveBiliUrl(url)
-            if(result && result?.type === 'video'){
-                bvid = result.bvid
-                p = result.p || 1
-            }
-        }
-        return { ...args, bvid, p }
-    }).superRefine((args, ctx) => {
-        if (!args.bvid) {
-            ctx.addIssue("cannot find bvid to parse")
+    })
+    .transform(this.utils.zodBiliVideoIdTransformer)
+    .superRefine((args, ctx) => {
+        if (!args.videoId) {
+            ctx.addIssue("cannot resolve video id: no valid url, bvid or avid was provided, so the video cannot be parsed")
         }
         if (!Config.IS_SERVER_LOGIN) {
             ctx.addIssue("This API can be used and your request is fine, but getting subtitles requires the server to be logged in. Right now the server is offline, so sorry, we can't handle your request this time.")
         }
     })
 
-    protected async parseSubtitle(ctx: AppContext, bvid: string, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
+    protected async parseSubtitle(ctx: AppContext, videoId: BiliTypes.BVideoId, p: number = 1): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const parser = new BiliVideoParser(ctx)
-        const infoKey = SharedData.cacheKey.videoInfo(bvid)
+        const infoKey = videoId.type === 'bvid' ? SharedData.cacheKey.videoInfoBv(videoId.id) : SharedData.cacheKey.videoInfoAv(videoId.id)
 
         let videoInfo = await this.getSchemaValidData(await ctx.cache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
-            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(bvid), Schema.videoInfoSchema, true)
+            videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(videoId), Schema.videoInfoSchema, true)
 
-            await ctx.cache.setCache(infoKey, videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME)
+            const setCacheTasks: Promise<void>[] = []
+            if (videoInfo.bvid) {
+                setCacheTasks.push(ctx.cache.setCache(SharedData.cacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME))
+            }
+            if (videoInfo.aid) {
+                setCacheTasks.push(ctx.cache.setCache(SharedData.cacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + Config.BILI_VIDEO_INFO_CAHCE_TIME))
+            }
+            await Promise.allSettled(setCacheTasks)
         }
         if (p > videoInfo.parts.length) {
             throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
@@ -59,7 +58,7 @@ export class SubtitleRoute extends Route {
 
         if (!subtitles) {
 
-            subtitles = await this.getSchemaValidData(await parser.getVideoSubtitles(bvid, targetCid), z.array(Schema.videoSubtitleItemSchema), true)
+            subtitles = await this.getSchemaValidData(await parser.getVideoSubtitles(videoId, targetCid), z.array(Schema.videoSubtitleItemSchema), true)
 
             if (subtitles.length) {
                 await ctx.cache.setCache(subtitlesKey, subtitles, this.nowS + Config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
@@ -108,7 +107,7 @@ export class SubtitleRoute extends Route {
             const url = new URL(ctx.req.url)
             const params = await this.paramSchema.safeParseAsync({
                 url: url.searchParams.get("url") || undefined,
-                bvid: ctx.req.param("bvid") || url.searchParams.get("bvid") || undefined,
+                id: ctx.req.param("id") || url.searchParams.get('bvid') || url.searchParams.get("avid") || undefined,
                 p: ctx.req.param("p") || url.searchParams.get("p") || undefined,
                 lang: url.searchParams.get("lang") || undefined,
                 type: url.searchParams.get('type') || undefined
@@ -117,8 +116,8 @@ export class SubtitleRoute extends Route {
                 return ctx.jsonResp(params.error.issues[0]?.message ?? "invalid params", 400, null)
             }
             const { p, lang, type } = params.data
-            const bvid = params.data.bvid!
-            const subtitles = await this.parseSubtitle(ctx, bvid, p)
+            const videoId = params.data.videoId!
+            const subtitles = await this.parseSubtitle(ctx, videoId, p)
 
             if (lang) {
                 const targetLangSubtitle = subtitles.filter(i => i.lang.toLowerCase() === lang.toLowerCase())[0]
