@@ -57,7 +57,7 @@
     // this is not recommended since strategy has been changed to allocation
     // "CONFIG_VideoCDNStrategy": "AS,CN,cos;AS,HK,aliov;AS,MO,aliov;AS,TW,aliov;AS,JP,alio1;AS,KR,alio1;AS,SG,cosov;AS,VN,hw;NA,*,aliov;EU,*,aliov;*,*,aliov",
     "CONFIG_VideoCDN":"ali,upos-sz-mirrorali.bilivideo.com;aliov,upos-sz-mirroraliov.bilivideo.com;alib,upos-sz-mirroralib.bilivideo.com;alio1,upos-sz-mirroralio1.bilivideo.com;ali02,upos-sz-mirrorali02.bilivideo.com;cos,upos-sz-mirrorcos.bilivideo.com;cosb,upos-sz-mirrorcosb.bilivideo.com;coso1,upos-sz-mirrorcoso1.bilivideo.com;cosov,upos-sz-mirrorcosov.bilivideo.com;cosdisp,upos-sz-mirrorcosdisp.bilivideo.com;hw,upos-sz-mirrorhw.bilivideo.com;hwb,upos-sz-mirrorhwb.bilivideo.com;hwo1,upos-sz-mirrorhwo1.bilivideo.com;hwdisp,upos-sz-mirrorhwdisp.bilivideo.com;bd,upos-sz-mirrorbd.bilivideo.com;m08c,upos-sz-mirror08c.bilivideo.com;m08h,upos-sz-mirror08h.bilivideo.com;m08ct,upos-sz-mirror08ct.bilivideo.com;estgcos,upos-sz-estgcos.bilivideo.com;estgoss,upos-sz-estgoss.bilivideo.com;estghw,upos-sz-estghw.bilivideo.com;upcdnbda2,upos-sz-upcdnbda2.bilivideo.com;rali,upos-sz-mirrorrali.bilivideo.com;akam,upos-hz-mirrorakam.akamaized.net;nekoeo,bilicdn.fastify.eo.nekocha.top;hkeq,cn-hk-eq-01-04.bilivideo.com;cnsh,cn-sh-ct-01-01.bilivideo.com;cnbj,cn-bj-cc-03-14.bilivideo.com;cntj,cn-tj-cm-02-01.bilivideo.com;cnsdjn,cn-sdjn-cm-02-01.bilivideo.com;cnsdqd,cn-sdqd-cu-01-01.bilivideo.com",
-    "SERVER_VERSION": "6.9.0.261003",
+    "SERVER_VERSION": "6.10.1.261008",
     "MOTD": "is nekocha cute?",
   },
   "placement": {
