@@ -31,7 +31,7 @@ export class AppConfig {
         return this.memoCache.get(key) as T
     }
     private env: Record<any, any>
-    constructor(env:Record<any, string>) {
+    constructor(env: Record<any, string>) {
         this.env = env
     }
 
@@ -124,6 +124,10 @@ export class AppConfig {
 
     public get COOKIES_SIGN_CACHE_TIME(): number {
         return this.memo("COOKIES_SIGN_CACHE_TIME", () => num(this.env.CONFIG_CookiesSignCacheTime, 3600))!
+    }
+
+    public get CUSTOM_COOKIES(): string | undefined {
+        return this.memo('CUSTOM_COOKIES', () => str(this.env.CONFIG_CustomCookies))
     }
 
     //video

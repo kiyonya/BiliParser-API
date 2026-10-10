@@ -134,10 +134,11 @@ export class BiliCrypto {
     private async createBiliCookie(): Promise<string> {
 
         let cookies = await this.createAnonymousCookie()
-        if (this.ctx.config.ENABLE_CUSTOM_COOKIES && process.env.CONFIG_CustomCookies) {
+        const customCookies = this.ctx.config.CUSTOM_COOKIES
+        if (this.ctx.config.ENABLE_CUSTOM_COOKIES && customCookies) {
             cookies = {
                 ...cookies,
-                ...this.parseCookiesMap(process.env.CONFIG_CustomCookies)
+                ...this.parseCookiesMap(customCookies)
             }
         }
         let parts: string[] = []
