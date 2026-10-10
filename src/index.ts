@@ -1,20 +1,21 @@
 /**
- * bili-parser api
+ * bili-parser api general
  * @author nekocha(kiyuu)
  * @copyright nekocha 2026
  * @license MIT
  */
 
-import app from './app'
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { Config } from './shared/config';
-import { md5String } from './utils/hashlib';
-import Route from './utils/api-route';
+import { md5String } from '../general/utils/hashlib';
+import { createServer } from "../general";
+import { API } from "../general/apis/api";
+import { AppConfig } from "../general/utils/app-config";
+import { createAppLocationFromCf, createCfServer } from "./cf";
 
 export class BiliAPIEntryPoint extends WorkerEntrypoint {
 	protected cacheEnable = true
-	// if cache,this method not invoke
 	async fetch(request: Request): Promise<Response> {
+		const app = createServer(createCfServer())
 		const response = await app.fetch(request, this.env, this.ctx)
 		if (!response.headers.has('Cache-Control')) {
 			response.headers.set('Cache-Control', "no-store")
@@ -33,19 +34,25 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 			return new Response("rate limited", { status: 429 })
 		}
 
-		const cacheVersion = Config.CACHE_DATA_VERSION
-		const serverVersion = Config.SERVER_VERSION
-		const isServerLogin = Config.IS_SERVER_LOGIN
-		const serverLoginHashkey = Config.SERVER_LOGIN_HASHKEY
+		const config = new AppConfig(this.env as Record<any,any>)
+		//@ts-ignore
+		this.ctx.config = config
+
+		const cacheVersion = config.CACHE_DATA_VERSION
+		const serverVersion = config.SERVER_VERSION
+		const isServerLogin = config.IS_SERVER_LOGIN
+		const serverLoginHashkey = config.SERVER_LOGIN_HASHKEY
+		const location = createAppLocationFromCf(request.cf)
 
 		const ctagParams = {
-			cdnAllocation: Route.utils.matchCDNAllocation(Config.VIDEO_CDN_ALLOCATION, request.cf),
-			isCN: Route.utils.isCNArea(request.cf),
+			cdnAllocation: API.utils.matchCDNAllocation(config.VIDEO_CDN_ALLOCATION, location),
+			isCN: API.utils.isCNArea(location),
 			isServerLogin: isServerLogin,
 			loginHash: serverLoginHashkey,
 			cacheVersion: cacheVersion,
 			serverVersion: serverVersion
 		}
+
 		const ctag = md5String(JSON.stringify(ctagParams))
 		url.searchParams.set('__ctag', ctag)
 		const modifiedRequest = new Request(url, request)
@@ -64,13 +71,17 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 			//改写header
 			mutableResponse.headers.delete('X-Bcrypto-Cookies-Cache')
 			mutableResponse.headers.delete('X-Bcrypto-Sign-Time')
-			mutableResponse.headers.set('X-Server-Cache-Status', `edge;hit="UNUSED",kv;hit="UNUSED"`)
+			if (mutableResponse.headers.has('X-Server-Cache-Web')) {
+				mutableResponse.headers.set("X-Server-Cache-Web", 'PASS')
+			}
+			if (mutableResponse.headers.has('X-Server-Cache-Kv')) {
+				mutableResponse.headers.set("X-Server-Cache-Kv", 'PASS')
+			}
 		}
 		mutableResponse.headers.set('X-Cache-Version', String(cacheVersion))
 		mutableResponse.headers.set('X-Server-Version', String(serverVersion))
 		mutableResponse.headers.set('X-Server-Online', String(isServerLogin))
 		mutableResponse.headers.set("X-Request-Duration", String(requestDuration))
-
 		return mutableResponse
 	}
 }
