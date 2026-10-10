@@ -34,7 +34,7 @@ export default class DefaultEntryPoint extends WorkerEntrypoint {
 			return new Response("rate limited", { status: 429 })
 		}
 
-		const config = new AppConfig(this.env as Record<any,any>)
+		const config = new AppConfig(this.env as Record<any, any>)
 		//@ts-ignore
 		this.ctx.config = config
 

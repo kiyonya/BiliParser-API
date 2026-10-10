@@ -16,7 +16,7 @@ export function createAppLocationFromCf(cf?: CfProperties): AppLocation {
 
 function getKVNamespace(ctx: AppContext): KVNamespace | undefined {
     //@ts-ignore
-    return ctx.env[ctx.config.KV_CACHE_BINGDING]
+    return ctx.env[ctx.config.KV_CACHE_BINDING]
 }
 
 export function createCfServer(): createServerOptions {

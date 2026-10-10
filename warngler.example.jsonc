@@ -29,35 +29,58 @@
     },
   ],
   "vars": {
-    "CONFIG_UseProxyFetch": true,
-    "CONFIG_ProxyToken": "<proxy-token>",
-    "CONFIG_ProxyServerUrl": "<proxy-api>",
-    "CONFIG_ProxyTokenHeader":"X-Proxy-Token",
-    "CONFIG_ProxyFetchMaxRetries": 3,
-    "CONFIG_ProxyFetchTimeout": 10000,
-    "CONFIG_EnableCustomCookies": false,
-    "CONFIG_CustomCookies": "<session-data>",
-    "CONFIG_CookiesSignCacheTime": 3600,
-    "CONFIG_BiliVideoSubtitlesCacheTime": 1800,
-    "CONFIG_CacheValidation": true,
-    "CONFIG_CacheDataVersion": 5,
-    "CONFIG_ResponseWorkerCaching": true,
-    "CONFIG_ResponseMaxCacheTime": 3600,
-    "CONFIG_BiliVideoPlayUrlCacheTime": 5400,
-    "CONFIG_BiliBangumiPlayUrlCacheTime": 5400,
-    "CONFIG_BiliLiveCacheTime": 60,
-    "CONFIG_BiliVideoInfoCacheTime": 86400,
-    "CONFIG_BiliBangumiEpisodesCacheTime": 604800,
-    "CONFIG_BiliBangumiInfoCacheTime": 604800,
-    "CONFIG_UGCSeasonArchieveCacheTime": 86400,
-    "CONFIG_BiliDanmakuCacheTime": 1800,
-    "CONFIG_BiliSearchCacheTime": 360,
-    "CONFIG_BiliUserFavCacheTime": 3600,
-    "CONFIG_VideoCDNAllocation": "AS,CN,cos;AS,HK,aliov;AS,MO,aliov;AS,TW,aliov;AS,JP,alio1;AS,KR,alio1;AS,SG,cosov;AS,VN,hw;NA,*,aliov;EU,*,aliov;*,*,aliov",
+    // cdn
+    "VIDEO_CDN_ALLOCATION": "AS,CN,cos;AS,HK,aliov;AS,MO,aliov;AS,TW,aliov;AS,JP,alio1;AS,KR,alio1;AS,SG,cosov;AS,VN,hw;NA,*,aliov;EU,*,aliov;*,*,aliov",
     // this is not recommended since strategy has been changed to allocation
-    // "CONFIG_VideoCDNStrategy": "AS,CN,cos;AS,HK,aliov;AS,MO,aliov;AS,TW,aliov;AS,JP,alio1;AS,KR,alio1;AS,SG,cosov;AS,VN,hw;NA,*,aliov;EU,*,aliov;*,*,aliov",
-    "CONFIG_VideoCDN":"ali,upos-sz-mirrorali.bilivideo.com;aliov,upos-sz-mirroraliov.bilivideo.com;alib,upos-sz-mirroralib.bilivideo.com;alio1,upos-sz-mirroralio1.bilivideo.com;ali02,upos-sz-mirrorali02.bilivideo.com;cos,upos-sz-mirrorcos.bilivideo.com;cosb,upos-sz-mirrorcosb.bilivideo.com;coso1,upos-sz-mirrorcoso1.bilivideo.com;cosov,upos-sz-mirrorcosov.bilivideo.com;cosdisp,upos-sz-mirrorcosdisp.bilivideo.com;hw,upos-sz-mirrorhw.bilivideo.com;hwb,upos-sz-mirrorhwb.bilivideo.com;hwo1,upos-sz-mirrorhwo1.bilivideo.com;hwdisp,upos-sz-mirrorhwdisp.bilivideo.com;bd,upos-sz-mirrorbd.bilivideo.com;m08c,upos-sz-mirror08c.bilivideo.com;m08h,upos-sz-mirror08h.bilivideo.com;m08ct,upos-sz-mirror08ct.bilivideo.com;estgcos,upos-sz-estgcos.bilivideo.com;estgoss,upos-sz-estgoss.bilivideo.com;estghw,upos-sz-estghw.bilivideo.com;upcdnbda2,upos-sz-upcdnbda2.bilivideo.com;rali,upos-sz-mirrorrali.bilivideo.com;akam,upos-hz-mirrorakam.akamaized.net;nekoeo,bilicdn.fastify.eo.nekocha.top;hkeq,cn-hk-eq-01-04.bilivideo.com;cnsh,cn-sh-ct-01-01.bilivideo.com;cnbj,cn-bj-cc-03-14.bilivideo.com;cntj,cn-tj-cm-02-01.bilivideo.com;cnsdjn,cn-sdjn-cm-02-01.bilivideo.com;cnsdqd,cn-sdqd-cu-01-01.bilivideo.com",
-    "SERVER_VERSION": "7.0.1.261010-gapi",
+    // "VIDEO_CDN_STRATEGY": "AS,CN,cos;AS,HK,aliov;AS,MO,aliov;AS,TW,aliov;AS,JP,alio1;AS,KR,alio1;AS,SG,cosov;AS,VN,hw;NA,*,aliov;EU,*,aliov;*,*,aliov",
+    "VIDEO_CDN":"ali,upos-sz-mirrorali.bilivideo.com;aliov,upos-sz-mirroraliov.bilivideo.com;alib,upos-sz-mirroralib.bilivideo.com;alio1,upos-sz-mirroralio1.bilivideo.com;ali02,upos-sz-mirrorali02.bilivideo.com;cos,upos-sz-mirrorcos.bilivideo.com;cosb,upos-sz-mirrorcosb.bilivideo.com;coso1,upos-sz-mirrorcoso1.bilivideo.com;cosov,upos-sz-mirrorcosov.bilivideo.com;cosdisp,upos-sz-mirrorcosdisp.bilivideo.com;hw,upos-sz-mirrorhw.bilivideo.com;hwb,upos-sz-mirrorhwb.bilivideo.com;hwo1,upos-sz-mirrorhwo1.bilivideo.com;hwdisp,upos-sz-mirrorhwdisp.bilivideo.com;bd,upos-sz-mirrorbd.bilivideo.com;m08c,upos-sz-mirror08c.bilivideo.com;m08h,upos-sz-mirror08h.bilivideo.com;m08ct,upos-sz-mirror08ct.bilivideo.com;estgcos,upos-sz-estgcos.bilivideo.com;estgoss,upos-sz-estgoss.bilivideo.com;estghw,upos-sz-estghw.bilivideo.com;upcdnbda2,upos-sz-upcdnbda2.bilivideo.com;rali,upos-sz-mirrorrali.bilivideo.com;akam,upos-hz-mirrorakam.akamaized.net;nekoeo,bilicdn.fastify.eo.nekocha.top;hkeq,cn-hk-eq-01-04.bilivideo.com;cnsh,cn-sh-ct-01-01.bilivideo.com;cnbj,cn-bj-cc-03-14.bilivideo.com;cntj,cn-tj-cm-02-01.bilivideo.com;cnsdjn,cn-sdjn-cm-02-01.bilivideo.com;cnsdqd,cn-sdqd-cu-01-01.bilivideo.com",
+
+    // cache
+    "ENABLE_CACHE_DATA_VALIDATION": true,
+    "CACHE_DATA_VERSION": 5,
+    "RESPONSE_WORKER_CACHING": true,
+    "RESPONSE_MAX_CACHE_TIME": 3600,
+
+    // cookies
+    "ENABLE_CUSTOM_COOKIES": false,
+    "COOKIES_SIGN_CACHE_TIME": 3600,
+    "CUSTOM_COOKIES": "<session-data>",
+
+    // video
+    "BILI_VIDEO_PLAYURL_CACHE_TIME": 5400,
+    "BILI_VIDEO_INFO_CACHE_TIME": 86400,
+    "BILI_VIDEO_SUBTITLES_CACHE_TIME": 1800,
+
+    // live
+    "BILI_LIVE_CACHE_TIME": 60,
+
+    // bangumi
+    "BILI_BANGUMI_PLAYURL_CACHE_TIME": 5400,
+    "BILI_BANGUMI_EPISODES_CACHE_TIME": 604800,
+    "BILI_BANGUMI_INFO_CACHE_TIME": 604800,
+
+    // archive
+    "BILI_USER_ARCHIVE_CACHE_TIME": 86400,
+
+    // favlist
+    "BILI_USER_FAV_CACHE_TIME": 3600,
+
+    // danmaku
+    "BILI_DANMAKU_CACHE_TIME": 1800,
+
+    // proxy
+    "ENABLE_PROXY_SERVER": true,
+    "PROXY_SERVER_TOKEN": "<proxy-token>",
+    "PROXY_SERVER_URL": "<proxy-api>",
+    "PROXY_TOKEN_HEADER":"X-Proxy-Token",
+    "PROXY_SERVER_FETCH_MAX_RETRIES": 3,
+    "PROXY_SERVER_TIMEOUT": 10000,
+
+    // search
+    "BILI_SEARCH_CACHE_TIME": 360,
+
+    // misc
+    "SERVER_VERSION": "7.1.0.261010-gapi",
     "MOTD": "is nekocha cute?",
   },
   "placement": {
