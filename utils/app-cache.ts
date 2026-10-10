@@ -58,7 +58,7 @@ export class AppCache {
     }
 
     protected async validateSchema<Data = any>(data: Data, schema?: z.ZodType<Data>) {
-        if (!schema || !this.ctx.config.ENABLE_CAHCE_DATA_VALIDATION) { return true }
+        if (!schema || !this.ctx.config.ENABLE_CACHE_DATA_VALIDATION) { return true }
         return (await schema.safeParseAsync(data)).success
     }
 

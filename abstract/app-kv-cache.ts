@@ -7,7 +7,7 @@ export abstract class AppKVCache {
         this.ctx = ctx
     }
     protected async validateSchema<Data = any>(data: Data, schema?: z.ZodType<Data>) {
-        return this.ctx.config.ENABLE_CAHCE_DATA_VALIDATION ? (schema ? (await schema.safeParseAsync(data)).success : true) : true
+        return this.ctx.config.ENABLE_CACHE_DATA_VALIDATION ? (schema ? (await schema.safeParseAsync(data)).success : true) : true
     }
 
     public abstract getKVCache<Data = any>( key: string, schema?: z.ZodType<Data>): Promise<CacheResult<Data> | null>

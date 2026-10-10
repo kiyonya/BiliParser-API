@@ -77,132 +77,132 @@ export class AppConfig {
     }
 
     public get IS_SERVER_LOGIN() {
-        return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && this.env.CONFIG_CustomCookies !== undefined)
+        return this.memo("isServerLogin", () => this.ENABLE_CUSTOM_COOKIES && this.env.CUSTOM_COOKIES !== undefined)
     }
 
     public get SERVER_LOGIN_HASHKEY() {
         return this.memo("serverLoginKeyHash", () => {
-            const key = `${String(this.IS_SERVER_LOGIN)}:${this.env.CONFIG_CustomCookies ?? ""}`
+            const key = `${String(this.IS_SERVER_LOGIN)}:${this.env.CUSTOM_COOKIES ?? ""}`
             return md5String(key)
         })
     }
 
     //cdn
     public get VIDEO_CDN_ALLOCATION(): CDNAllocation[] {
-        return this.memo("VIDEO_CDN_ALLOCATION", () => parseCDNAllocation(this.env.CONFIG_VideoCDNAllocation ?? this.DEFAULT_CDN_ALLOCATION)) || []
+        return this.memo("VIDEO_CDN_ALLOCATION", () => parseCDNAllocation(this.env.VIDEO_CDN_ALLOCATION ?? this.DEFAULT_CDN_ALLOCATION)) || []
     }
 
     public get VIDEO_CDN(): Record<string, string> {
-        return this.memo('VIDEO_CDN', () => parseCDN(this.env.CONFIG_VideoCDN ?? this.DEFAULT_CDN)) || {}
+        return this.memo('VIDEO_CDN', () => parseCDN(this.env.VIDEO_CDN ?? this.DEFAULT_CDN)) || {}
     }
 
     //cache
-    public get ENABLE_CAHCE_DATA_VALIDATION(): boolean {
-        return this.memo("ENABLE_CAHCE_DATA_VALIDATION", () => bool(this.env.CONFIG_CacheValidation, true))!
+    public get ENABLE_CACHE_DATA_VALIDATION(): boolean {
+        return this.memo("ENABLE_CACHE_DATA_VALIDATION", () => bool(this.env.ENABLE_CACHE_DATA_VALIDATION, true))!
     }
 
     public get CACHE_DATA_VERSION(): number {
-        return this.memo("CACHE_DATA_VERSION", () => num(this.env.CONFIG_CacheDataVersion, 5))!
+        return this.memo("CACHE_DATA_VERSION", () => num(this.env.CACHE_DATA_VERSION, 5))!
     }
 
     public get RESPONSE_WORKER_CACHING(): boolean {
-        return this.memo("RESPONSE_WORKER_CACHING", () => bool(this.env.CONFIG_ResponseWorkerCaching, true))!
+        return this.memo("RESPONSE_WORKER_CACHING", () => bool(this.env.RESPONSE_WORKER_CACHING, true))!
     }
 
     public get RESPONSE_MAX_CACHE_TIME(): number {
-        return this.memo('RESPONSE_MAX_CACHE_TIME', () => num(this.env.CONFIG_ResponseMaxCacheTime, 3600))!
+        return this.memo('RESPONSE_MAX_CACHE_TIME', () => num(this.env.RESPONSE_MAX_CACHE_TIME, 3600))!
     }
 
-    public get KV_CACHE_BINGDING(): string | undefined {
-        return this.memo("KV_CACHE_BINDING", () => str(this.env.CONFIG_KVCacheBinding))
+    public get KV_CACHE_BINDING(): string | undefined {
+        return this.memo("KV_CACHE_BINDING", () => str(this.env.KV_CACHE_BINDING))
     }
 
     //cookies
     public get ENABLE_CUSTOM_COOKIES(): boolean {
-        return this.memo("ENABLE_CUSTOM_COOKIES", () => bool(this.env.CONFIG_EnableCustomCookies, false))!
+        return this.memo("ENABLE_CUSTOM_COOKIES", () => bool(this.env.ENABLE_CUSTOM_COOKIES, false))!
     }
 
     public get COOKIES_SIGN_CACHE_TIME(): number {
-        return this.memo("COOKIES_SIGN_CACHE_TIME", () => num(this.env.CONFIG_CookiesSignCacheTime, 3600))!
+        return this.memo("COOKIES_SIGN_CACHE_TIME", () => num(this.env.COOKIES_SIGN_CACHE_TIME, 3600))!
     }
 
     public get CUSTOM_COOKIES(): string | undefined {
-        return this.memo('CUSTOM_COOKIES', () => str(this.env.CONFIG_CustomCookies))
+        return this.memo('CUSTOM_COOKIES', () => str(this.env.CUSTOM_COOKIES))
     }
 
     //video
     public get BILI_VIDEO_PLAYURL_CACHE_TIME(): number {
-        return this.memo("BILI_VIDEO_PLAYURL_CACHE_TIME", () => num(this.env.CONFIG_BiliVideoPlayUrlCacheTime, 5400))!
+        return this.memo("BILI_VIDEO_PLAYURL_CACHE_TIME", () => num(this.env.BILI_VIDEO_PLAYURL_CACHE_TIME, 5400))!
     }
 
-    public get BILI_VIDEO_INFO_CAHCE_TIME(): number {
-        return this.memo("BILI_VIDEO_INFO_CAHCE_TIME", () => num(this.env.CONFIG_BiliVideoInfoCacheTime, 60 * 60 * 24))!
+    public get BILI_VIDEO_INFO_CACHE_TIME(): number {
+        return this.memo("BILI_VIDEO_INFO_CACHE_TIME", () => num(this.env.BILI_VIDEO_INFO_CACHE_TIME, 60 * 60 * 24))!
     }
 
     public get BILI_VIDEO_SUBTITLES_CACHE_TIME(): number {
-        return this.memo("BILI_VIDEO_SUBTITLES_CACHE_TIME", () => num(this.env.CONFIG_BiliVideoSubtitlesCacheTime, 1800))!
+        return this.memo("BILI_VIDEO_SUBTITLES_CACHE_TIME", () => num(this.env.BILI_VIDEO_SUBTITLES_CACHE_TIME, 1800))!
     }
 
     //live
     public get BILI_LIVE_CACHE_TIME(): number {
-        return this.memo("BILI_LIVE_CACHE_TIME", () => num(this.env.CONFIG_BiliLiveCacheTime, 60))!
+        return this.memo("BILI_LIVE_CACHE_TIME", () => num(this.env.BILI_LIVE_CACHE_TIME, 60))!
     }
 
     //bangumi
-    public get BILI_BANGUMI_PLAYUEL_CACHE_TIME(): number {
-        return this.memo("BILI_BANGUMI_PLAYUEL_CACHE_TIME", () => num(this.env.CONFIG_BiliBangumiPlayUrlCacheTime, 5400))!
+    public get BILI_BANGUMI_PLAYURL_CACHE_TIME(): number {
+        return this.memo("BILI_BANGUMI_PLAYURL_CACHE_TIME", () => num(this.env.BILI_BANGUMI_PLAYURL_CACHE_TIME, 5400))!
     }
 
     public get BILI_BANGUMI_EPISODES_CACHE_TIME(): number {
-        return this.memo("BILI_BANGUMI_EPISODES_CACHE_TIME", () => num(this.env.CONFIG_BiliBangumiEpisodesCacheTime, 60 * 60 * 24 * 7))!
+        return this.memo("BILI_BANGUMI_EPISODES_CACHE_TIME", () => num(this.env.BILI_BANGUMI_EPISODES_CACHE_TIME, 60 * 60 * 24 * 7))!
     }
 
     public get BILI_BANGUMI_INFO_CACHE_TIME(): number {
-        return this.memo("BILI_BANGUMI_INFO_CACHE_TIME", () => num(this.env.CONFIG_BiliBangumiInfoCacheTime, 60 * 60 * 24 * 7))!
+        return this.memo("BILI_BANGUMI_INFO_CACHE_TIME", () => num(this.env.BILI_BANGUMI_INFO_CACHE_TIME, 60 * 60 * 24 * 7))!
     }
 
-    //archieve
-    public get BILI_USER_ARCHIEVE_CACHE_TIME(): number {
-        return this.memo("BILI_USER_ARCHIEVE_CACHE_TIME", () => num(this.env.CONFIG_UGCSeasonArchieveCacheTime, 86400))!
+    //archive
+    public get BILI_USER_ARCHIVE_CACHE_TIME(): number {
+        return this.memo("BILI_USER_ARCHIVE_CACHE_TIME", () => num(this.env.BILI_USER_ARCHIVE_CACHE_TIME, 86400))!
     }
 
     //favlist
     public get BILI_USER_FAV_CACHE_TIME(): number {
-        return this.memo("BILI_USER_FAV_CACHE_TIME", () => num(this.env.CONFIG_BiliUserFavCacheTime, 3600))!
+        return this.memo("BILI_USER_FAV_CACHE_TIME", () => num(this.env.BILI_USER_FAV_CACHE_TIME, 3600))!
     }
 
     //danmaku
     public get BILI_DANMAKU_CACHE_TIME(): number {
-        return this.memo("BILI_DANMAKU_CACHE_TIME", () => num(this.env.CONFIG_BiliDanmakuCacheTime, 1800))!
+        return this.memo("BILI_DANMAKU_CACHE_TIME", () => num(this.env.BILI_DANMAKU_CACHE_TIME, 1800))!
     }
 
     //proxy
     public get ENABLE_PROXY_SERVER(): boolean {
-        return this.memo("ENABLE_PROXY_SERVER", () => bool(this.env.CONFIG_UseProxyFetch, true))!
+        return this.memo("ENABLE_PROXY_SERVER", () => bool(this.env.ENABLE_PROXY_SERVER, true))!
     }
 
     public get PROXY_SERVER_FETCH_MAX_RETRIES(): number {
-        return this.memo("PROXY_SERVER_FETCH_MAX_RETRIES", () => num(this.env.CONFIG_ProxyFetchMaxRetries, 3))!
+        return this.memo("PROXY_SERVER_FETCH_MAX_RETRIES", () => num(this.env.PROXY_SERVER_FETCH_MAX_RETRIES, 3))!
     }
 
     public get PROXY_SERVER_TIMEOUT(): number {
-        return this.memo("PROXY_SERVER_TIMEOUT", () => num(this.env.CONFIG_ProxyFetchTimeout, 10 * 1000))!
+        return this.memo("PROXY_SERVER_TIMEOUT", () => num(this.env.PROXY_SERVER_TIMEOUT, 10 * 1000))!
     }
 
     public get PROXY_SERVER_URL(): string | undefined {
-        return this.memo("PROXY_SERVER_URL", () => str(this.env.CONFIG_ProxyServerUrl))
+        return this.memo("PROXY_SERVER_URL", () => str(this.env.PROXY_SERVER_URL))
     }
 
     public get PROXY_SERVER_TOKEN(): string | undefined {
-        return this.memo("PROXY_SERVER_TOKEN", () => str(this.env.CONFIG_ProxyToken))
+        return this.memo("PROXY_SERVER_TOKEN", () => str(this.env.PROXY_SERVER_TOKEN))
     }
 
     public get PROXY_TOKEN_HEADER(): string {
-        return this.memo("PROXY_TOKEN_HEADER", () => str(this.env.CONFIG_ProxyTokenHeader, "X-Proxy-Token"))
+        return this.memo("PROXY_TOKEN_HEADER", () => str(this.env.PROXY_TOKEN_HEADER, "X-Proxy-Token"))
     }
 
     //search
     public get BILI_SEARCH_CACHE_TIME(): number {
-        return this.memo("BILI_SEARCH_CACHE_TIME", () => num(this.env.CONFIG_BiliSearchCacheTime, 360))!
+        return this.memo("BILI_SEARCH_CACHE_TIME", () => num(this.env.BILI_SEARCH_CACHE_TIME, 360))!
     }
 }

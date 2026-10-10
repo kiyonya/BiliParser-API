@@ -30,10 +30,10 @@ export class DanmakuAPI extends API {
 
             const setCacheTasks: Promise<void>[] = []
             if (videoInfo.bvid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CAHCE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
             }
             if (videoInfo.aid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CAHCE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
             }
             await Promise.allSettled(setCacheTasks)
         }
@@ -45,8 +45,6 @@ export class DanmakuAPI extends API {
             throw new Error(`cannot get target video part with part ${p}`)
         }
         const cid = targetPart.cid
-        ctx?.header("x-url-cid", String(cid))
-        ctx?.header("x-url-vpart", String(p))
         return cid
     }
 

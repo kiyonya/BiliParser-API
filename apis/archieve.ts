@@ -33,7 +33,7 @@ export class ArchieveAPI extends API {
         if (!result) {
             const parser: BiliUserParser = new BiliUserParser(ctx)
             result = await this.getSchemaValidData(await parser.getUserSeasonArchieves(mid, seasonId, false, page, pageSize), Schema.userArchievesSchema, true)
-            await ctx.appCache.setCache(resultCacheKey, result, this.nowS + ctx.config.BILI_USER_ARCHIEVE_CACHE_TIME)
+            await ctx.appCache.setCache(resultCacheKey, result, this.nowS + ctx.config.BILI_USER_ARCHIVE_CACHE_TIME)
         }
         return ctx.jsonResp('Success', 200, result)
     }
