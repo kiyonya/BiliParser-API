@@ -1,0 +1,4 @@
+[submodule "general"]
+	path = general
+	url = https://github.com/kiyonya/BiliParser-API.git
+	branch = general-api
