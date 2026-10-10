@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2024",
+    "verbatimModuleSyntax": false,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "moduleResolution": "Bundler",
+    "module": "es2022",
+    "noEmit": true,
+    "lib": ["es2024","DOM"],
+    "types": ["@types/node", "node", "./esa.d.ts"]
+  },
+  "include": ["src", "esa.d.ts", "general"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

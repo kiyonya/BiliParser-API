@@ -1,0 +1,20 @@
+{
+  "type": "module",
+  "scripts": {
+    "build": "esbuild --bundle ./src/index.ts --outfile=./dist/index.js --platform=node",
+    "dev": "esa-cli dev",
+    "postinstall": "node scripts/patch-esa-cli.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.4",
+    "esa-cli": "^1.0.13",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "chanfana": "^3.4.0",
+    "fast-xml-parser": "^5.11.2",
+    "hono": "^4.13.13",
+    "zod": "^4.6.5"
+  }
+}

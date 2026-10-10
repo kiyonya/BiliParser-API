@@ -1,0 +1,12 @@
+{
+  "name": "biliapi-esa",
+  "description": "Hello World",
+  "entry": "./src/index.ts",
+  "buildCommand": "npm run build",
+  "codeVersions": [],
+  "dev": {
+    "port": 8787,
+    "localUpstream": ""
+  },
+  "platform": "node"
+}

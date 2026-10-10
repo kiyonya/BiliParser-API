@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# Node modules
+node_modules/
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+coverage/
+.vite/
+# Env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# IDE/editor
+.DS_Store
+.idea/
+.vscode/
+# Misc caches
+.eslintcache
+.parcel-cache/
+.turbo/
+.cache/
+.dev
+skill.md
