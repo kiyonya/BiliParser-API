@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 export function md5String(i:string){
     return crypto.createHash("md5").update(i).digest("hex")
 }
