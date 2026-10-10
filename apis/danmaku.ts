@@ -1,6 +1,6 @@
 import z from "zod";
 import BiliVideoParser from "../services/video-parser";
-import xml2js from 'xml2js'
+import { XMLParser } from 'fast-xml-parser'
 import SharedData from "../shared/data";
 import { API, BadRequestError } from "./api";
 import { AppContext } from "../types/app";
@@ -63,16 +63,12 @@ export class DanmakuAPI extends API {
     }
 
     private async parseXML2JSON(danmakuXML: string): Promise<BiliTypes.RES.Danmaku.DanmakuJSON> {
-        const json = await new Promise<BiliTypes.RES.Danmaku.XML2JSONLike>((resolve, reject) => {
-            xml2js.parseString(danmakuXML, (error, result) => {
-                if (!error) {
-                    resolve(result)
-                }
-                else {
-                    reject(error)
-                }
-            })
+        const parser = new XMLParser({
+            ignoreAttributes: false,
+            textNodeName: "#text",
         })
+        const root = (parser.parse(danmakuXML)?.i ?? {}) as Record<string, any>
+        const rawDanmakus = root.d === undefined ? [] : (Array.isArray(root.d) ? root.d : [root.d])
 
         const color2Hex = (color: number | undefined) => {
             color = color || 16777215
@@ -80,10 +76,10 @@ export class DanmakuAPI extends API {
         }
 
         const danmakus: BiliTypes.RES.Danmaku.Danmaku[] = []
-        for (const d of json.i.d) {
-            const p = d.$.p
-            const ps = p.split(",").map(i => i.trim())
-            const text = d._
+        for (const d of rawDanmakus) {
+            const p = String(d["@_p"] ?? "")
+            const ps = p.split(",").map((i: string) => i.trim())
+            const text = d["#text"] ?? ""
             danmakus.push({
                 text: text,
                 params: {
@@ -100,10 +96,10 @@ export class DanmakuAPI extends API {
             })
         }
         return {
-            chatServer: json.i.chatserver[0] || "",
-            chatId: json.i.chatid[0] || "",
-            maxLimit: Number(json.i.maxlimit[0]),
-            source: json.i.source[0] || "",
+            chatServer: String(root.chatserver ?? ""),
+            chatId: String(root.chatid ?? ""),
+            maxLimit: Number(root.maxlimit ?? 0),
+            source: String(root.source ?? ""),
             danmakus: danmakus.sort((a, b) => a.params.time - b.params.time)
         }
     }

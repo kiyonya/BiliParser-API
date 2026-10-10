@@ -219,21 +219,6 @@ export namespace BiliTypes {
 
         export namespace Danmaku {
 
-            export interface XML2JSONLike {
-                i: {
-                    chatserver: string[],
-                    chatid: string[],
-                    maxlimit: string[],
-                    source: string[],
-                    d: {
-                        _: string,
-                        $: {
-                            p: string
-                        }
-                    }[]
-                }
-            }
-
             export interface Danmaku {
                 text: string,
                 params: {
