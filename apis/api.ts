@@ -13,7 +13,6 @@ export class BadRequestError extends Error {
 }
 
 export abstract class API extends OpenAPIRoute {
-    protected static isOriginCDNHeaderSet:boolean = false
     public static readonly utils = {
         matchCDNAllocation: (allocations: CDNAllocation[], appLocation?: AppLocation): CDNAllocation | undefined => {
             return allocations.find(allocation =>
@@ -50,10 +49,7 @@ export abstract class API extends OpenAPIRoute {
                 replaceUrl.hostname = cdnHostname
                 url = replaceUrl.toString()
                 ctx.header('X-Bili-CDN', cdnHostname)
-                if(!this.isOriginCDNHeaderSet){
-                    ctx.header('X-Bili-Origin-CDN', originHostname)
-                    this.isOriginCDNHeaderSet = true
-                }
+                ctx.header('X-Bili-Origin-CDN', originHostname)
             }
             return url
         },
