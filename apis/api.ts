@@ -22,7 +22,7 @@ export abstract class API extends OpenAPIRoute {
         },
         isCNArea: (appLocation?: AppLocation) => {
             if (!appLocation) { return false }
-            return appLocation.continent === 'AS' && appLocation.country === 'CN'
+            return appLocation.country === 'CN'
         },
         switchVideoCDN: (ctx: AppContext, url: string, cdn?: string, customAllocation?: string) => {
             let cdnHostname: string | undefined = undefined
