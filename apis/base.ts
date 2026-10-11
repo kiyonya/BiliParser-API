@@ -11,10 +11,12 @@ export class BaseAPI extends API {
         const protocol = url.protocol
         const port = url.port
         const demoUrl = ['127.0.0.1', 'localhost'].includes(hostname) ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`
-        const ray = ctx.req.header("cf-ray")
-
-        const demoBvid = "BV1JTRGBBEy2"
+        
+        const demoBvid = "BV1y5UNYUEhu"
         const demoAvid = "av248637970"
+        const publishYear = '2026'
+        const license = "MIT"
+        const github = "https://github.com/kiyonya/BiliParser-API"
 
         const demoUrls: Record<string, string> = {
             "video play": `${demoUrl}/video/${demoBvid}`,
@@ -42,24 +44,18 @@ export class BaseAPI extends API {
         }
 
         const infos: Record<string, string> = {
-            "server version": serverVersion,
-            "colo": ctx.appLocation?.colo as string,
+            "Server Version": serverVersion,
+            "Colo": ctx.appLocation?.colo as string,
         }
+        const ray = ctx.req.header("cf-ray")
         if (ray) {
             infos["ray"] = ray
         }
-
-        const infoText = Object.entries(infos)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join("&nbsp;&nbsp;|&nbsp;&nbsp;")
-
         const rows = Object.entries(demoUrls)
             .map(([type, url]) => `<tr><td>${type}</td><td><a href="${url}">${url}</a></td></tr>`)
             .join("")
 
-        const publishYear = '2026'
-        const license = "MIT"
-        const github = "https://github.com/kiyonya/BiliParser-API"
+
 
         const html = `
         <!DOCTYPE html>
@@ -73,7 +69,7 @@ export class BaseAPI extends API {
         </head>
         
         <body>
-        <h2>BiliParser API (Cloudflare)</h2>
+        <h2>BiliParser API</h2>
         <span>${Object.keys(infos).map(k => `${k}: ${infos[k]}`).join("&nbsp;&nbsp;|&nbsp;&nbsp")}</span>
 
         <br />
@@ -81,7 +77,7 @@ export class BaseAPI extends API {
         
         <h3>Introduction</h3>
         
-        <p>A free and lightweight server running on Cloudflare Workers used to parse Bilibili videos, covers, danmaku list, live streams, bangumis, archives, search and favourite playlist.</p>
+        <p>A free and lightweight server to parse Bilibili videos, covers, danmaku list, live streams, bangumis, archives, search and favourite playlist.</p>
 
         <p>It was designed to play videos and live streams in VRChat. It also provides an API interface that lets you call it whenever you need.</p>
 
