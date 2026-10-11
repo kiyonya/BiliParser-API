@@ -8,19 +8,24 @@ export class AppWebCache {
     protected setter: WebCacheSetter
     protected getter: WebCacheGetter
     protected deleter: WebCacheDeleter
+    protected keyProtocol: string = "http:"
+    protected keyPathname: string = "cache/"
 
-    constructor(ctx: AppContext, setter: WebCacheSetter, getter: WebCacheGetter, deleter: WebCacheDeleter) {
+    constructor(ctx: AppContext, setter: WebCacheSetter, getter: WebCacheGetter, deleter: WebCacheDeleter, options?: { protocol?: string, pathname?: string }) {
         this.ctx = ctx
         this.setter = setter
         this.getter = getter
         this.deleter = deleter
+        if (options?.protocol) { this.keyProtocol = options.protocol }
+        if (options?.pathname) { this.keyPathname = options.pathname }
     }
 
     protected createVCacheKey(ctx: AppContext, cacheKey: string) {
         const reqUrl = new URL(ctx.req.url);
         const keyMd5 = md5String(cacheKey);
-        const keyUrl = new URL(`${reqUrl.protocol}//${reqUrl.hostname}`);
-        keyUrl.pathname = `/edgecache/${keyMd5}`;
+        const keyUrl = new URL(`${this.keyProtocol}//${reqUrl.hostname}`);
+        keyUrl.protocol
+        keyUrl.pathname = `${this.keyPathname}${keyMd5}`;
         return keyUrl
     }
 
