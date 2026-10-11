@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, Next } from "hono";
 import { fromHono } from "chanfana";
 import { AppContext, AppLocation, KVCacheDeleter, KVCacheGetter, KVCacheSetter, WebCacheDeleter, WebCacheGetter, WebCacheSetter } from "./types/app";
 
@@ -18,12 +18,15 @@ import { SearchAPI } from "./apis/search";
 
 import { createAppCache, createAppCacheKey, createAppContext, createAppFetch, FetchImpl } from "./create";
 
-const DEFAULT_HEADERS: Record<string, string>= {
+const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE, HEAD',
-    'Referrer-Policy':"strict-origin-when-cross-origin",
-    "Access-Control-Allow-Credentials":'true',
+    'Referrer-Policy': "strict-origin-when-cross-origin",
+    "Access-Control-Allow-Credentials": 'true',
+    'X-Nekocha':"isn't nekocha cute??"
 }
+
+export type AppMiddlewareFunction = (ctx: AppContext, next: Next) => Promise<void> | void
 
 export interface createServerOptions {
     webCacheSetterFactory?: (ctx: AppContext) => WebCacheSetter | null | undefined,
@@ -34,11 +37,12 @@ export interface createServerOptions {
     kvCacheDeleterFactory?: (ctx: AppContext) => KVCacheDeleter | null | undefined,
     fetchFactory?: (ctx: AppContext) => FetchImpl,
     locationFactory?: (ctx: AppContext) => AppLocation,
-    deferFactory?:(ctx:AppContext)=>((p:Promise<unknown>)=>void | Promise<void>)
+    deferFactory?: (ctx: AppContext) => ((p: Promise<unknown>) => void | Promise<void>),
+    middlewares?: AppMiddlewareFunction[]
 }
 
 export function createServer(createServerOptions: createServerOptions = {}) {
-    const { webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory, fetchFactory, locationFactory ,deferFactory} = createServerOptions
+    const { webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory, fetchFactory, locationFactory, deferFactory, middlewares } = createServerOptions
     const app = new Hono()
     app.use(async (c, next) => {
         const ctx = createAppContext(c)
@@ -46,10 +50,12 @@ export function createServer(createServerOptions: createServerOptions = {}) {
         ctx.appCacheKey = createAppCacheKey(ctx)
         ctx.appFetch = createAppFetch(ctx, fetchFactory?.(ctx) || fetch)
         ctx.appLocation = locationFactory?.(ctx) || {}
-        ctx.defer = deferFactory?.(ctx) || 
-        async function (p){try {
-            await p
-        } catch (error) {}}
+        ctx.defer = deferFactory?.(ctx) ||
+            async function (p) {
+                try {
+                    await p
+                } catch (error) { }
+            }
         ctx.isInit = true
 
         await next()
@@ -81,33 +87,44 @@ export function createServer(createServerOptions: createServerOptions = {}) {
     app.use(async (c, next) => {
         await next()
         const ctx = c as unknown as AppContext
-        if (!ctx.config.RESPONSE_WORKER_CACHING) {
+        if (!ctx.config.ENABLE_RESPONSE_CACHING) {
             ctx.res.headers.set('Cache-Control', 'no-store')
             return
         }
         if (ctx.res.headers.has("Cache-Control")) {
             return
         }
-        const url = new URL(ctx.req.url)
-        const ctag = url.searchParams.get("__ctag")
+
         const maxCacheTime = ctx.config.RESPONSE_MAX_CACHE_TIME
-        if (!ctag || !maxCacheTime || maxCacheTime <= 0 || ![200, 302, 304, 307].includes(ctx.res.status)) {
-            return
+        const isResponseCacheable = maxCacheTime > 0 && [200, 302, 304, 307].includes(ctx.res.status)
+
+        if (isResponseCacheable) {
+            const cache = ctx.appCache
+            const nowS = Math.floor(Date.now() / 1000)
+            const minExpirationTime = cache.minExpirationTime
+            const maxCacheExpiration = nowS + maxCacheTime
+            const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
+            const maxAge = Math.max(0, Math.floor(maxExpiration - nowS))
+            if (!maxAge || maxAge <= 0) {
+                ctx.res.headers.set('Cache-Control', 'no-store')
+                return
+            }
+            const cacheControl = `public, max-age=0, s-maxage=${maxAge}`
+            ctx.res.headers.set('Cache-Control', cacheControl)
         }
-        const cache = ctx.appCache
-        const nowS = Math.floor(Date.now() / 1000)
-        const minExpirationTime = cache.minExpirationTime
-        const maxCacheExpiration = nowS + maxCacheTime
-        const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
-        const maxAge = Math.max(0, Math.floor(maxExpiration - nowS))
-        if (!maxAge || maxAge <= 0) {
+        else{
             ctx.res.headers.set('Cache-Control', 'no-store')
-            return
         }
-        const cacheControl = `public, max-age=0, s-maxage=${maxAge}`
-        ctx.res.headers.set('Cache-Control', cacheControl)
-        ctx.res.headers.set("Ctag", ctag)
     })
+
+    if (middlewares && middlewares.length) {
+        for (const func of middlewares) {
+            app.use(async (c, next) => {
+                const ctx = c as unknown as AppContext
+                await func(ctx, next)
+            })
+        }
+    }
 
     const openapi = fromHono(app, {
         docs_url: "/doc"

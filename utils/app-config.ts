@@ -45,32 +45,8 @@ export class AppConfig {
     }
 
 
-    protected readonly DEFAULT_CDN_ALLOCATION = "AS,CN,alib;*,*,aliov"
-    protected readonly DEFAULT_CDN = `
-    ali,upos-sz-mirrorali.bilivideo.com;
-    aliov,upos-sz-mirroraliov.bilivideo.com;
-    alib,upos-sz-mirroralib.bilivideo.com;
-    alio1,upos-sz-mirroralio1.bilivideo.com;
-    ali02,upos-sz-mirrorali02.bilivideo.com;
-    cos,upos-sz-mirrorcos.bilivideo.com;
-    cosb,upos-sz-mirrorcosb.bilivideo.com;
-    coso1,upos-sz-mirrorcoso1.bilivideo.com;
-    cosov,upos-sz-mirrorcosov.bilivideo.com;
-    cosdisp,upos-sz-mirrorcosdisp.bilivideo.com;
-    hw,upos-sz-mirrorhw.bilivideo.com;
-    hwb,upos-sz-mirrorhwb.bilivideo.com;
-    hwo1,upos-sz-mirrorhwo1.bilivideo.com;
-    hwdisp,upos-sz-mirrorhwdisp.bilivideo.com;
-    bd,upos-sz-mirrorbd.bilivideo.com;
-    m08c,upos-sz-mirror08c.bilivideo.com;
-    m08h,upos-sz-mirror08h.bilivideo.com;
-    m08ct,upos-sz-mirror08ct.bilivideo.com;
-    estgcos,upos-sz-estgcos.bilivideo.com;
-    estgoss,upos-sz-estgoss.bilivideo.com;
-    estghw,upos-sz-estghw.bilivideo.com;
-    upcdnbda2,upos-sz-upcdnbda2.bilivideo.com;
-    rali,upos-sz-mirrorrali.bilivideo.com;
-    akam,upos-hz-mirrorakam.akamaized.net`
+    protected readonly DEFAULT_CDN_ALLOCATION = "AS,CN,cos;*,*,aliov"
+    protected readonly DEFAULT_CDN = { "ali": "upos-sz-mirrorali.bilivideo.com", "aliov": "upos-sz-mirroraliov.bilivideo.com", "alib": "upos-sz-mirroralib.bilivideo.com", "alio1": "upos-sz-mirroralio1.bilivideo.com", "ali02": "upos-sz-mirrorali02.bilivideo.com", "cos": "upos-sz-mirrorcos.bilivideo.com", "cosb": "upos-sz-mirrorcosb.bilivideo.com", "coso1": "upos-sz-mirrorcoso1.bilivideo.com", "cosov": "upos-sz-mirrorcosov.bilivideo.com", "cosdisp": "upos-sz-mirrorcosdisp.bilivideo.com", "hw": "upos-sz-mirrorhw.bilivideo.com", "hwb": "upos-sz-mirrorhwb.bilivideo.com", "hwo1": "upos-sz-mirrorhwo1.bilivideo.com", "hwdisp": "upos-sz-mirrorhwdisp.bilivideo.com", "bd": "upos-sz-mirrorbd.bilivideo.com", "m08c": "upos-sz-mirror08c.bilivideo.com", "m08h": "upos-sz-mirror08h.bilivideo.com", "m08ct": "upos-sz-mirror08ct.bilivideo.com", "estgcos": "upos-sz-estgcos.bilivideo.com", "estgoss": "upos-sz-estgoss.bilivideo.com", "estghw": "upos-sz-estghw.bilivideo.com", "upcdnbda2": "upos-sz-upcdnbda2.bilivideo.com", "rali": "upos-sz-mirrorrali.bilivideo.com", "akam": "upos-hz-mirrorakam.akamaized.net" }
 
     public get SERVER_VERSION() {
         return str(this.env.SERVER_VERSION)
@@ -93,7 +69,7 @@ export class AppConfig {
     }
 
     public get VIDEO_CDN(): Record<string, string> {
-        return this.memo('VIDEO_CDN', () => parseCDN(this.env.VIDEO_CDN ?? this.DEFAULT_CDN)) || {}
+        return this.memo('VIDEO_CDN', () => this.env.VIDEO_CDN ? parseCDN(this.env.VIDEO_CDN) : this.DEFAULT_CDN)
     }
 
     //cache
@@ -105,8 +81,8 @@ export class AppConfig {
         return this.memo("CACHE_DATA_VERSION", () => num(this.env.CACHE_DATA_VERSION, 5))!
     }
 
-    public get RESPONSE_WORKER_CACHING(): boolean {
-        return this.memo("RESPONSE_WORKER_CACHING", () => bool(this.env.RESPONSE_WORKER_CACHING, true))!
+    public get ENABLE_RESPONSE_CACHING(): boolean {
+        return this.memo("RESPONSE_WORKER_CACHING", () => bool(this.env.ENABLE_RESPONSE_CACHING, true))!
     }
 
     public get RESPONSE_MAX_CACHE_TIME(): number {
