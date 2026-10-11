@@ -1,7 +1,12 @@
-export {};
+export { };
 
 declare global {
-  interface Env extends Record<string,string> {}
+
+  interface Request extends Request {
+    info?: { "ip_city_en": string, "ip_region_id": string, "ip_country_id": string, "ip_region_en": string, "ip_isp_en": string, "ip_isp_id": string, "ip_country_en": string, "remote_port": string, "remote_addr": string, "ip_city_id": string }
+  }
+
+  interface Env extends Record<string, string> { }
   interface Console {
     alert(...data: unknown[]): void;
   }

@@ -3,10 +3,12 @@
   "scripts": {
     "build": "esbuild --bundle ./src/index.ts --outfile=./dist/index.js --platform=node",
     "dev": "esa-cli dev",
-    "postinstall": "node scripts/patch-esa-cli.mjs"
+    "patch": "node scripts/patch-esa-cli.mjs",
+    "lsenv":"esa-cli env list --environment production"
   },
   "devDependencies": {
     "@types/node": "^25.9.4",
+    "dotenv-cli": "^11.0.0",
     "esa-cli": "^1.0.13",
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
