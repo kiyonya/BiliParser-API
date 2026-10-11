@@ -28,11 +28,6 @@ export function createAppContext(c: Context): AppContext {
         const responseJson: Response = ctx.json(response, code as any)
         return responseJson
     }
-    ctx.defer = (promise: Promise<any>) => {
-        try {
-            ctx.executionCtx.waitUntil(promise)
-        } catch (error) { }
-    }
     return ctx
 }
 
