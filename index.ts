@@ -18,12 +18,15 @@ import { SearchAPI } from "./apis/search";
 
 import { createAppCache, createAppCacheKey, createAppContext, createAppFetch, FetchImpl } from "./create";
 
+const API_VERSION = "7.2.0"
+
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE, HEAD',
     'Referrer-Policy': "strict-origin-when-cross-origin",
     "Access-Control-Allow-Credentials": 'true',
-    'X-Nekocha':"isn't nekocha cute??"
+    'X-Nekocha':"isn't nekocha cute??",
+    'X-API-Version':API_VERSION
 }
 
 export type AppMiddlewareFunction = (ctx: AppContext, next: Next) => Promise<void> | void
