@@ -1,8 +1,9 @@
 
 import { hmacSha256, md5String } from "./hashlib";
 import SharedData from "../shared/data";
-import { AppContext } from "../types/app";
+import { AppContext, CacheStatus } from "../types/app";
 import { BiliTypes } from "../types/bili";
+import { AppHeaders } from "../shared/headers";
 
 export class BiliCrypto {
 
@@ -48,11 +49,12 @@ export class BiliCrypto {
 
     public async createAnonymousCookie(noCache: boolean = false): Promise<Record<string, string>> {
         const cookiesCacheKey = this.ctx.appCacheKey.cookie()
-        let cookies = noCache ? null : await this.ctx.appCache.getCache<Record<string, string>>(cookiesCacheKey, undefined, 'kv', false)
+        const cookieCacheMode = this.ctx.config.ENABLE_COOKIE_WEB_CACHE ? 'all' : 'kv'
+        let cookies = noCache ? null : await this.ctx.appCache.getCache<Record<string, string>>(cookiesCacheKey, undefined, cookieCacheMode, false)
         if (!cookies) {
             const signTs = Math.floor(Date.now() / 1000)
-            this.ctx.header('X-Bcrypto-Cookies-Cache', 'MISS')
-            this.ctx.header('X-Bcrypto-Sign-Time', String(signTs))
+            this.ctx.header(AppHeaders.BCRYPTO_COOKIE_CACHE, 'MISS' satisfies CacheStatus)
+            this.ctx.header(AppHeaders.BCRYPTO_SIGN_TIME, String(signTs))
             let buvid3: string | null = null
             let buvid4: string | null = null;
             let ticket: string | null = null
@@ -122,11 +124,11 @@ export class BiliCrypto {
                 const expirationAt = signTs + this.ctx.config.COOKIES_SIGN_CACHE_TIME
                 await this.ctx.appCache.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
-                }, undefined, 'kv')
+                }, undefined, cookieCacheMode)
             }
         }
         else {
-            this.ctx.header('X-Bcrypto-Cookies-Cache', 'HIT')
+            this.ctx.header(AppHeaders.BCRYPTO_COOKIE_CACHE, 'HIT' satisfies CacheStatus)
         }
         return cookies
     }

@@ -2,20 +2,20 @@ import { md5String } from "../utils/hashlib"
 import { parseCDN, parseCDNAllocation } from "./cdn"
 import { CDNAllocation } from "../types/app"
 
-const bool = (raw: unknown, def?: boolean): boolean | undefined => {
+export const bool = (raw: unknown, def?: boolean): boolean | undefined => {
     if (raw === true || raw === "true") return true
     if (raw === false || raw === "false") return false
     return def
 }
 
-function str(raw: unknown): string | undefined
-function str(raw: unknown, def: string): string
-function str(raw: unknown, def?: string): string | undefined {
+export function str(raw: unknown): string | undefined
+export function str(raw: unknown, def: string): string
+export function str(raw: unknown, def?: string): string | undefined {
     if (raw === undefined || raw === null || raw === "") return def
     return String(raw)
 }
 
-const num = (raw: unknown, def?: number): number | undefined => {
+export const num = (raw: unknown, def?: number): number | undefined => {
     if (raw === undefined || raw === null || raw === "") return def
     const value = Number(raw)
     return Number.isFinite(value) ? value : def
@@ -93,6 +93,7 @@ export class AppConfig {
         return this.memo("KV_CACHE_BINDING", () => str(this.env.KV_CACHE_BINDING))
     }
 
+
     //cookies
     public get ENABLE_CUSTOM_COOKIES(): boolean {
         return this.memo("ENABLE_CUSTOM_COOKIES", () => bool(this.env.ENABLE_CUSTOM_COOKIES, false))!
@@ -104,6 +105,10 @@ export class AppConfig {
 
     public get CUSTOM_COOKIES(): string | undefined {
         return this.memo('CUSTOM_COOKIES', () => str(this.env.CUSTOM_COOKIES))
+    }
+
+    public get ENABLE_COOKIE_WEB_CACHE():boolean {
+        return this.memo('ENABLE_COOKIE_WEB_CACHE',()=>bool(this.env.ENABLE_COOKIE_WEB_CACHE,true))!
     }
 
     //video

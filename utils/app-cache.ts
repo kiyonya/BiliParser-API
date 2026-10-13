@@ -1,9 +1,10 @@
 import z from "zod"
-import { AppContext, CacheWarp } from "../types/app"
+import { AppContext, CacheStatus, CacheWarp } from "../types/app"
 import { AppWebCache } from "./app-edge-cache"
 import { AppKVCache } from "./app-kv-cache"
 import { md5String } from "./hashlib"
 import { BiliTypes } from "../types/bili"
+import { AppHeaders } from "../shared/headers"
 
 export type CacheMode = "kv" | "edge" | "all"
 
@@ -35,23 +36,23 @@ export class AppCache {
         const headers: Record<string, string> = {}
         if (this.webCache) {
             if (this.edgeCacheHits.size === 0) {
-                headers["X-Server-Cache-Web"] = "MISS"
+                headers[AppHeaders.SERVER_CACHE_WEB] = "MISS" satisfies CacheStatus
             }
             else {
                 const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
-                headers["X-Server-Cache-Web"] = `${edgeHits}`
+                headers[AppHeaders.SERVER_CACHE_WEB] = `${edgeHits}`
             }
         }
         if (this.kvCache) {
             if (this.kvCacheNotUsed) {
-                headers['X-Server-Cache-Kv'] = "PASS"
+                headers[AppHeaders.SERVER_CACHE_KV] = "BYPASS" satisfies CacheStatus
             }
             else if (this.kvCacheHits.size === 0) {
-                headers['X-Server-Cache-Kv'] = "MISS"
+                headers[AppHeaders.SERVER_CACHE_KV] = "MISS" satisfies CacheStatus
             }
             else {
                 const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
-                headers['X-Server-Cache-Kv'] = `${kvHits}`
+                headers[AppHeaders.SERVER_CACHE_KV] = `${kvHits}`
             }
         }
         return headers

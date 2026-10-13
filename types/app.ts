@@ -3,6 +3,8 @@ import { AppCache, AppCacheKey } from "../utils/app-cache"
 import { AppConfig } from "../utils/app-config"
 import z from "zod"
 
+export type CacheStatus = "HIT" | "BYPASS" | "MISS" | "EXPIRED" | "DYNAMIC"
+
 export interface FetchOptions {
     retries?: number
     initialDelay?: number
