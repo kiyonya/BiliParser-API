@@ -47,9 +47,10 @@ export class BaseAPI extends API {
             "Server Version": serverVersion,
             "Colo": ctx.appLocation?.colo as string,
         }
-        const ray = ctx.req.header("cf-ray")
+        //@ts-ignore
+        const ray = ctx.req.header("cf-ray") || ctx.req.raw?.meta?.ray
         if (ray) {
-            infos["ray"] = ray
+            infos["Ray"] = ray
         }
         const rows = Object.entries(demoUrls)
             .map(([type, url]) => `<tr><td>${type}</td><td><a href="${url}">${url}</a></td></tr>`)
