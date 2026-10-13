@@ -7,10 +7,10 @@ import { AppConfig } from "./utils/app-config"
 import { AppWebCache } from "./utils/app-edge-cache"
 import { AppKVCache } from "./utils/app-kv-cache"
 
-export function createAppContext(c: Context): AppContext {
+export function createAppContext(c: Context,cfg?:AppConfig): AppContext {
     const ctx = c as unknown as AppContext
     if (!ctx.config) {
-        ctx.config = new AppConfig(ctx.env)
+        ctx.config = cfg || new AppConfig(ctx.env)
     }
     ctx.jsonResp = <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>): Response => {
         if (schema) {

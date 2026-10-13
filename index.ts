@@ -17,16 +17,17 @@ import { FavListAPI } from "./apis/favlist";
 import { SearchAPI } from "./apis/search";
 
 import { createAppCache, createAppCacheKey, createAppContext, createAppFetch, FetchImpl } from "./create";
+import { AppConfig } from "./utils/app-config";
 
-const API_VERSION = "7.2.0"
+export const API_VERSION = "7.4.0"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE, HEAD',
     'Referrer-Policy': "strict-origin-when-cross-origin",
     "Access-Control-Allow-Credentials": 'true',
-    'X-Nekocha':"isn't nekocha cute??",
-    'X-API-Version':API_VERSION
+    'X-Nekocha': "isn't nekocha cute??",
+    'X-API-Version': API_VERSION
 }
 
 export type AppMiddlewareFunction = (ctx: AppContext, next: Next) => Promise<void> | void
@@ -41,14 +42,16 @@ export interface createServerOptions {
     fetchFactory?: (ctx: AppContext) => FetchImpl,
     locationFactory?: (ctx: AppContext) => AppLocation,
     deferFactory?: (ctx: AppContext) => ((p: Promise<unknown>) => void | Promise<void>),
-    middlewares?: AppMiddlewareFunction[]
+    onResponseCache?: (ctx: AppContext, response: Response, maxAge: number) => void | Promise<void>
+    middlewares?: AppMiddlewareFunction[],
+    config?: AppConfig
 }
 
 export function createServer(createServerOptions: createServerOptions = {}) {
-    const { webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory, fetchFactory, locationFactory, deferFactory, middlewares } = createServerOptions
+    const { webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory, fetchFactory, locationFactory, deferFactory, onResponseCache: howShouldICacheResponse, middlewares, config } = createServerOptions
     const app = new Hono()
     app.use(async (c, next) => {
-        const ctx = createAppContext(c)
+        const ctx = createAppContext(c, config)
         ctx.appCache = createAppCache(ctx, webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory)
         ctx.appCacheKey = createAppCacheKey(ctx)
         ctx.appFetch = createAppFetch(ctx, fetchFactory?.(ctx) || fetch)
@@ -90,33 +93,27 @@ export function createServer(createServerOptions: createServerOptions = {}) {
     app.use(async (c, next) => {
         await next()
         const ctx = c as unknown as AppContext
-        if (!ctx.config.ENABLE_RESPONSE_CACHING) {
-            ctx.res.headers.set('Cache-Control', 'no-store')
-            return
-        }
-        if (ctx.res.headers.has("Cache-Control")) {
-            return
-        }
-
+        if (ctx.res.headers.has('Cache-Control')) { return }
         const maxCacheTime = ctx.config.RESPONSE_MAX_CACHE_TIME
-        const isResponseCacheable = maxCacheTime > 0 && [200, 302, 304, 307].includes(ctx.res.status)
+        const status = ctx.res.status
+        const isResponseCacheable = ctx.config.ENABLE_RESPONSE_CACHING && maxCacheTime > 0 && [200, 302, 304, 307].includes(status) && howShouldICacheResponse
 
         if (isResponseCacheable) {
-            const cache = ctx.appCache
+            const response = ctx.res
+            const appCache = ctx.appCache
             const nowS = Math.floor(Date.now() / 1000)
-            const minExpirationTime = cache.minExpirationTime
+            const minExpirationTime = appCache.minExpirationTime
             const maxCacheExpiration = nowS + maxCacheTime
             const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
             const maxAge = Math.max(0, Math.floor(maxExpiration - nowS))
-            if (!maxAge || maxAge <= 0) {
-                ctx.res.headers.set('Cache-Control', 'no-store')
-                return
+
+            if (response && maxAge > 0) {
+                await howShouldICacheResponse(ctx, response, maxAge)
             }
-            const cacheControl = `public, max-age=0, s-maxage=${maxAge}`
-            ctx.res.headers.set('Cache-Control', cacheControl)
         }
-        else{
-            ctx.res.headers.set('Cache-Control', 'no-store')
+
+        if (!ctx.res.headers.has("Cache-Control")) {
+            ctx.res.headers.set("Cache-Control", "no-store")
         }
     })
 
