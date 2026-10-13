@@ -1,5 +1,9 @@
-# Hello world
+# BiliParser-API ESA版
 
-返回了一个包含Hello world字符串的HTML页面。
+基于通用api完成
 
-Returns a page containing the string "Hello world".
+文档的话...还没写啊...
+
+以后会写的吧...
+
+（欸嘿）
