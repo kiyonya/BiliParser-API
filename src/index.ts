@@ -13,19 +13,19 @@ const LOCAL_ENV: Record<string, any> = {
     ENABLE_RESPONSE_CACHING: true,
     ENABLE_CUSTOM_COOKIES: false,
     ENABLE_PROXY_SERVER: false,
-    SERVER_VERSION: "7.5.0.261013-esa",
+    SERVER_VERSION: "7.5.1.261014-esa",
     CACHE_DATA_VERSION: 6,
 }
 
 enum ESAHeaders {
     ESA_CACHE_TIME = "ESA-Cache-Time",
-    ESA_CACHE_MAXAGE = "ESA-Cache-Savetime",
+    ESA_CACHE_TTL = "ESA-Cache-Ttl",
     ESA_CACHE_STATUS = "ESA-Cache-Status",
     ESA_CACHE_TAG = "ESA-Cache-Tag",
     ESA_RAY = "ESA-Ray",
 
     TEMP_CACHE_TIME = "_ESA-Cache-Time",
-    TEMP_CACHE_SAVETIME = "_ESA-Cache-Savetime",
+    TEMP_CACHE_TTL = "_ESA-Cache-Ttl",
     TEMP_STATUS_CODE = "_ESA-Status-Code",
     TEMP_STATUS_TEXT = "_ESA-Status-Text",
     TEMP_CACHE_RESPONSE = "_ESA-Cache-Response"
@@ -76,7 +76,7 @@ export default {
             const esaCache: Response | undefined = await cache.get(cacheKeyUrl.toString())
             if (esaCache) {
                 const cacheAtHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_TIME)
-                const maxAgeHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_SAVETIME)
+                const maxAgeHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_TTL)
                 if (cacheAtHeader && maxAgeHeader && esaCache.headers.has(ESAHeaders.TEMP_CACHE_RESPONSE)) {
                     const cacheAt = parseInt(cacheAtHeader)
                     const maxAge = parseInt(maxAgeHeader)
@@ -90,7 +90,7 @@ export default {
 
                         const removeHeaders = [
                             ESAHeaders.TEMP_CACHE_TIME,
-                            ESAHeaders.TEMP_CACHE_SAVETIME,
+                            ESAHeaders.TEMP_CACHE_TTL,
                             ESAHeaders.TEMP_STATUS_CODE,
                             ESAHeaders.TEMP_STATUS_TEXT,
                             ESAHeaders.TEMP_CACHE_RESPONSE,
@@ -119,7 +119,7 @@ export default {
                             rResponse.headers.set(AppHeaders.SERVER_CACHE_WEB, 'BYPASS')
                         }
                         rResponse.headers.set(ESAHeaders.ESA_CACHE_TIME, String(cacheAt))
-                        rResponse.headers.set(ESAHeaders.ESA_CACHE_MAXAGE, String(maxAge))
+                        rResponse.headers.set(ESAHeaders.ESA_CACHE_TTL, String(maxAge))
                         response = rResponse
                         cacheStatus = 'HIT'
                     }
@@ -189,7 +189,7 @@ export default {
                         const cResponse = response.clone()
                         const cacheTime = Math.floor(Date.now() / 1000)
                         cResponse.headers.set(ESAHeaders.TEMP_CACHE_TIME, String(cacheTime))
-                        cResponse.headers.set(ESAHeaders.TEMP_CACHE_SAVETIME, String(age))
+                        cResponse.headers.set(ESAHeaders.TEMP_CACHE_TTL, String(age))
                         cResponse.headers.set(ESAHeaders.TEMP_STATUS_CODE, String(status))
                         cResponse.headers.set(ESAHeaders.TEMP_STATUS_TEXT, String(statusText))
                         cResponse.headers.set(ESAHeaders.TEMP_CACHE_RESPONSE, '')
