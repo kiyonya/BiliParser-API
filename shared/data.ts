@@ -53,9 +53,9 @@ export default abstract class SharedData {
         tv: { appkey: '4409e2ce8ffd12b8', appsec: '59b43e04ad6965f34319062b478f83dd', platform: 'android', ua: 'Bilibili Freedoooooom/MOD' }
     };
     public static readonly URLPatterns = {
-        BILI_HOST: new URLPattern("*://*bilibili.com/*"),
-        B23_TV: new URLPattern("*://b23.tv/*"),
-        BILI_VIDEO: new URLPattern("*://*bilibili.com/video/*"),
-        BILI_LIVE: new URLPattern('*://live.bilibili.com/*')
+        BILI_HOST: new URLPattern({ hostname: "*bilibili.com", protocol: "*", port: "*", search: "*", pathname: "*", hash: "*" }),
+        B23_TV: new URLPattern({ hostname: "*b23.tv", protocol: "*", port: "*", search: "*", pathname: "/*", hash: "*" }),
+        BILI_VIDEO: new URLPattern({ hostname: "*bilibili.com", protocol: "*", port: "*", search: "*", pathname: "/video/*", hash: "*" }),
+        BILI_LIVE: new URLPattern({ hostname: "live.bilibili.com", protocol: "*", port: "*", search: "*", pathname: "/*", hash: "*" })
     }
 }
