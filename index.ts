@@ -19,7 +19,7 @@ import { SearchAPI } from "./apis/search";
 import { createAppCache, createAppCacheKey, createAppContext, createAppFetch, FetchImpl } from "./create";
 import { AppConfig } from "./utils/app-config";
 
-export const API_VERSION = "7.4.0"
+export const API_VERSION = "7.5.5"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -129,17 +129,18 @@ export function createServer(createServerOptions: createServerOptions = {}) {
     const openapi = fromHono(app, {
         docs_url: "/doc"
     });
+
     openapi.all('/', BaseAPI)
     openapi.get('/cdn', VideoCDNAPI)
     openapi.get('/cookie', CookieAPI)
     openapi.get('/ipregion', IpRegionAPI)
     openapi.get('/video/:id?/:p?', VideoAPI)
+    openapi.get('/bangumi/info', BangumiInfoAPI)
+    openapi.get('/bangumi/episodes', BangumiEpisodesAPI)
     openapi.get('/danmaku/:id?/:p?', DanmakuAPI)
     openapi.get('/subtitle/:id?/:p?', SubtitleAPI)
     openapi.get('/cover/:id?', CoverAPI)
     openapi.get('/live/:roomId?', LiveAPI)
-    openapi.get('/bangumi/info', BangumiInfoAPI)
-    openapi.get('/bangumi/episodes', BangumiEpisodesAPI)
     openapi.get('/user/archieve/:mid?/:sid?', ArchieveAPI)
     openapi.get('/user/fav/:fid?', FavListAPI)
     openapi.get('/search/:type?', SearchAPI)

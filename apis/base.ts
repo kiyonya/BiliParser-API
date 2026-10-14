@@ -11,7 +11,7 @@ export class BaseAPI extends API {
         const protocol = url.protocol
         const port = url.port
         const demoUrl = ['127.0.0.1', 'localhost'].includes(hostname) ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`
-        
+
         const demoBvid = "BV1y5UNYUEhu"
         const demoAvid = "av248637970"
         const publishYear = '2026'
@@ -20,11 +20,16 @@ export class BaseAPI extends API {
 
         const demoUrls: Record<string, string> = {
             "video play": `${demoUrl}/video/${demoBvid}`,
+            "video play by url": `${demoUrl}/video?url=https://www.bilibili.com/video/BV18F8UzkEwg`,
             "video part": `${demoUrl}/video/BV1LCzTByEBY/2`,
-            "video info": `${demoUrl}/video/${demoBvid}?type=json`,
+            "video info": `${demoUrl}/video/${demoBvid}?type=info`,
+            "video url": `${demoUrl}/video/${demoBvid}?type=url`,
+            "video full info": `${demoUrl}/video/${demoBvid}?type=full`,
             "video dash": `${demoUrl}/video/${demoBvid}?format=dash&platform=pc&qn=80`,
             "video play av": `${demoUrl}/video/${demoAvid}`,
-            "video info av": `${demoUrl}/video/${demoAvid}?type=json`,
+            "video info av": `${demoUrl}/video/${demoAvid}?type=info`,
+            "video url av": `${demoUrl}/video/${demoAvid}?type=url`,
+            "video full info av": `${demoUrl}/video/${demoAvid}?type=full`,
             "video cover": `${demoUrl}/cover/${demoBvid}`,
             "video subtitle": `${demoUrl}/subtitle/BV1vnbPz4ECg`,
             "video subtitle part": `${demoUrl}/subtitle/BV1vnbPz4ECg/1`,

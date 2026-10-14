@@ -8,8 +8,13 @@ import { AppContext } from "../types/app";
 
 export class VideoAPI extends API {
 
+    private _parser: BiliVideoParser | null = null
+    private getParser(ctx: AppContext) {
+        return this._parser ??= new BiliVideoParser(ctx)
+    }
+
     private readonly paramSchema = z.object({
-        type: z.enum(["video", "json"]).default("video"),
+        type: z.enum(["video", "full", "info", "json", "url"]).default("video"),
         cdn: z.string().optional(),
         qn: z.enum(["6", "16", "32", "64", "74", "80", "100", "112", "116", "120", "125", "126", "127", "129"]).default("64").transform((qn) => parseInt(qn)),
         format: z.enum(['mp4', 'dash']).default('mp4'),
@@ -26,13 +31,12 @@ export class VideoAPI extends API {
             }
         })
 
-    private async parseBiliVideo(ctx: AppContext, videoId: BiliTypes.BVideoId, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
-        const parser = new BiliVideoParser(ctx)
-
+    private async parseVideoInfo(ctx: AppContext, videoId: BiliTypes.BVideoId): Promise<BiliTypes.RES.Video.VideoInfo> {
         const infoKey = videoId.type === 'bvid' ? ctx.appCacheKey.videoInfoBv(videoId.id) : ctx.appCacheKey.videoInfoAv(videoId.id)
         let videoInfo = await this.getSchemaValidData(await ctx.appCache.getCache<BiliTypes.RES.Video.VideoInfo>(infoKey), Schema.videoInfoSchema)
 
         if (!videoInfo) {
+            const parser = this.getParser(ctx)
             videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(videoId), Schema.videoInfoSchema, true)
             const setCacheTasks: Promise<void>[] = []
             if (videoInfo.bvid) {
@@ -43,26 +47,20 @@ export class VideoAPI extends API {
             }
             await Promise.allSettled(setCacheTasks)
         }
+        return videoInfo
+    }
 
-        if (p > videoInfo.parts.length) {
-            throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
-        }
-        const targetPart = videoInfo.parts.filter((w) => w.page === p)[0]
-        if (!targetPart) {
-            throw new Error(`cannot get target video part with part ${p}`)
-        }
-
-        const targetCid = targetPart.cid
-        const urlKey = ctx.appCacheKey.videoPlayUrl(targetCid, qn, platform, format, ctx.config.SERVER_LOGIN_HASHKEY)
+    private async parseVideoStream(ctx: AppContext, videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
+        const urlKey = ctx.appCacheKey.videoPlayUrl(cid, qn, platform, format, ctx.config.SERVER_LOGIN_HASHKEY)
 
         let videoPlay = await this.getSchemaValidData(await ctx.appCache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey), Schema.videoPlaySchema)
 
         if (!videoPlay) {
-            const duration = videoInfo.duration
-
-            videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(videoId, targetCid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Schema.videoPlaySchema, true)
+            const parser = this.getParser(ctx)
+            videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(videoId, cid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Schema.videoPlaySchema, true)
 
             await ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, videoPlay, (data) => {
+                const duration = videoPlay?.duration ?? 0
                 let videoBufferTimeS: number
                 if (duration < 60 * 10) {
                     videoBufferTimeS = 60
@@ -80,17 +78,34 @@ export class VideoAPI extends API {
             })
         }
 
-        ctx.header("X-Video-Id",String(videoId.id))
-        ctx.header("X-Video-Cid",String(targetCid))
-        ctx.header("X-Video-Part",String(p))
+        return videoPlay
+    }
 
+    private async parseVideoFull(ctx: AppContext, videoId: BiliTypes.BVideoId, p: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.Video> {
+        const videoInfo = await this.parseVideoInfo(ctx, videoId)
+        if (p > videoInfo.parts.length) {
+            throw new Error(`video part is out of bounds,max ${videoInfo.parts.length},given ${p}.make sure you provide part in range`)
+        }
+        const part = videoInfo.parts.filter((w) => w.page === p)[0]
+        if (!part) {
+            throw new Error(`cannot get target video part with part ${p}`)
+        }
+        const cid = part.cid
+        const videoStream = await this.parseVideoStream(ctx, videoId, cid, qn, platform, format)
         const video: BiliTypes.RES.Video.Video = {
             ...videoInfo,
-            play: {
-                ...videoPlay
-            }
+            play: videoStream
         }
+        ctx.header("X-Video-Id", String(videoId.id))
+        ctx.header("X-Video-Cid", String(cid))
+        ctx.header("X-Video-Part", String(p))
         return video
+    }
+
+    private async parseVideoInfoOnly(ctx: AppContext, videoId: BiliTypes.BVideoId): Promise<BiliTypes.RES.Video.VideoInfo> {
+        const videoInfo = await this.parseVideoInfo(ctx, videoId)
+        ctx.header("X-Video-Id", String(videoId.id))
+        return videoInfo
     }
 
     public override async handler(ctx: AppContext): Promise<Response> {
@@ -122,25 +137,34 @@ export class VideoAPI extends API {
 
         const videoId = parmas.data.videoId!
 
-        const result = await this.parseBiliVideo(ctx, videoId, p, qn, platform, format)
-        if (result.play.isDash) {
-            result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn, allocation)
+        if (type === 'info') {
+            const info = await this.parseVideoInfoOnly(ctx, videoId)
+            return ctx.jsonResp<BiliTypes.RES.Video.VideoInfo>("Success", 200, info)
         }
         else {
-            result.play.url = this.utils.switchVideoCDN(ctx, result.play.url, cdn, allocation)
-            result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchVideoCDN(ctx, i, cdn, allocation))
-        }
-
-        if (result.play.isDash) {
-            return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result)
-        }
-        else {
-            switch (type) {
-                case "json":
-                    return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result)
-                case "video":
-                default:
-                    return ctx.redirect(result.play.url, 302)
+            const result = await this.parseVideoFull(ctx, videoId, p, qn, platform, format)
+            if (result.play.isDash) {
+                result.play.dash = this.utils.switchDashCDN(ctx, result.play.dash, cdn, allocation)
+            }
+            else {
+                result.play.url = this.utils.switchVideoCDN(ctx, result.play.url, cdn, allocation)
+                result.play.backupUrl = result.play.backupUrl.map(i => this.utils.switchVideoCDN(ctx, i, cdn, allocation))
+            }
+            if (result.play.isDash) {
+                return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result)
+            }
+            else {
+                switch (type) {
+                    case 'full':
+                    case 'json':
+                        return ctx.jsonResp<BiliTypes.RES.Video.Video>("Success", 200, result)
+                    case "video":
+                    default:
+                        return ctx.redirect(result.play.url, 302)
+                    case 'url':
+                        const url = result.play.url
+                        return ctx.text(url, 200)
+                }
             }
         }
     }
