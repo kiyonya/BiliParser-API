@@ -96,16 +96,9 @@ export class VideoAPI extends API {
             ...videoInfo,
             play: videoStream
         }
-        ctx.header("X-Video-Id", String(videoId.id))
         ctx.header("X-Video-Cid", String(cid))
         ctx.header("X-Video-Part", String(p))
         return video
-    }
-
-    private async parseVideoInfoOnly(ctx: AppContext, videoId: BiliTypes.BVideoId): Promise<BiliTypes.RES.Video.VideoInfo> {
-        const videoInfo = await this.parseVideoInfo(ctx, videoId)
-        ctx.header("X-Video-Id", String(videoId.id))
-        return videoInfo
     }
 
     public override async handler(ctx: AppContext): Promise<Response> {
@@ -136,9 +129,10 @@ export class VideoAPI extends API {
         }
 
         const videoId = parmas.data.videoId!
+         ctx.header("X-Video-Id", String(videoId.id))
 
         if (type === 'info') {
-            const info = await this.parseVideoInfoOnly(ctx, videoId)
+            const info = await this.parseVideoInfo(ctx, videoId)
             return ctx.jsonResp<BiliTypes.RES.Video.VideoInfo>("Success", 200, info)
         }
         else {
