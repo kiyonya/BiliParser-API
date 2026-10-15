@@ -4,7 +4,8 @@
     "build": "esbuild --bundle ./src/index.ts --outfile=./dist/index.js --platform=node",
     "dev": "esa-cli dev",
     "patch": "node scripts/patch-esa-cli.mjs",
-    "lsenv":"esa-cli env list --environment production"
+    "lsenv":"esa-cli env list --environment production",
+    "deploy":"esa-cli deploy"
   },
   "devDependencies": {
     "@types/node": "^25.9.4",
