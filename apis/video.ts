@@ -129,7 +129,7 @@ export class VideoAPI extends API {
         }
 
         const videoId = parmas.data.videoId!
-         ctx.header("X-Video-Id", String(videoId.id))
+        ctx.header("X-Video-Id", `${videoId.type},${videoId.id}`)
 
         if (type === 'info') {
             const info = await this.parseVideoInfo(ctx, videoId)
