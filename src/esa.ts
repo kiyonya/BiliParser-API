@@ -1,4 +1,4 @@
-import { AppContext, AppLocation, KVCacheDeleter, KVCacheGetter, KVCacheSetter, WebCacheDeleter, WebCacheGetter, WebCacheSetter } from "../general/types/app"
+import { AppContext, AppLocation, KVCacheDeleter, KVCacheGetter, KVCacheSetter, WebCacheDeleter, WebCacheGetter, WebCacheSetter } from "../api-core/types/app"
 
 export const esaWebCacheSetter: WebCacheSetter = async (keyUrl, _key, data) => {
     const nowS = Math.floor(Date.now() / 1000)

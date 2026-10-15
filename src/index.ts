@@ -1,8 +1,8 @@
-import { API_VERSION, createServer } from "../general";
-import { AppHeaders } from "../general/shared/headers";
-import { CacheStatus } from "../general/types/app";
-import { AppConfig } from "../general/utils/app-config";
-import { md5String } from "../general/utils/hashlib";
+import { API_VERSION, createServer } from "../api-core";
+import { AppHeaders } from "../api-core/shared/headers";
+import { CacheStatus } from "../api-core/types/app";
+import { AppConfig } from "../api-core/utils/app-config";
+import { md5String } from "../api-core/utils/hashlib";
 import { esaKvCacheDeleter, esaKvCacheGetter, esaKvCacheSetter, esaRequestLocation, esaWebCacheDeleter, esaWebCacheGetter, esaWebCacheSetter } from "./esa";
 import crypto from 'node:crypto'
 
@@ -13,7 +13,7 @@ const LOCAL_ENV: Record<string, any> = {
     ENABLE_RESPONSE_CACHING: true,
     ENABLE_CUSTOM_COOKIES: false,
     ENABLE_PROXY_SERVER: false,
-    SERVER_VERSION: "7.5.1.261014-esa",
+    SERVER_VERSION: "7.5.6.261014-esa",
     CACHE_DATA_VERSION: 6,
 }
 

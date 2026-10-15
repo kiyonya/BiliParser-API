@@ -1,4 +1,4 @@
-[submodule "general"]
-	path = general
+[submodule "api-core"]
+	path = api-core
 	url = https://github.com/kiyonya/BiliParser-API.git
-	branch = general-api
+	branch = Biliparser-APICore
