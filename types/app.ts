@@ -105,11 +105,7 @@ export interface AppConfigOptions {
     BILI_USER_ARCHIVE_CACHE_TIME: number
     BILI_USER_FAV_CACHE_TIME: number
     BILI_DANMAKU_CACHE_TIME: number
-    ENABLE_PROXY_SERVER: boolean
-    PROXY_SERVER_FETCH_MAX_RETRIES: number
-    PROXY_SERVER_TIMEOUT: number
-    PROXY_SERVER_URL: string | undefined
-    PROXY_SERVER_TOKEN: string | undefined
-    PROXY_TOKEN_HEADER: string
+    FETCH_MAX_RETRIES: number
+    FETCH_TIMEOUT: number
     BILI_SEARCH_CACHE_TIME: number
 }

@@ -20,7 +20,7 @@ import { AppConfig } from "./utils/app-config";
 import { AppCache, AppCacheKey, AppCacheLayer } from "./utils/app-cache";
 import z from "zod";
 
-export const API_VERSION = "7.6.1"
+export const API_VERSION = "7.7"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -197,8 +197,8 @@ export function createAppFetch(ctx: AppContext, fetchImplement: typeof fetch = f
         }
 
         const {
-            retries = config.PROXY_SERVER_FETCH_MAX_RETRIES,
-            timeout = config.PROXY_SERVER_TIMEOUT,
+            retries = config.FETCH_MAX_RETRIES,
+            timeout = config.FETCH_TIMEOUT,
             initialDelay = 1000,
             maxDelay = 30000,
             backoffFactor = 2,

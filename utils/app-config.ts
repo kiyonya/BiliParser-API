@@ -69,12 +69,9 @@ export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> impl
 
     readonly BILI_DANMAKU_CACHE_TIME: number
 
-    readonly ENABLE_PROXY_SERVER: boolean
-    readonly PROXY_SERVER_FETCH_MAX_RETRIES: number
-    readonly PROXY_SERVER_TIMEOUT: number
-    readonly PROXY_SERVER_URL: string | undefined
-    readonly PROXY_SERVER_TOKEN: string | undefined
-    readonly PROXY_TOKEN_HEADER: string
+    readonly FETCH_MAX_RETRIES: number
+    readonly FETCH_TIMEOUT: number
+
 
     readonly BILI_SEARCH_CACHE_TIME: number
 
@@ -126,14 +123,8 @@ export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> impl
 
         // --- danmaku ---
         this.BILI_DANMAKU_CACHE_TIME = num(env.BILI_DANMAKU_CACHE_TIME, 1800)
-
-        // --- proxy ---
-        this.ENABLE_PROXY_SERVER = bool(env.ENABLE_PROXY_SERVER, true)
-        this.PROXY_SERVER_FETCH_MAX_RETRIES = num(env.PROXY_SERVER_FETCH_MAX_RETRIES, 3)
-        this.PROXY_SERVER_TIMEOUT = num(env.PROXY_SERVER_TIMEOUT, 10 * 1000)
-        this.PROXY_SERVER_URL = str(env.PROXY_SERVER_URL)
-        this.PROXY_SERVER_TOKEN = str(env.PROXY_SERVER_TOKEN)
-        this.PROXY_TOKEN_HEADER = str(env.PROXY_TOKEN_HEADER, "X-Proxy-Token")
+        this.FETCH_MAX_RETRIES = num(env.PROXY_SERVER_FETCH_MAX_RETRIES, 3)
+        this.FETCH_TIMEOUT = num(env.PROXY_SERVER_TIMEOUT, 10 * 1000)
 
         // --- search ---
         this.BILI_SEARCH_CACHE_TIME = num(env.BILI_SEARCH_CACHE_TIME, 360)
