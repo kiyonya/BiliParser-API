@@ -71,9 +71,19 @@ export class AppWebCache {
 
     public async setEdgeCacheRaw(key: string, serialized: string, expirationAt: number) {
         try {
+            const nowS = Math.floor(Date.now() / 1000)
+            const ttl = expirationAt - nowS
+            if (ttl <= 0) { return }
+            const cacheHeaders = new Headers()
+            cacheHeaders.set('Cache-Control', `public, max-age=${ttl}`)
+            cacheHeaders.set('X-Cache-Type', 'esa-cache')
+            cacheHeaders.set('X-ExpirationAt', String(expirationAt))
+            const jsonlikeResponse = new Response(serialized, {
+                headers: cacheHeaders,
+                status: 200
+            })
             const keyUrl = this.createVCacheKey(this.ctx, key)
-            const warp = JSON.parse(serialized) as CacheWarp
-            await this.setter(keyUrl, key, warp)
+            await this.setter(keyUrl, key, jsonlikeResponse,expirationAt,ttl)
         } catch (error) {
             return
         }
@@ -87,8 +97,7 @@ export class AppWebCache {
                 expirationAt: expirationAt,
                 key: key
             }
-            const keyUrl = this.createVCacheKey(this.ctx, key)
-            await this.setter(keyUrl, key, warp)
+            await this.setEdgeCacheRaw(key, JSON.stringify(warp), expirationAt)
         } catch (error) {
             return
         }

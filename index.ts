@@ -1,6 +1,6 @@
-import { Hono, Next } from "hono";
+import { Context, Hono, Next } from "hono";
 import { fromHono } from "chanfana";
-import { AppContext, AppLocation, KVCacheDeleter, KVCacheGetter, KVCacheSetter, WebCacheDeleter, WebCacheGetter, WebCacheSetter } from "./types/app";
+import { AppContext, AppLocation, APIResponse, AppFetch, FetchOptions } from "./types/app";
 
 import { BaseAPI } from "./apis/base";
 import { VideoCDNAPI } from "./apis/cdn";
@@ -16,10 +16,11 @@ import { ArchieveAPI } from "./apis/archieve";
 import { FavListAPI } from "./apis/favlist";
 import { SearchAPI } from "./apis/search";
 
-import { createAppCache, createAppCacheKey, createAppContext, createAppFetch, FetchImpl } from "./create";
 import { AppConfig } from "./utils/app-config";
+import { AppCache, AppCacheKey, AppCacheLayer } from "./utils/app-cache";
+import z from "zod";
 
-export const API_VERSION = "7.5.5"
+export const API_VERSION = "7.6.0"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -31,29 +32,25 @@ const DEFAULT_HEADERS: Record<string, string> = {
 }
 
 export type AppMiddlewareFunction = (ctx: AppContext, next: Next) => Promise<void> | void
+export type RequestResult = { success: true, response: Response } | { success: false, error: Error }
 
 export interface createServerOptions {
-    webCacheSetterFactory?: (ctx: AppContext) => WebCacheSetter | null | undefined,
-    webCacheGetterFactory?: (ctx: AppContext) => WebCacheGetter | null | undefined,
-    webCacheDeleterFactory?: (ctx: AppContext) => WebCacheDeleter | null | undefined,
-    kvCacheSetterFactory?: (ctx: AppContext) => KVCacheSetter | null | undefined,
-    kvCacheGetterFactory?: (ctx: AppContext) => KVCacheGetter | null | undefined,
-    kvCacheDeleterFactory?: (ctx: AppContext) => KVCacheDeleter | null | undefined,
-    fetchFactory?: (ctx: AppContext) => FetchImpl,
+    fetchFactory?: (ctx: AppContext) => typeof fetch,
     locationFactory?: (ctx: AppContext) => AppLocation,
     deferFactory?: (ctx: AppContext) => ((p: Promise<unknown>) => void | Promise<void>),
     onResponseCache?: (ctx: AppContext, response: Response, maxAge: number) => void | Promise<void>
     middlewares?: AppMiddlewareFunction[],
+    appCacheLayers?: AppCacheLayer[]
     config?: AppConfig
 }
 
 export function createServer(createServerOptions: createServerOptions = {}) {
-    const { webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory, fetchFactory, locationFactory, deferFactory, onResponseCache: howShouldICacheResponse, middlewares, config } = createServerOptions
+    const { fetchFactory, locationFactory, deferFactory, onResponseCache: howShouldICacheResponse, middlewares, config, appCacheLayers } = createServerOptions
     const app = new Hono()
     app.use(async (c, next) => {
         const ctx = createAppContext(c, config)
-        ctx.appCache = createAppCache(ctx, webCacheSetterFactory, webCacheGetterFactory, webCacheDeleterFactory, kvCacheSetterFactory, kvCacheGetterFactory, kvCacheDeleterFactory)
-        ctx.appCacheKey = createAppCacheKey(ctx)
+        ctx.appCache = new AppCache(ctx, appCacheLayers ?? [])
+        ctx.appCacheKey = new AppCacheKey(ctx)
         ctx.appFetch = createAppFetch(ctx, fetchFactory?.(ctx) || fetch)
         ctx.appLocation = locationFactory?.(ctx) || {}
         ctx.defer = deferFactory?.(ctx) ||
@@ -63,7 +60,6 @@ export function createServer(createServerOptions: createServerOptions = {}) {
                 } catch (error) { }
             }
         ctx.isInit = true
-
         await next()
     })
 
@@ -146,4 +142,116 @@ export function createServer(createServerOptions: createServerOptions = {}) {
     openapi.get('/search/:type?', SearchAPI)
 
     return app
+}
+
+export function createAppContext(c: Context, cfg?: AppConfig): AppContext {
+    const ctx = c as unknown as AppContext
+    if (!ctx.config) {
+        ctx.config = cfg || new AppConfig(ctx.env)
+    }
+    ctx.jsonResp = <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>): Response => {
+        if (schema) {
+            const parsed = schema.safeParse(data)
+            if (!parsed.success) {
+                throw new Error(`response validation failed: ${parsed.error.message}`)
+            }
+            data = parsed.data
+        }
+        const response: APIResponse<Data> = {
+            code: code,
+            message: message ?? "",
+            data: data,
+        }
+        const responseJson: Response = ctx.json(response, code as any)
+        return responseJson
+    }
+    return ctx
+}
+
+export function createAppFetch(ctx: AppContext, fetchImplement: typeof fetch = fetch): AppFetch {
+    const config = ctx.config
+    function appFetch(request: Request, options?: FetchOptions): Promise<Response>
+    function appFetch(url: string | URL, init?: RequestInit, options?: FetchOptions): Promise<Response>
+    async function appFetch(
+        urlOrRequest: string | URL | Request,
+        initOrOptions?: RequestInit | FetchOptions,
+        maybeOptions?: FetchOptions
+    ): Promise<Response> {
+        let url: string | URL
+        let init: RequestInit | undefined
+        let options: FetchOptions | undefined
+
+        if (urlOrRequest instanceof Request) {
+            url = urlOrRequest.url
+            init = {
+                method: urlOrRequest.method,
+                headers: urlOrRequest.headers,
+                signal: urlOrRequest.signal
+            }
+            if (urlOrRequest.body) { init.body = urlOrRequest.body }
+            options = initOrOptions as FetchOptions | undefined
+        } else {
+            url = urlOrRequest
+            init = initOrOptions as RequestInit | undefined
+            options = maybeOptions
+        }
+
+        const {
+            retries = config.PROXY_SERVER_FETCH_MAX_RETRIES,
+            timeout = config.PROXY_SERVER_TIMEOUT,
+            initialDelay = 1000,
+            maxDelay = 30000,
+            backoffFactor = 2,
+            retryCondition = (response: Response) => {
+                return response.status >= 500 || response.status === 429
+            }
+        } = options || {}
+
+        const makeRequest = async (): Promise<RequestResult> => {
+            try {
+                const signal = init?.signal ?? AbortSignal.timeout(timeout)
+                const response = await fetchImplement(url, {
+                    ...init,
+                    signal: signal
+                })
+                return { success: true, response: response }
+            } catch (error) {
+                if (error instanceof Error) {
+                    return { success: false, error: error }
+                }
+                return {
+                    success: false, error: new Error(error ? String(error) : 'request failed')
+                }
+            }
+        }
+
+        let lastError: Error | null = null
+        let delay = initialDelay
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            const result = await makeRequest()
+            if (result.success) {
+                const response = result.response
+                const isResponseNeedRetry = retryCondition(response)
+                if (!isResponseNeedRetry) {
+                    return response
+                }
+                else {
+                    lastError = new Error(`request failed with code:${response.status}`)
+                }
+            }
+            else {
+                const error = result.error
+                lastError = error
+            }
+            if (attempt === retries) {
+                break
+            }
+            const jitter = Math.random() * 0.3 * delay
+            await new Promise(resolve => setTimeout(resolve, delay + jitter))
+            delay = Math.min(delay * backoffFactor, maxDelay)
+        }
+
+        throw (lastError instanceof Error) ? lastError : new Error("request failed")
+    }
+    return appFetch
 }

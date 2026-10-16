@@ -52,12 +52,12 @@ export class AppKVCache {
             expirationAt: expirationAt,
             key: key
         }
-        await this.setter(key, warp, expirationAt)
+        const serialized = JSON.stringify(warp)
+        await this.setKVCacheRaw(key,serialized,expirationAt)
     }
 
     public async setKVCacheRaw(key: string, serialized: string, expirationAt: number): Promise<void> {
-        const warp = JSON.parse(serialized) as CacheWarp
-        await this.setter(key, warp, expirationAt)
+        await this.setter(key, serialized, expirationAt)
     }
 
 }

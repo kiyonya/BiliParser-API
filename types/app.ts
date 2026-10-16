@@ -24,9 +24,9 @@ export interface ContextInject {
     config: AppConfig,
     appCacheKey: AppCacheKey
     jsonResp: <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>) => Response,
-    defer: (p:Promise<unknown>)=>void | Promise<void>
+    defer: (p: Promise<unknown>) => void | Promise<void>
     appFetch: AppFetch,
-    appLocation:AppLocation
+    appLocation: AppLocation
     isInit?: boolean
 }
 
@@ -37,7 +37,7 @@ export interface CDNAllocation {
     priority: number
 }
 
-export type AppContext<Env extends Record<any,any> = any> = Context<{ Bindings: Env }> & ContextInject
+export type AppContext<Env extends Record<any, any> = any> = Context<{ Bindings: Env }> & ContextInject
 
 export interface CacheWarp<Data = any> {
     data: Data,
@@ -50,13 +50,19 @@ export interface CacheResult<Data = any> {
     valid: boolean
 }
 
-export type WebCacheSetter = <Data>(keyUrl: URL, key: string, data: CacheWarp<Data>) => Promise<void>;
+export type WebCacheSetter = <Data>(keyUrl: URL, key: string, data: Response, expirationAt: number, ttl: number) => Promise<void>;
 export type WebCacheGetter = <Data>(keyUrl: URL, key: string) => Promise<Response | null>;
 export type WebCacheDeleter = (keyUrl: URL, key: string) => Promise<void>;
 
-export type KVCacheSetter = <Data>(key: string, data: CacheWarp<Data>, expirationAt: number) => Promise<void>;
+export type KVCacheSetter = <Data>(key: string, data: string, expirationAt: number) => Promise<void>;
 export type KVCacheGetter = <Data>(key: string) => Promise<CacheWarp<Data> | null>;
 export type KVCacheDeleter = (key: string) => Promise<void>;
+
+
+export type CacheSetter = <Data = any>(ctx: AppContext, key: string, data: CacheWarp<Data>) => void | Promise<void>
+export type CacheGetter = <Data = any>(ctx: AppContext, key: string) => null | CacheWarp<Data> | Promise<null | CacheWarp<Data>> | void | Promise<void>
+export type CacheDeleter = (ctx: AppContext, key: string) => void | Promise<void>
+export type CacheLayerType = "consistent" | "isolate" | "any"
 
 export interface APIResponse<Data = any> {
     code: number,
@@ -66,9 +72,44 @@ export interface APIResponse<Data = any> {
 }
 
 export interface AppLocation {
-    colo?:string,
-    continent?:string,
-    country?:string,
-    asn?:string,
-    city?:string
+    colo?: string,
+    continent?: string,
+    country?: string,
+    asn?: string,
+    city?: string
+}
+
+export interface AppConfigOptions {
+    SERVER_VERSION: string | undefined
+    IS_SERVER_LOGIN: boolean
+    SERVER_LOGIN_HASHKEY: string
+    VIDEO_CDN_ALLOCATION: CDNAllocation[]
+    VIDEO_CDN: Record<string, string>
+    ENABLE_CACHE_DATA_VALIDATION: boolean
+    ENABLE_CACHE_LAYER_SYNC:boolean
+    CACHE_DATA_VERSION: number
+    ENABLE_RESPONSE_CACHING: boolean
+    RESPONSE_MAX_CACHE_TIME: number
+    KV_CACHE_BINDING: string | undefined
+    ENABLE_CUSTOM_COOKIES: boolean
+    COOKIES_SIGN_CACHE_TIME: number
+    CUSTOM_COOKIES: string | undefined
+    ENABLE_COOKIE_WEB_CACHE: boolean
+    BILI_VIDEO_PLAYURL_CACHE_TIME: number
+    BILI_VIDEO_INFO_CACHE_TIME: number
+    BILI_VIDEO_SUBTITLES_CACHE_TIME: number
+    BILI_LIVE_CACHE_TIME: number
+    BILI_BANGUMI_PLAYURL_CACHE_TIME: number
+    BILI_BANGUMI_EPISODES_CACHE_TIME: number
+    BILI_BANGUMI_INFO_CACHE_TIME: number
+    BILI_USER_ARCHIVE_CACHE_TIME: number
+    BILI_USER_FAV_CACHE_TIME: number
+    BILI_DANMAKU_CACHE_TIME: number
+    ENABLE_PROXY_SERVER: boolean
+    PROXY_SERVER_FETCH_MAX_RETRIES: number
+    PROXY_SERVER_TIMEOUT: number
+    PROXY_SERVER_URL: string | undefined
+    PROXY_SERVER_TOKEN: string | undefined
+    PROXY_TOKEN_HEADER: string
+    BILI_SEARCH_CACHE_TIME: number
 }

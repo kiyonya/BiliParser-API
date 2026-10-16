@@ -1,7 +1,7 @@
 
 import { hmacSha256, md5String } from "./hashlib";
 import SharedData from "../shared/data";
-import { AppContext, CacheStatus } from "../types/app";
+import { AppContext, CacheLayerType, CacheStatus } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { AppHeaders } from "../shared/headers";
 
@@ -49,8 +49,8 @@ export class BiliCrypto {
 
     public async createAnonymousCookie(noCache: boolean = false): Promise<Record<string, string>> {
         const cookiesCacheKey = this.ctx.appCacheKey.cookie()
-        const cookieCacheMode = this.ctx.config.ENABLE_COOKIE_WEB_CACHE ? 'all' : 'kv'
-        let cookies = noCache ? null : await this.ctx.appCache.getCache<Record<string, string>>(cookiesCacheKey, undefined, cookieCacheMode, false)
+        const cookieCacheMode:CacheLayerType = this.ctx.config.ENABLE_COOKIE_WEB_CACHE ? 'any' : 'consistent'
+        let cookies = noCache ? null : await this.ctx.appCache.getCache<Record<string, string>>(cookiesCacheKey, undefined, cookieCacheMode)
         if (!cookies) {
             const signTs = Math.floor(Date.now() / 1000)
             this.ctx.header(AppHeaders.BCRYPTO_COOKIE_CACHE, 'MISS' satisfies CacheStatus)
@@ -124,7 +124,7 @@ export class BiliCrypto {
                 const expirationAt = signTs + this.ctx.config.COOKIES_SIGN_CACHE_TIME
                 await this.ctx.appCache.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
-                }, undefined, cookieCacheMode)
+                }, undefined,cookieCacheMode)
             }
         }
         else {

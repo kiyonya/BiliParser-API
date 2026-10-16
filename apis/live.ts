@@ -52,7 +52,7 @@ export class LiveAPI extends API {
 
     private async parseLive(ctx: AppContext, roomId: number, platform: "xlive" | "h5", codec: "avc" | "hevc", format: "fmp4" | "flv" | "ts", protocol: "stream" | "hls"): Promise<BiliTypes.RES.Live.Live> {
         const liveCacheKey = ctx.appCacheKey.live(roomId, platform, codec, format, protocol)
-        let live = await this.getSchemaValidData(await ctx.appCache.getCache<BiliTypes.RES.Live.Live>(liveCacheKey, undefined, 'edge', true), Schema.liveSchema)
+        let live = await this.getSchemaValidData(await ctx.appCache.getCache<BiliTypes.RES.Live.Live>(liveCacheKey, undefined), Schema.liveSchema)
         if (!live) {
             const parser = new BiliLiveParser(ctx)
             const liveInfo: BiliTypes.RES.Live.LiveInfo = await parser.getLiveInfo(roomId)
@@ -88,7 +88,7 @@ export class LiveAPI extends API {
             }
             live = await this.getSchemaValidData(livef, Schema.liveSchema, true)
             let cacheTtl = streamMinExpirationAt ? Math.min(streamMinExpirationAt, this.nowS + ctx.config.BILI_LIVE_CACHE_TIME) : this.nowS + ctx.config.BILI_LIVE_CACHE_TIME
-            await ctx.appCache.setCache(liveCacheKey, live, cacheTtl, undefined, 'edge')
+            await ctx.appCache.setCache(liveCacheKey, live, cacheTtl, undefined)
         }
         return live
     }

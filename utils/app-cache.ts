@@ -1,60 +1,43 @@
 import z from "zod"
-import { AppContext, CacheStatus, CacheWarp } from "../types/app"
-import { AppWebCache } from "./app-edge-cache"
-import { AppKVCache } from "./app-kv-cache"
+import { AppContext, CacheDeleter, CacheGetter, CacheLayerType, CacheSetter, CacheStatus, CacheWarp } from "../types/app"
 import { md5String } from "./hashlib"
 import { BiliTypes } from "../types/bili"
-import { AppHeaders } from "../shared/headers"
 
 export type CacheMode = "kv" | "edge" | "all"
 
 export class AppCache {
 
     protected ctx: AppContext
-    protected webCache?: AppWebCache
-    protected kvCache?: AppKVCache
-    constructor(
-        ctx: AppContext,
-        edgeCache?: AppWebCache,
-        kvCache?: AppKVCache
-    ) {
+    private cacheLayers: AppCacheLayer[] = []
+
+    constructor(ctx: AppContext, cacheLayers: AppCacheLayer[] = []) {
         if (!ctx.config) {
             throw new Error("context is not initialized")
         }
         this.ctx = ctx
-        this.webCache = edgeCache
-        this.kvCache = kvCache
+        this.cacheLayers = cacheLayers
     }
 
-    protected kvCacheHits = new Set<string>()
-    protected edgeCacheHits = new Set<string>()
-    protected kvCacheNotUsed: boolean = false
+    public addCacheLayer(...cacheLayers: AppCacheLayer[]) {
+        this.cacheLayers.push(...cacheLayers)
+    }
+
+    protected layerCacheStatus = new Map<string, { layer: string, status: CacheStatus }[]>()
     public minExpirationTime: number = Infinity
 
     public get cacheHeaders(): Record<string, string> {
-
+        //X-Server-Cache-Status:acedfs:webCache[MISS],kvCache[HIT];acssdk:webCache[HIT]
         const headers: Record<string, string> = {}
-        if (this.webCache) {
-            if (this.edgeCacheHits.size === 0) {
-                headers[AppHeaders.SERVER_CACHE_WEB] = "MISS" satisfies CacheStatus
+        const headerParts: string[] = []
+        for (const [key, statusList] of this.layerCacheStatus.entries()) {
+            const keyHash = md5String(key).slice(0, 6)
+            const statusParts: string[] = []
+            for (const status of statusList) {
+                statusParts.push(`${status.layer}[${status.status}]`)
             }
-            else {
-                const edgeHits = [...this.edgeCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
-                headers[AppHeaders.SERVER_CACHE_WEB] = `${edgeHits}`
-            }
+            headerParts.push(`${keyHash}:${statusParts.join(",")}`)
         }
-        if (this.kvCache) {
-            if (this.kvCacheNotUsed) {
-                headers[AppHeaders.SERVER_CACHE_KV] = "BYPASS" satisfies CacheStatus
-            }
-            else if (this.kvCacheHits.size === 0) {
-                headers[AppHeaders.SERVER_CACHE_KV] = "MISS" satisfies CacheStatus
-            }
-            else {
-                const kvHits = [...this.kvCacheHits].map(key => md5String(key).slice(0, 6)).join(",")
-                headers[AppHeaders.SERVER_CACHE_KV] = `${kvHits}`
-            }
-        }
+        headers['X-Server-Cache-Status'] = headerParts.length ? headerParts.join("; ") : 'MISS'
         return headers
     }
 
@@ -63,118 +46,103 @@ export class AppCache {
         return (await schema.safeParseAsync(data)).success
     }
 
-    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode: CacheMode = "all"): Promise<void> {
+    private pickLayers(mode?: CacheLayerType) {
+        let pickLayers: AppCacheLayer[] = []
+        switch (mode) {
+            case undefined:
+            case 'any':
+            default:
+                pickLayers = this.cacheLayers
+                break
+            case 'consistent':
+                pickLayers = this.cacheLayers.filter(i => i.layerType === 'consistent' || i.layerType === 'any')
+                break
+            case 'isolate':
+                pickLayers = this.cacheLayers.filter(i => i.layerType === 'isolate' || i.layerType === 'any')
+                break
+        }
+        return pickLayers
+    }
+
+    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode?: CacheLayerType): Promise<void> {
         try {
-            if (!this.kvCache && !this.webCache) { return }
+            if (!this.cacheLayers.length) { return }
             if (!await this.validateSchema(data, schema)) { return }
             const expirationAt: number = typeof expirationAtCall === 'function'
                 ? expirationAtCall(data)
                 : expirationAtCall;
-            if (expirationAt < this.minExpirationTime) {
-                this.minExpirationTime = expirationAt
+            const now = Math.floor(Date.now() / 1000)
+            if (expirationAt <= now) { return }
+
+            let operationLayers: AppCacheLayer[] = this.pickLayers(mode)
+            if (!operationLayers.length) { return }
+
+
+            const layerSetPromise: Promise<void>[] = []
+            for (const layer of operationLayers) {
+                layerSetPromise.push(layer.set<Data>(this.ctx, key, data, expirationAt))
             }
-            const warp: CacheWarp<Data> = {
-                data: data,
-                expirationAt: expirationAt,
-                key: key
-            }
-            //只序列化一次不等待
-            const serialized = JSON.stringify(warp)
-            const tasks: Promise<any>[] = [];
-            if (mode === 'all' || mode === 'edge') {
-                this.webCache && tasks.push(this.webCache?.setEdgeCacheRaw(key, serialized, expirationAt));
-            }
-            if (mode === 'all' || mode === 'kv') {
-                this.kvCache && tasks.push(this.kvCache.setKVCacheRaw(key, serialized, expirationAt));
-            }
-            if (tasks.length > 0) {
-                await this.ctx.defer(Promise.allSettled(tasks));
-            }
+            await this.ctx.defer(Promise.allSettled(layerSetPromise))
         } catch (error) {
             return;
         }
     }
 
-    /**
-     * 
-     * @param key 
-     * @param schema schema to validate data, use getSchemaValidData to avoid repeat schema valiation
-     * @param mode 
-     * @param addkey 
-     * @returns 
-     */
-    public async getCache<Data = any>(key: string, schema?: z.ZodType<Data>, mode: CacheMode = "all", addkey: boolean = true): Promise<Data | null> {
+    public async getCache<Data = any>(key: string, schema?: z.ZodType<Data>, mode?: CacheLayerType): Promise<Data | null> {
         try {
-            if (!this.kvCache && !this.webCache) { return null }
-            if (mode === 'edge') {
-                const edgeCache = await this.webCache?.getEdgeCache<Data>(key);
-                if (edgeCache) {
-                    addkey && this.edgeCacheHits.add(key)
-                    this.kvCacheNotUsed = true;
-                    if (edgeCache.raw.expirationAt < this.minExpirationTime) {
-                        this.minExpirationTime = edgeCache.raw.expirationAt
-                    }
-                    const data = edgeCache.data
-                    if (await this.validateSchema(data, schema)) {
-                        return data
-                    }
+            if (!this.cacheLayers.length) { return null }
+            let operationLayers: AppCacheLayer[] = this.pickLayers(mode)
+            if (!operationLayers.length) { return null }
+
+            let hitCache: CacheWarp<Data> | null = null
+            const missLayers: AppCacheLayer[] = []
+            const invalidLayers: AppCacheLayer[] = []
+            const now = Math.floor(Date.now() / 1000)
+
+            const cacheStatus: { layer: string, status: CacheStatus }[] = []
+            for (const layer of operationLayers) {
+                const layerName = layer.layerName
+                const layerCache = await layer.get<Data>(this.ctx, key)
+                if (!layerCache) {
+                    missLayers.push(layer);
+                    cacheStatus.push({ layer: layerName, status: 'MISS' })
+                    continue
                 }
+                const expirationAt = layerCache.expirationAt
+                if (expirationAt <= now) {
+                    invalidLayers.push(layer);
+                    cacheStatus.push({ layer: layerName, status: "EXPIRED" })
+                    continue
+                }
+                if (!await this.validateSchema(layerCache.data, schema)) {
+                    invalidLayers.push(layer);
+                    cacheStatus.push({ layer: layerName, status: "MISS" })
+                    continue
+                }
+                if (expirationAt < this.minExpirationTime) {
+                    this.minExpirationTime = expirationAt
+                }
+                hitCache = layerCache
+                cacheStatus.push({ layer: layerName, status: "HIT" })
+                break
             }
-            else if (mode === 'kv') {
-                const kvCache = await this.kvCache?.getKVCache<Data>(key);
-                if (kvCache) {
-                    addkey && this.kvCacheHits.add(key)
-                    this.kvCacheNotUsed = false;
-                    if (kvCache.raw.expirationAt < this.minExpirationTime) {
-                        this.minExpirationTime = kvCache.raw.expirationAt
-                    }
-                    const data = kvCache.data
-                    if (await this.validateSchema(data, schema)) {
-                        return data
-                    }
-                }
+            this.layerCacheStatus.set(key, cacheStatus)
+
+            if (invalidLayers.length) {
+                await Promise.allSettled(invalidLayers.map(l => l.delete(this.ctx, key)))
             }
-            else if (mode === 'all') {
-                const edgeCache = await this.webCache?.getEdgeCache<Data>(key);
-                if (edgeCache) {
-                    addkey && this.edgeCacheHits.add(key)
-                    this.kvCacheNotUsed = true;
-                    if (edgeCache.raw.expirationAt < this.minExpirationTime) {
-                        this.minExpirationTime = edgeCache.raw.expirationAt
-                    }
-                    const data = edgeCache.data
-                    if (await this.validateSchema(data, schema)) {
-                        return data
-                    }
-                }
-                const kvCache = await this.kvCache?.getKVCache<Data>(key);
-                if (kvCache) {
-                    addkey && this.kvCacheHits.add(key)
-                    this.kvCacheNotUsed = false;
-                    const expirationAt = kvCache.raw.expirationAt;
-                    if (expirationAt < this.minExpirationTime) {
-                        this.minExpirationTime = expirationAt
-                    }
-                    const data = kvCache.data
-                    if (await this.validateSchema(data, schema)) {
-                        //这里不使用defer而是硬性要求等待
-                        //kv命中edge不命中的情况只有在跨数据中心时才会出现,属于概率没有那么大的事件
-                        //defer会将回写edge的promise放入队列等待时机执行，虽然会让getCache返回快一些
-                        //但是当请求次数较多时，edge不能快速生效，而且可能会被多次从kv回写
-                        //edge本身不付费，kv是计费的，让kv少读取是关键的
-                        //所以，在小概率情况下多等待一会让edge生效来避免后续反复从kv读取是有价值的，这个时间不会有明显的察觉
-                        //而且大部分时间edge命中直接就返回了，也轮不到回写
-                        //况且edge速度很快，kv读取和写入大概需要200ms 下面的promise执行不会超过200ms 所以等一次爽一年和爽一次等一年的取舍还是值得的
-                        const raw = kvCache.raw
-                        await this.webCache?.setEdgeCache(raw.key, data, raw.expirationAt)
-                        return data
-                    }
-                }
+            if (hitCache && missLayers.length && this.ctx.config.ENABLE_CACHE_LAYER_SYNC) {
+                await this.ctx.defer(Promise.allSettled(missLayers.map(l => l.setWarp(this.ctx, key, hitCache!))))
             }
-            return null
+
+            return hitCache?.data ?? null
         } catch (error) {
             return null;
         }
+    }
+
+    public static createLayer(options: { getter: CacheGetter, setter: CacheSetter, deleter: CacheDeleter, layerType: CacheLayerType, layerName: string }) {
+        return new AppCacheLayer(options)
     }
 }
 
@@ -263,3 +231,50 @@ export class AppCacheKey {
     }
 }
 
+export class AppCacheLayer {
+    protected getter: CacheGetter
+    protected setter: CacheSetter
+    protected deleter: CacheDeleter
+    public layerType: CacheLayerType
+    public layerName: string
+
+    constructor(options: { getter: CacheGetter, setter: CacheSetter, deleter: CacheDeleter, layerType: CacheLayerType, layerName: string }) {
+        const { getter, setter, deleter, layerType, layerName } = options
+        this.getter = getter
+        this.setter = setter
+        this.deleter = deleter
+        this.layerType = layerType
+        this.layerName = layerName
+    }
+
+    public async get<Data = any>(ctx: AppContext, key: string): Promise<CacheWarp<Data> | null> {
+        if (!this.getter) { return null }
+        const cacheWarp = await this.getter(ctx, key)
+        if (cacheWarp) {
+            return cacheWarp
+        }
+        return null
+    }
+
+    public async set<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number): Promise<void> {
+        if (!this.setter) { return }
+        const now = Math.floor(Date.now() / 1000)
+        if (expirationAt <= now) { return }
+        const warp: CacheWarp<Data> = {
+            expirationAt: expirationAt,
+            data: data,
+            key: key
+        }
+        await this.setWarp<Data>(ctx, key, warp)
+    }
+
+    public async setWarp<Data = any>(ctx: AppContext, key: string, warp: CacheWarp<Data>) {
+        if (!this.setter) { return }
+        await this.setter(ctx, key, warp)
+    }
+
+    public async delete(ctx: AppContext, key: string): Promise<void> {
+        if (!this.deleter) { return }
+        await this.deleter(ctx, key)
+    }
+}
