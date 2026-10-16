@@ -20,7 +20,7 @@ import { AppConfig } from "./utils/app-config";
 import { AppCache, AppCacheKey, AppCacheLayer } from "./utils/app-cache";
 import z from "zod";
 
-export const API_VERSION = "7.7"
+export const API_VERSION = "7.7.0"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
