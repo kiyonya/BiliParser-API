@@ -83,7 +83,7 @@ export interface AppConfigOptions {
     SERVER_VERSION: string | undefined
     IS_SERVER_LOGIN: boolean
     SERVER_LOGIN_HASHKEY: string
-    VIDEO_CDN_ALLOCATION: CDNAllocation[]
+    VIDEO_CDN_ALLOCATION: string
     VIDEO_CDN: Record<string, string>
     ENABLE_CACHE_DATA_VALIDATION: boolean
     ENABLE_CACHE_LAYER_SYNC:boolean

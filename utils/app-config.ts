@@ -25,7 +25,11 @@ export function num(raw: unknown, def?: number): number | undefined {
     return Number.isFinite(value) ? value : def
 }
 
-export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> implements AppConfigOptions {
+interface AppConfigImpl extends Omit<AppConfigOptions, "VIDEO_CDN_ALLOCATION"> {
+    VIDEO_CDN_ALLOCATION: CDNAllocation[]
+}
+
+export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> implements AppConfigImpl{
     protected readonly DEFAULT_CDN_ALLOCATION = "AS,CN,cos;*,*,aliov"
     protected readonly DEFAULT_CDN = { "ali": "upos-sz-mirrorali.bilivideo.com", "aliov": "upos-sz-mirroraliov.bilivideo.com", "alib": "upos-sz-mirroralib.bilivideo.com", "alio1": "upos-sz-mirroralio1.bilivideo.com", "ali02": "upos-sz-mirrorali02.bilivideo.com", "cos": "upos-sz-mirrorcos.bilivideo.com", "cosb": "upos-sz-mirrorcosb.bilivideo.com", "coso1": "upos-sz-mirrorcoso1.bilivideo.com", "cosov": "upos-sz-mirrorcosov.bilivideo.com", "cosdisp": "upos-sz-mirrorcosdisp.bilivideo.com", "hw": "upos-sz-mirrorhw.bilivideo.com", "hwb": "upos-sz-mirrorhwb.bilivideo.com", "hwo1": "upos-sz-mirrorhwo1.bilivideo.com", "hwdisp": "upos-sz-mirrorhwdisp.bilivideo.com", "bd": "upos-sz-mirrorbd.bilivideo.com", "m08c": "upos-sz-mirror08c.bilivideo.com", "m08h": "upos-sz-mirror08h.bilivideo.com", "m08ct": "upos-sz-mirror08ct.bilivideo.com", "estgcos": "upos-sz-estgcos.bilivideo.com", "estgoss": "upos-sz-estgoss.bilivideo.com", "estghw": "upos-sz-estghw.bilivideo.com", "upcdnbda2": "upos-sz-upcdnbda2.bilivideo.com", "rali": "upos-sz-mirrorrali.bilivideo.com", "akam": "upos-hz-mirrorakam.akamaized.net" }
 
@@ -86,6 +90,7 @@ export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> impl
         // --- CDN ---
         this.VIDEO_CDN_ALLOCATION =
             parseCDNAllocation(env.VIDEO_CDN_ALLOCATION ?? this.DEFAULT_CDN_ALLOCATION) || []
+
         this.VIDEO_CDN = env.VIDEO_CDN ? parseCDN(env.VIDEO_CDN) : { ...this.DEFAULT_CDN }
 
         // --- cache ---
