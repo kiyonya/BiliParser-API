@@ -1,4 +1,4 @@
-import { Context } from "hono"
+import { Context, Env, Input } from "hono"
 import { AppCache, AppCacheKey } from "../utils/app-cache"
 import { AppConfig } from "../utils/app-config"
 import z from "zod"
@@ -37,7 +37,11 @@ export interface CDNAllocation {
     priority: number
 }
 
-export type AppContext<Env extends Record<any, any> = any> = Context<{ Bindings: Env }> & ContextInject
+export type AppContext<
+    E extends Partial<Record<any, any>> = Partial<Record<any, any>>,
+    P extends string = string,
+    I extends Input = {},
+> = Context<E, P, I> & ContextInject
 
 export interface CacheWarp<Data = any> {
     data: Data,
@@ -82,11 +86,10 @@ export interface AppLocation {
 export interface AppConfigOptions {
     SERVER_VERSION: string | undefined
     IS_SERVER_LOGIN: boolean
-    SERVER_LOGIN_HASHKEY: string
     VIDEO_CDN_ALLOCATION: string
     VIDEO_CDN: Record<string, string>
     ENABLE_CACHE_DATA_VALIDATION: boolean
-    ENABLE_CACHE_LAYER_SYNC:boolean
+    ENABLE_CACHE_LAYER_SYNC: boolean
     CACHE_DATA_VERSION: number
     ENABLE_RESPONSE_CACHING: boolean
     RESPONSE_MAX_CACHE_TIME: number

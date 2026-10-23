@@ -26,17 +26,16 @@ export function num(raw: unknown, def?: number): number | undefined {
 }
 
 interface AppConfigImpl extends Omit<AppConfigOptions, "VIDEO_CDN_ALLOCATION"> {
-    VIDEO_CDN_ALLOCATION: CDNAllocation[]
+    VIDEO_CDN_ALLOCATION: CDNAllocation[],
+    SERVER_STATUS_HASH: string,
 }
 
-export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> implements AppConfigImpl{
+export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> implements AppConfigImpl {
     protected readonly DEFAULT_CDN_ALLOCATION = "AS,CN,cos;*,*,aliov"
     protected readonly DEFAULT_CDN = { "ali": "upos-sz-mirrorali.bilivideo.com", "aliov": "upos-sz-mirroraliov.bilivideo.com", "alib": "upos-sz-mirroralib.bilivideo.com", "alio1": "upos-sz-mirroralio1.bilivideo.com", "ali02": "upos-sz-mirrorali02.bilivideo.com", "cos": "upos-sz-mirrorcos.bilivideo.com", "cosb": "upos-sz-mirrorcosb.bilivideo.com", "coso1": "upos-sz-mirrorcoso1.bilivideo.com", "cosov": "upos-sz-mirrorcosov.bilivideo.com", "cosdisp": "upos-sz-mirrorcosdisp.bilivideo.com", "hw": "upos-sz-mirrorhw.bilivideo.com", "hwb": "upos-sz-mirrorhwb.bilivideo.com", "hwo1": "upos-sz-mirrorhwo1.bilivideo.com", "hwdisp": "upos-sz-mirrorhwdisp.bilivideo.com", "bd": "upos-sz-mirrorbd.bilivideo.com", "m08c": "upos-sz-mirror08c.bilivideo.com", "m08h": "upos-sz-mirror08h.bilivideo.com", "m08ct": "upos-sz-mirror08ct.bilivideo.com", "estgcos": "upos-sz-estgcos.bilivideo.com", "estgoss": "upos-sz-estgoss.bilivideo.com", "estghw": "upos-sz-estghw.bilivideo.com", "upcdnbda2": "upos-sz-upcdnbda2.bilivideo.com", "rali": "upos-sz-mirrorrali.bilivideo.com", "akam": "upos-hz-mirrorakam.akamaized.net" }
 
     readonly SERVER_VERSION: string | undefined
-
     readonly IS_SERVER_LOGIN: boolean
-    readonly SERVER_LOGIN_HASHKEY: string
 
     readonly VIDEO_CDN_ALLOCATION: CDNAllocation[]
     readonly VIDEO_CDN: Record<string, string>
@@ -74,15 +73,22 @@ export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> impl
 
 
     readonly BILI_SEARCH_CACHE_TIME: number
+    readonly SERVER_STATUS_HASH: string
 
-    constructor(env:Partial<EnvLike>) {
+    constructor(env: Partial<EnvLike>) {
         this.SERVER_VERSION = str(env.SERVER_VERSION)
+        this.CACHE_DATA_VERSION = num(env.CACHE_DATA_VERSION, 5)
         this.ENABLE_CUSTOM_COOKIES = bool(env.ENABLE_CUSTOM_COOKIES, false)
         this.CUSTOM_COOKIES = str(env.CUSTOM_COOKIES)
+
+        //hash
         this.IS_SERVER_LOGIN = this.ENABLE_CUSTOM_COOKIES && env.CUSTOM_COOKIES !== undefined
-        this.SERVER_LOGIN_HASHKEY = md5String(
-            `${String(this.IS_SERVER_LOGIN)}:${env.CUSTOM_COOKIES ?? ""}`
-        )
+        this.SERVER_STATUS_HASH = md5String(JSON.stringify({
+            cacheVersion: this.CACHE_DATA_VERSION,
+            enableCustomCookies: this.ENABLE_CUSTOM_COOKIES,
+            isServerLogin: this.IS_SERVER_LOGIN,
+            ...(this.IS_SERVER_LOGIN ? { customCookies: this.CUSTOM_COOKIES } : null),
+        })).slice(0, 6)
 
         // --- CDN ---
         this.VIDEO_CDN_ALLOCATION =
@@ -93,7 +99,7 @@ export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> impl
         // --- cache ---
         this.ENABLE_CACHE_DATA_VALIDATION = bool(env.ENABLE_CACHE_DATA_VALIDATION, true)
         this.ENABLE_CACHE_LAYER_SYNC = bool(env.ENABLE_CACHE_LAYER_SYNC, true)
-        this.CACHE_DATA_VERSION = num(env.CACHE_DATA_VERSION, 5)
+
         this.ENABLE_RESPONSE_CACHING = bool(env.ENABLE_RESPONSE_CACHING, true)
         this.RESPONSE_MAX_CACHE_TIME = num(env.RESPONSE_MAX_CACHE_TIME, 3600)
         this.KV_CACHE_BINDING = str(env.KV_CACHE_BINDING)

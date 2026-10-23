@@ -5,6 +5,19 @@ export enum AppHeaders {
     SERVER_CACHE_KV = 'X-Server-Cache-Kv',
     SERVER_VERSION = "X-Server-Version",
     SERVER_ONLINE = 'X-Server-Online',
+    SERVER_STATUS_HASH = "X-Server-Status-Hash",
     CACHE_VERSION = "X-Cache-Version",
-    
+    SERVER_CACHE_STATUS = "X-Server-Cache-Status",
+    VIDEO_CID = "X-Video-Cid",
+    VIDEO_PART = "X-Video-Part",
+    VIDEO_ID = "X-Video-Id",
+    LIVE_ROOM_ID = "X-Live-Room",
+    LIVE_STREAM_PLATFORM = "X-Stream-Parse-Platform",
+    LIVE_STREAM_FORMAT = "X-Stream-Format",
+    LIVE_STREAM_CODEC = "X-Stream-Codec",
+    LIVE_STREAM_PROTOCOL = "X-Stream-Protocol",
+    LIVE_STREAM_SERVER = "X-Stream-Server",
+    CDN_ALLOCATION = "X-CDN-Allocation",
+    CDN_BILI_CDN = 'X-Bili-CDN',
+    CDN_BILI_ORIGIN_CDN = 'X-Bili-Origin-CDN'
 }

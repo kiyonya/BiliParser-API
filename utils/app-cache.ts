@@ -2,6 +2,7 @@ import z from "zod"
 import { AppContext, CacheDeleter, CacheGetter, CacheLayerType, CacheSetter, CacheStatus, CacheWarp } from "../types/app"
 import { md5String } from "./hashlib"
 import { BiliTypes } from "../types/bili"
+import { AppHeaders } from "../shared/headers"
 
 export type CacheMode = "kv" | "edge" | "all"
 
@@ -37,7 +38,7 @@ export class AppCache {
             }
             headerParts.push(`${keyHash}:${statusParts.join(",")}`)
         }
-        headers['X-Server-Cache-Status'] = headerParts.length ? headerParts.join("; ") : 'MISS'
+        headers[AppHeaders.SERVER_CACHE_STATUS] = headerParts.length ? headerParts.join("; ") : 'MISS'
         return headers
     }
 
@@ -147,66 +148,61 @@ export class AppCache {
 }
 
 export class AppCacheKey {
-    private readonly CACHE_DATA_VERSION: string | number
+
+    private readonly SERVER_STATUS_HASH: string
     constructor(ctx: AppContext) {
         if (!ctx.config) {
             throw new Error("context is not initialized")
         }
-        this.CACHE_DATA_VERSION = ctx.config.CACHE_DATA_VERSION
+        this.SERVER_STATUS_HASH = ctx.config.SERVER_STATUS_HASH
     }
 
     public cookie() {
-        return `${this.CACHE_DATA_VERSION}:BILI_COMMON_COOKIES`
+        return `${this.SERVER_STATUS_HASH}:BILI_COMMON_COOKIES`
     }
 
     public videoInfoBv(bvid: string) {
-        return `${this.CACHE_DATA_VERSION}:videoInfo:bvid:${bvid}`
+        return `${this.SERVER_STATUS_HASH}:videoInfo:bvid:${bvid}`
     }
 
     public videoInfoAv(avid: number) {
-        return `${this.CACHE_DATA_VERSION}:videoInfo:aid:${avid}`
+        return `${this.SERVER_STATUS_HASH}:videoInfo:aid:${avid}`
     }
 
-    public videoPlayUrl(
-        cid: number,
-        qn: number,
-        platform: BiliTypes.RES.Video.VideoPlayPlatform,
-        format: BiliTypes.RES.Video.VideoPlayFormat,
-        loginKey: string
-    ) {
-        return `${this.CACHE_DATA_VERSION}:videoPlayUrl:${loginKey}:${cid}:${qn}:${platform}:${format}`
+    public videoPlayUrl(cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat) {
+        return `${this.SERVER_STATUS_HASH}:videoPlayUrl:${cid}:${qn}:${platform}:${format}`
     }
 
     public videoSubtitles(cid: number) {
-        return `${this.CACHE_DATA_VERSION}:subtitle:${cid}`
+        return `${this.SERVER_STATUS_HASH}:subtitle:${cid}`
     }
 
     public userArchieves(mid: number, seasonId: number, page: number, pageSize: number) {
-        return `${this.CACHE_DATA_VERSION}:userArchieves:${mid}:${seasonId}:${page}:${pageSize}`
+        return `${this.SERVER_STATUS_HASH}:userArchieves:${mid}:${seasonId}:${page}:${pageSize}`
     }
 
     public userFav(fid: number, keyword: string | undefined, page: number, pageSize: number) {
         const keywordHash = keyword ? md5String(keyword.trim()) : "all"
-        return `${this.CACHE_DATA_VERSION}:userFav:${fid}:${keywordHash}:${page}:${pageSize}`
+        return `${this.SERVER_STATUS_HASH}:userFav:${fid}:${keywordHash}:${page}:${pageSize}`
     }
 
     public bangumiInfo(seasonId?: number, episodeId?: number) {
         if (seasonId) {
-            return `${this.CACHE_DATA_VERSION}:bangumiInfo:season:${seasonId}`
+            return `${this.SERVER_STATUS_HASH}:bangumiInfo:season:${seasonId}`
         }
-        return `${this.CACHE_DATA_VERSION}:bangumiInfo:episode:${episodeId}`
+        return `${this.SERVER_STATUS_HASH}:bangumiInfo:episode:${episodeId}`
     }
 
     public bangumiEpisodes(seasonId?: number) {
-        return `${this.CACHE_DATA_VERSION}:bangumiEpisodes:season:${seasonId}`
+        return `${this.SERVER_STATUS_HASH}:bangumiEpisodes:season:${seasonId}`
     }
 
     public danmaku(cid: number) {
-        return `${this.CACHE_DATA_VERSION}:danmaku:${cid}`
+        return `${this.SERVER_STATUS_HASH}:danmaku:${cid}`
     }
 
     public danmakuJSON(cid: number) {
-        return `${this.CACHE_DATA_VERSION}:danmakuJSON:${cid}`
+        return `${this.SERVER_STATUS_HASH}:danmakuJSON:${cid}`
     }
 
     public live(
@@ -216,7 +212,7 @@ export class AppCacheKey {
         format: "fmp4" | "flv" | "ts",
         protocol: "stream" | "hls"
     ) {
-        return `${this.CACHE_DATA_VERSION}:live:${roomId}:${platform}:${codec}:${format}:${protocol}`
+        return `${this.SERVER_STATUS_HASH}:live:${roomId}:${platform}:${codec}:${format}:${protocol}`
     }
 
     public search(
@@ -227,7 +223,7 @@ export class AppCacheKey {
         order?: string
     ) {
         const keywordHash = md5String(keyword.trim())
-        return `${this.CACHE_DATA_VERSION}:search:${type}:${keywordHash}:${page}:${pageSize}:${order ? order : "common_order"}`
+        return `${this.SERVER_STATUS_HASH}:search:${type}:${keywordHash}:${page}:${pageSize}:${order ? order : "common_order"}`
     }
 }
 
