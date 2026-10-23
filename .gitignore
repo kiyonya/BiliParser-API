@@ -32,3 +32,4 @@ coverage/
 .cache/
 .dev
 skill.md
+package-lock.json

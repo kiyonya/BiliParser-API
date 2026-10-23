@@ -4,8 +4,8 @@
     "build": "esbuild --bundle ./src/index.ts --outfile=./dist/index.js --platform=node",
     "dev": "esa-cli dev",
     "patch": "node scripts/patch-esa-cli.mjs",
-    "lsenv":"esa-cli env list --environment production",
-    "deploy":"esa-cli deploy"
+    "lsenv": "esa-cli env list --environment production",
+    "deploy": "esa-cli deploy"
   },
   "devDependencies": {
     "@types/node": "^25.9.4",
@@ -15,7 +15,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "chanfana": "^3.4.0",
     "fast-xml-parser": "^5.11.2",
     "hono": "^4.13.13",
     "zod": "^4.6.5"
