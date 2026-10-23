@@ -2,12 +2,12 @@ import z from "zod";
 import BiliVideoParser from "../services/video-parser";
 import { XMLParser } from 'fast-xml-parser'
 import SharedData from "../shared/data";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
 
-export class DanmakuAPI extends API {
+export class DanmakuAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         url: this.utils.zodBiliUrl([SharedData.URLPatterns.BILI_VIDEO, SharedData.URLPatterns.B23_TV], "url must be a bilibili video page or b23.tv short link").optional(),
@@ -104,7 +104,7 @@ export class DanmakuAPI extends API {
         }
     }
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
         const params = await this.paramSchema.safeParseAsync({
             id: ctx.req.param('id') || url.searchParams.get('bvid') || url.searchParams.get('avid') || undefined,

@@ -1,5 +1,4 @@
-import { Context, Hono, Next } from "hono";
-import { fromHono } from "chanfana";
+import { Context, Handler, Hono, Next } from "hono";
 import { AppContext, AppLocation, APIResponse, AppFetch, FetchOptions } from "./types/app";
 
 import { BaseAPI } from "./apis/base";
@@ -19,8 +18,9 @@ import { SearchAPI } from "./apis/search";
 import { AppConfig } from "./utils/app-config";
 import { AppCache, AppCacheKey, AppCacheLayer } from "./utils/app-cache";
 import z from "zod";
+import { RouteHandler } from "./apis/api";
 
-export const API_VERSION = "7.7.0"
+export const API_VERSION = "7.9.1"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -34,22 +34,32 @@ const DEFAULT_HEADERS: Record<string, string> = {
 export type AppMiddlewareFunction = (ctx: AppContext, next: Next) => Promise<void> | void
 export type RequestResult = { success: true, response: Response } | { success: false, error: Error }
 
-export interface createServerOptions {
+export function toHono<T extends RouteHandler>(api: new (...args: any[]) => T, ...args: any[]): Handler {
+    const honoHandler: Handler = async (c, _next) => {
+        const instance: T = new api(...args)
+        const ctx = c as unknown as AppContext
+        return instance.handle(ctx)
+    }
+    return honoHandler
+}
+
+export interface createAppOptions {
     fetchFactory?: (ctx: AppContext) => typeof fetch,
     locationFactory?: (ctx: AppContext) => AppLocation,
     deferFactory?: (ctx: AppContext) => ((p: Promise<unknown>) => void | Promise<void>),
     onResponseCache?: (ctx: AppContext, response: Response, maxAge: number) => void | Promise<void>
+    appCacheLayerFactory?: (ctx: AppContext) => AppCacheLayer[] | Promise<AppCacheLayer[]>
     middlewares?: AppMiddlewareFunction[],
-    appCacheLayers?: AppCacheLayer[]
     config?: AppConfig
 }
 
-export function createServer(createServerOptions: createServerOptions = {}) {
-    const { fetchFactory, locationFactory, deferFactory, onResponseCache: howShouldICacheResponse, middlewares, config, appCacheLayers } = createServerOptions
+export function createApp(createAppOptions: createAppOptions = {}) {
+    const { fetchFactory, locationFactory, deferFactory, onResponseCache: howShouldICacheResponse, middlewares, config, appCacheLayerFactory } = createAppOptions
     const app = new Hono()
     app.use(async (c, next) => {
         const ctx = createAppContext(c, config)
-        ctx.appCache = new AppCache(ctx, appCacheLayers ?? [])
+        const cacheLayers = appCacheLayerFactory ? await appCacheLayerFactory(ctx) : []
+        ctx.appCache = new AppCache(ctx, cacheLayers)
         ctx.appCacheKey = new AppCacheKey(ctx)
         ctx.appFetch = createAppFetch(ctx, fetchFactory?.(ctx) || fetch)
         ctx.appLocation = locationFactory?.(ctx) || {}
@@ -122,26 +132,28 @@ export function createServer(createServerOptions: createServerOptions = {}) {
         }
     }
 
-    const openapi = fromHono(app, {
-        docs_url: "/doc"
-    });
-
-    openapi.all('/', BaseAPI)
-    openapi.get('/cdn', VideoCDNAPI)
-    openapi.get('/cookie', CookieAPI)
-    openapi.get('/ipregion', IpRegionAPI)
-    openapi.get('/video/:id?/:p?', VideoAPI)
-    openapi.get('/bangumi/info', BangumiInfoAPI)
-    openapi.get('/bangumi/episodes', BangumiEpisodesAPI)
-    openapi.get('/danmaku/:id?/:p?', DanmakuAPI)
-    openapi.get('/subtitle/:id?/:p?', SubtitleAPI)
-    openapi.get('/cover/:id?', CoverAPI)
-    openapi.get('/live/:roomId?', LiveAPI)
-    openapi.get('/user/archieve/:mid?/:sid?', ArchieveAPI)
-    openapi.get('/user/fav/:fid?', FavListAPI)
-    openapi.get('/search/:type?', SearchAPI)
+    app.get('/', toHono(BaseAPI))
+    app.get('/cdn', toHono(VideoCDNAPI))
+    app.get('/cookie', toHono(CookieAPI))
+    app.get('/ipregion', toHono(IpRegionAPI))
+    app.get('/video/:id?/:p?', toHono(VideoAPI))
+    app.get('/bangumi/info', toHono(BangumiInfoAPI))
+    app.get('/bangumi/episodes', toHono(BangumiEpisodesAPI))
+    app.get('/danmaku/:id?/:p?', toHono(DanmakuAPI))
+    app.get('/subtitle/:id?/:p?', toHono(SubtitleAPI))
+    app.get('/cover/:id?', toHono(CoverAPI))
+    app.get('/live/:roomId?', toHono(LiveAPI))
+    app.get('/user/archieve/:mid?/:sid?', toHono(ArchieveAPI))
+    app.get('/user/fav/:fid?', toHono(FavListAPI))
+    app.get('/search/:type?', toHono(SearchAPI))
 
     return app
+}
+/**
+ * @deprecated
+ */
+export function createServer(createServerOptions: createAppOptions = {}) {
+    return createApp(createServerOptions)
 }
 
 export function createAppContext(c: Context, cfg?: AppConfig): AppContext {

@@ -1,9 +1,9 @@
 import { AppContext } from "../types/app";
 import {BiliCrypto} from "../utils/bili-crypto";
-import { API } from "./api";
+import { RouteHandler } from "./api";
 
-export class CookieAPI extends API {
-    public override async handler(ctx: AppContext): Promise<Response> {
+export class CookieAPI extends RouteHandler {
+    public override async doHandle(ctx: AppContext): Promise<Response> {
         const bCrypto = new BiliCrypto(ctx)
         const cookie = await bCrypto.createAnonymousCookie()
         let parts: string[] = []

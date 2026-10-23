@@ -1,9 +1,9 @@
-import { OpenAPIRoute } from "chanfana";
 import { AppContext, AppLocation, CDNAllocation } from "../types/app";
 import { parseCDNAllocation } from "../utils/cdn";
 import { BiliTypes } from "../types/bili";
 import SharedData from "../shared/data";
 import z from "zod";
+import { AppHeaders } from "../shared/headers";
 
 export class BadRequestError extends Error {
     constructor(message?: string) {
@@ -12,7 +12,20 @@ export class BadRequestError extends Error {
     }
 }
 
-export abstract class API extends OpenAPIRoute {
+export abstract class RouteHandler {
+
+    protected abstract doHandle(ctx: AppContext): Promise<Response> | Response;
+    public readonly handle = async (ctx: AppContext): Promise<Response> => {
+        try {
+            return await this.doHandle(ctx);
+        } catch (error) {
+            if (error instanceof BadRequestError) {
+                return ctx.jsonResp(error.message, 400, null);
+            }
+            return ctx.jsonResp((error as Error)?.message, 500, null);
+        }
+    }
+
     public static readonly utils = {
         matchCDNAllocation: (allocations: CDNAllocation[], appLocation?: AppLocation): CDNAllocation | undefined => {
             return allocations.find(allocation =>
@@ -40,7 +53,7 @@ export abstract class API extends OpenAPIRoute {
                 if (match) {
                     const cdnName = match.cdn as string
                     cdnHostname = ctx.config.VIDEO_CDN[cdnName]
-                    ctx.header('X-CDN-Allocation', `${match.continent},${match.area},${cdnName}`.toLowerCase())
+                    ctx.header(AppHeaders.CDN_ALLOCATION, `${match.continent},${match.area},${cdnName}`.toLowerCase())
                 }
             }
             if (cdnHostname) {
@@ -48,15 +61,15 @@ export abstract class API extends OpenAPIRoute {
                 const originHostname = replaceUrl.hostname
                 replaceUrl.hostname = cdnHostname
                 url = replaceUrl.toString()
-                ctx.header('X-Bili-CDN', cdnHostname)
-                ctx.header('X-Bili-Origin-CDN', originHostname)
+                ctx.header(AppHeaders.CDN_BILI_CDN, cdnHostname)
+                ctx.header(AppHeaders.CDN_BILI_ORIGIN_CDN, originHostname)
             }
             return url
         },
         switchDashCDN: (ctx: AppContext, dash: BiliTypes.RES.Video.PlayDash['dash'], cdn?: string, customAllocation?: string) => {
             const replaceHost = <T extends BiliTypes.RES.Video.AudioDashItem | BiliTypes.RES.Video.VideoDashItem>(dashItem: T) => {
-                dashItem.baseUrl = API.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn, customAllocation)
-                dashItem.backupUrl = dashItem.backupUrl.map(u => API.utils.switchVideoCDN(ctx, u, cdn, customAllocation))
+                dashItem.baseUrl = RouteHandler.utils.switchVideoCDN(ctx, dashItem.baseUrl, cdn, customAllocation)
+                dashItem.backupUrl = dashItem.backupUrl.map(u => RouteHandler.utils.switchVideoCDN(ctx, u, cdn, customAllocation))
                 return dashItem
             }
             dash.video = dash.video ? dash.video.map(replaceHost) : dash.video
@@ -124,7 +137,7 @@ export abstract class API extends OpenAPIRoute {
         resolveVideoEntryFromUrl: async (iurl: URL | string): Promise<{ videoId: BiliTypes.BVideoId, p: number } | null> => {
             let url: URL = iurl instanceof URL ? iurl : new URL(iurl)
             if (SharedData.URLPatterns.B23_TV.test(url)) {
-                const targetUrl = await API.utils.getShortLinkRedirectUrl(url)
+                const targetUrl = await RouteHandler.utils.getShortLinkRedirectUrl(url)
                 if (targetUrl) { url = targetUrl }
             }
             if (SharedData.URLPatterns.BILI_VIDEO.test(url)) {
@@ -144,7 +157,7 @@ export abstract class API extends OpenAPIRoute {
         resolveLiveRoomIdFromUrl: async (iurl: URL | string): Promise<number | null> => {
             let url: URL = iurl instanceof URL ? iurl : new URL(iurl)
             if (SharedData.URLPatterns.B23_TV.test(url)) {
-                const targetUrl = await API.utils.getShortLinkRedirectUrl(url)
+                const targetUrl = await RouteHandler.utils.getShortLinkRedirectUrl(url)
                 if (targetUrl) { url = targetUrl }
             }
             if (SharedData.URLPatterns.BILI_LIVE.test(url)) {
@@ -190,23 +203,11 @@ export abstract class API extends OpenAPIRoute {
         //     return { ...args, qn }
         // }
     }
-    protected readonly utils = API.utils
-    get nowS() {
+    protected readonly utils = RouteHandler.utils
+
+    protected get nowS() {
         return Math.floor(Date.now() / 1000)
     }
-
-    public override async handle(ctx: AppContext): Promise<Response> {
-        try {
-            return await this.handler(ctx)
-        } catch (error) {
-            if (error instanceof BadRequestError) {
-                return ctx.jsonResp(error.message, 400, null)
-            }
-            return ctx.jsonResp((error as Error)?.message, 500, null)
-        }
-    }
-
-    protected abstract handler(ctx: AppContext): Promise<Response> | Response;
 
     protected async getSchemaValidData<Data>(
         data: Data,

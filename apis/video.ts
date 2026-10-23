@@ -1,12 +1,13 @@
 import z from "zod";
 import BiliVideoParser from "../services/video-parser";
 import SharedData from "../shared/data";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
 import { AppContext } from "../types/app";
+import { AppHeaders } from "../shared/headers";
 
-export class VideoAPI extends API {
+export class VideoAPI extends RouteHandler {
 
     private _parser: BiliVideoParser | null = null
     private getParser(ctx: AppContext) {
@@ -16,7 +17,7 @@ export class VideoAPI extends API {
     private readonly paramSchema = z.object({
         type: z.enum(["video", "full", "info", "json", "url"]).default("video"),
         cdn: z.string().optional(),
-        qn: z.enum(["6", "16", "32", "64", "74", "80", "100", "112", "116", "120", "125", "126", "127", "129"]).default("64").transform((qn) => parseInt(qn)),
+        qn: z.coerce.number().optional().default(112),
         format: z.enum(['mp4', 'dash']).default('mp4'),
         platform: z.enum(['html5', 'pc', 'app']).default('html5'),
         allocation: z.string().optional(),
@@ -51,31 +52,35 @@ export class VideoAPI extends API {
     }
 
     private async parseVideoStream(ctx: AppContext, videoId: BiliTypes.BVideoId, cid: number, qn: number, platform: BiliTypes.RES.Video.VideoPlayPlatform, format: BiliTypes.RES.Video.VideoPlayFormat): Promise<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash> {
-        const urlKey = ctx.appCacheKey.videoPlayUrl(cid, qn, platform, format, ctx.config.SERVER_LOGIN_HASHKEY)
+        const cacheKey = ctx.appCacheKey.videoPlayUrl(cid, qn, platform, format)
 
-        let videoPlay = await this.getSchemaValidData(await ctx.appCache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey), Schema.videoPlaySchema)
+        let videoPlay = await this.getSchemaValidData(await ctx.appCache.getCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(cacheKey), Schema.videoPlaySchema)
 
         if (!videoPlay) {
             const parser = this.getParser(ctx)
             videoPlay = await this.getSchemaValidData(await parser.getVideoPlayUrl(videoId, cid, qn, platform, format as any) as BiliTypes.RES.Video.PlayDash | BiliTypes.RES.Video.PlayURL, Schema.videoPlaySchema, true)
 
-            await ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(urlKey, videoPlay, (data) => {
-                const duration = videoPlay?.duration ?? 0
-                let videoBufferTimeS: number
-                if (duration < 60 * 10) {
-                    videoBufferTimeS = 60
-                }
-                else if (duration < 3600) {
-                    videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
-                }
-                else {
-                    videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
-                }
-                const videoExpirationS = data.urlExpirationAt - videoBufferTimeS
-                const userExpirationS = this.nowS + ctx.config.BILI_VIDEO_PLAYURL_CACHE_TIME
-                const expiration: number = Math.min(videoExpirationS, userExpirationS)
-                return expiration
-            })
+            const duration = videoPlay?.duration ?? 0
+            let videoBufferTimeS: number
+            if (duration < 60 * 10) {
+                videoBufferTimeS = 60
+            }
+            else if (duration < 3600) {
+                videoBufferTimeS = Math.min(duration * 0.1, 10 * 60)
+            }
+            else {
+                videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
+            }
+            const videoExpirationS = videoPlay.urlExpirationAt - videoBufferTimeS
+            const userExpirationS = this.nowS + ctx.config.BILI_VIDEO_PLAYURL_CACHE_TIME
+            const expiration: number = Math.min(videoExpirationS, userExpirationS)
+
+            const realQnCacheKey = ctx.appCacheKey.videoPlayUrl(cid, videoPlay.realQuality, platform, format)
+
+            await Promise.allSettled([
+                ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(cacheKey, videoPlay, expiration),
+                ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(realQnCacheKey, videoPlay, expiration),
+            ])
         }
 
         return videoPlay
@@ -96,12 +101,13 @@ export class VideoAPI extends API {
             ...videoInfo,
             play: videoStream
         }
-        ctx.header("X-Video-Cid", String(cid))
-        ctx.header("X-Video-Part", String(p))
+        ctx.header(AppHeaders.VIDEO_CID, String(cid))
+        ctx.header(AppHeaders.VIDEO_PART, String(p))
         return video
+
     }
 
-    public override async handler(ctx: AppContext): Promise<Response> {
+    public override async doHandle(ctx: AppContext): Promise<Response> {
         const url = new URL(ctx.req.url)
 
         const parmas = await this.paramSchema.safeParseAsync({
@@ -121,15 +127,12 @@ export class VideoAPI extends API {
         }
         let { type, platform, cdn, qn, format, allocation, p } = parmas.data
 
-        if (!ctx.config.IS_SERVER_LOGIN) {
-            if (format === 'dash' && platform === 'html5') {
-                throw new BadRequestError("Your request is fine, but when the platform is html5 and the format is dash, the server must be logged in. The current server is running offline, so please try changing the platform to app or pc.")
-            }
-            qn = Math.min(qn, 80)
+        if (!ctx.config.IS_SERVER_LOGIN && format === 'dash' && platform === 'html5') {
+            throw new BadRequestError("Your request is fine, but when the platform is html5 and the format is dash, the server must be logged in. The current server is running offline, so please try changing the platform to app or pc.")
         }
 
         const videoId = parmas.data.videoId!
-        ctx.header("X-Video-Id", `${videoId.type},${videoId.id}`)
+        ctx.header(AppHeaders.VIDEO_ID, `${videoId.type},${videoId.id}`)
 
         if (type === 'info') {
             const info = await this.parseVideoInfo(ctx, videoId)

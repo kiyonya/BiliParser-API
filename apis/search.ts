@@ -1,13 +1,13 @@
 import z from "zod";
 import BiliSearchParser from "../services/search-parser";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { BiliTypes } from "../types/bili";
 import { AppContext } from "../types/app";
 import { Schema } from "../shared/schema";
 
 type SearchResult = BiliTypes.RES.Search.SearchLiveItem | BiliTypes.RES.Search.SearchUserItem | BiliTypes.RES.Search.SearchVideoItem
 
-export class SearchAPI extends API {
+export class SearchAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         keyword: z.string().transform(i => i.trim()),
@@ -17,7 +17,7 @@ export class SearchAPI extends API {
         order: z.string().optional()
     })
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
         const params = await this.paramSchema.safeParse({
             keyword: url.searchParams.get("keyword") || undefined,

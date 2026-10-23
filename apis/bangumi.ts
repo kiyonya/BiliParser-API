@@ -1,11 +1,11 @@
 import z from "zod";
 import BiliBangumiParser from "../services/bangumi-parser";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
 
-export class BangumiInfoAPI extends API {
+export class BangumiInfoAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         ssid: z.coerce.number().optional(),
@@ -23,7 +23,7 @@ export class BangumiInfoAPI extends API {
         }
     })
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
 
         const url = new URL(ctx.req.url)
         const params = this.paramSchema.safeParse({
@@ -49,7 +49,7 @@ export class BangumiInfoAPI extends API {
     }
 }
 
-export class BangumiEpisodesAPI extends API {
+export class BangumiEpisodesAPI extends RouteHandler {
 
     protected readonly paramSchema = z.object({
         ssid: z.coerce.number().optional(),
@@ -65,7 +65,7 @@ export class BangumiEpisodesAPI extends API {
         }
     })
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
         const params = this.paramSchema.safeParse({
             ssid: url.searchParams.get('ssid')?.replace('ss', '') || undefined,

@@ -2,11 +2,11 @@ import SharedData from "../shared/data";
 import { Schema } from "../shared/schema";
 import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
-import { API } from "./api";
+import { RouteHandler } from "./api";
 
-export class IpRegionAPI extends API {
+export class IpRegionAPI extends RouteHandler {
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const req = await ctx.appFetch(SharedData.BILI_WEB_NAV, {
             method: "GET",
             headers: {

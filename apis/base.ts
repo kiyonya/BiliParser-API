@@ -1,9 +1,9 @@
 import { AppContext } from "../types/app";
-import { API } from "./api";
+import { RouteHandler } from "./api";
 
-export class BaseAPI extends API {
+export class BaseAPI extends RouteHandler {
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
 
         const serverVersion = ctx.config.SERVER_VERSION || "NA"
         const url = new URL(ctx.req.url)
@@ -93,8 +93,6 @@ export class BaseAPI extends API {
         <br />
         <p>
         <a href="${github}">Github</a>
-        &nbsp;&nbsp;
-        <a href="/doc">OpenAPI</a>
         </p>
         <br />
         <br />

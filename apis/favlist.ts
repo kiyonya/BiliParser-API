@@ -1,11 +1,11 @@
 import z from "zod";
 import BiliUserParser from "../services/user-parser";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
 
-export class FavListAPI extends API {
+export class FavListAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         fid: z.coerce.number(),
@@ -14,7 +14,7 @@ export class FavListAPI extends API {
         pageSize: z.coerce.number().default(40)
     })
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
         const params = this.paramSchema.safeParse({
             fid: ctx.req.param('fid') || url.searchParams.get('fid') || undefined,

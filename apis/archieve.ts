@@ -1,11 +1,11 @@
 import z from "zod";
 import BiliUserParser from "../services/user-parser";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
 
-export class ArchieveAPI extends API {
+export class ArchieveAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         mid: z.coerce.number(),
@@ -14,7 +14,7 @@ export class ArchieveAPI extends API {
         pageSize: z.coerce.number().default(30)
     })
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
         const params = this.paramSchema.safeParse({
             mid: ctx.req.param('mid') || url.searchParams.get('mid') || undefined,

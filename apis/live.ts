@@ -1,12 +1,13 @@
 import z from "zod";
 import BiliLiveParser from "../services/live-parser";
 import SharedData from "../shared/data";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
+import { AppHeaders } from "../shared/headers";
 
-export class LiveAPI extends API {
+export class LiveAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         type: z.enum(['json', 'stream']).default('stream'),
@@ -84,7 +85,7 @@ export class LiveAPI extends API {
 
                 streamMinExpirationAt = Math.min(...streamExpirations)
                 livef.streamExpirationAt = streamMinExpirationAt
-                ctx.header('X-Live-Room', String(realRoomId))
+                ctx.header(AppHeaders.LIVE_ROOM_ID, String(realRoomId))
             }
             live = await this.getSchemaValidData(livef, Schema.liveSchema, true)
             let cacheTtl = streamMinExpirationAt ? Math.min(streamMinExpirationAt, this.nowS + ctx.config.BILI_LIVE_CACHE_TIME) : this.nowS + ctx.config.BILI_LIVE_CACHE_TIME
@@ -93,7 +94,7 @@ export class LiveAPI extends API {
         return live
     }
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
         const params = await this.paramSchema.safeParseAsync({
             roomId: ctx.req.param('roomId') || url.searchParams.get('roomId') || undefined,
@@ -116,14 +117,14 @@ export class LiveAPI extends API {
 
         const live = await this.parseLive(ctx, roomId, platform, codec, format, protocol)
         if (live.stream && live.isLiving) {
-            ctx.header('X-Stream-Parse-Platform', live.stream.platform)
+            ctx.header(AppHeaders.LIVE_STREAM_PLATFORM, live.stream.platform)
             if (live.stream.platform === 'xlive') {
-                ctx.header('X-Stream-Format', format)
-                ctx.header('X-Stream-Codec', codec)
-                ctx.header('X-Stream-Protocol', protocol)
+                ctx.header(AppHeaders.LIVE_STREAM_FORMAT, format)
+                ctx.header(AppHeaders.LIVE_STREAM_CODEC, codec)
+                ctx.header(AppHeaders.LIVE_STREAM_PROTOCOL, protocol)
             }
             const { server } = this.utils.switchStreamCDN(ctx, live.stream, ov)
-            ctx.header('X-Stream-Server', server)
+            ctx.header(AppHeaders.LIVE_STREAM_SERVER, server)
         }
 
         switch (type) {

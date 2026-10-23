@@ -1,12 +1,12 @@
 import z from "zod";
 import BiliVideoParser from "../services/video-parser";
 import SharedData from "../shared/data";
-import { API, BadRequestError } from "./api";
+import { RouteHandler, BadRequestError } from "./api";
 import { BiliTypes } from "../types/bili";
 import { AppContext } from "../types/app";
 import { Schema } from "../shared/schema";
 
-export class SubtitleAPI extends API {
+export class SubtitleAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
         url: this.utils.zodBiliUrl([SharedData.URLPatterns.BILI_VIDEO, SharedData.URLPatterns.B23_TV], "url must be a bilibili video page or b23.tv short link").optional(),
@@ -99,7 +99,7 @@ export class SubtitleAPI extends API {
         return srt.join("\n\n")
     }
 
-    public override async handler(ctx: AppContext) {
+    public override async doHandle(ctx: AppContext) {
         if (!ctx.config.IS_SERVER_LOGIN) {
             throw new BadRequestError("This API can be used and your request is fine, but getting subtitles requires the server to be logged in. Right now the server is offline, so sorry, we can't handle your request this time.")
         }
