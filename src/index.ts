@@ -1,19 +1,22 @@
-import { API_VERSION, createServer } from "../api-core";
+/**
+ * Biliparser-ESA
+ */
+import { API_VERSION, createApp } from "../api-core";
 import { AppHeaders } from "../api-core/shared/headers";
-import { CacheStatus } from "../api-core/types/app";
+import { AppConfigOptions, AppContext, AppLocation, CacheStatus, CacheWarp } from "../api-core/types/app";
+import { AppCache, AppCacheLayer } from "../api-core/utils/app-cache";
 import { AppConfig } from "../api-core/utils/app-config";
 import { md5String } from "../api-core/utils/hashlib";
-import { esaKvCacheDeleter, esaKvCacheGetter, esaKvCacheSetter, esaRequestLocation, esaWebCacheDeleter, esaWebCacheGetter, esaWebCacheSetter } from "./esa";
 import crypto from 'node:crypto'
 
-const LOCAL_ENV: Record<string, any> = {
+const LOCAL_ENV: Partial<AppConfigOptions> = {
     VIDEO_CDN_ALLOCATION: "*,CN,cos;*,HK,aliov;*,MO,aliov;*,TW,aliov;*,JP,alio1;*,KR,alio1;*,SG,cosov;*,VN,hw;*,*,aliov",
     ENABLE_COOKIE_WEB_CACHE: true,
     ENABLE_CACHE_DATA_VALIDATION: true,
-    ENABLE_RESPONSE_CACHING: true,
+    ENABLE_CACHE_LAYER_SYNC: true,
+    ENABLE_RESPONSE_CACHING: false,
     ENABLE_CUSTOM_COOKIES: false,
-    ENABLE_PROXY_SERVER: false,
-    SERVER_VERSION: "7.5.6.261014-esa",
+    SERVER_VERSION: "7.9.1.261023-esa",
     CACHE_DATA_VERSION: 6,
 }
 
@@ -31,49 +34,131 @@ enum ESAHeaders {
     TEMP_CACHE_RESPONSE = "_ESA-Cache-Response"
 }
 
+async function createEsaCacheLayers(ctx: AppContext) {
+    function createVCacheKey(ctx: AppContext, cacheKey: string) {
+        const reqUrl = new URL(ctx.req.url);
+        const keyMd5 = md5String(cacheKey);
+        const keyUrl = new URL(`http://${reqUrl.hostname}`);
+        keyUrl.pathname = `/esacache/${keyMd5}`;
+        return keyUrl
+    }
+    const ESA_CACHE_HEADER = "X-ESA-Cache"
+
+    const layers: AppCacheLayer[] = [
+        AppCache.createLayer({
+            layerName: "esa-web",
+            layerType: "isolate",
+            getter: async (ctx, key): Promise<CacheWarp | null> => {
+                const keyUrl = createVCacheKey(ctx, key).toString()
+                const cached: Response | undefined = await cache.get(keyUrl)
+                if (cached && cached.headers.has(ESA_CACHE_HEADER)) {
+                    const warp = await cached.json() as CacheWarp
+                    return warp
+                }
+                return null
+            },
+            setter: async (ctx: AppContext, key: string, warp: CacheWarp): Promise<void> => {
+                const keyUrl = createVCacheKey(ctx, key).toString()
+                const nowS = Math.floor(Date.now() / 1000)
+                const maxAge = warp.expirationAt - nowS
+                if (maxAge <= 0) { return }
+                const cacheHeaders = new Headers()
+                cacheHeaders.set('Cache-Control', `public, max-age=${maxAge}`)
+                cacheHeaders.set(ESA_CACHE_HEADER, "")
+                const response = new Response(JSON.stringify(warp), {
+                    headers: cacheHeaders,
+                    status: 200
+                })
+                await cache.put(keyUrl, response)
+            },
+            deleter: async (ctx: AppContext, key: string): Promise<void> => {
+                const keyUrl = createVCacheKey(ctx, key).toString()
+                await cache.delete(keyUrl)
+            }
+        })
+    ]
+
+    const kvBinding = ctx.config.KV_CACHE_BINDING
+    if (kvBinding) {
+        const kv = new EdgeKV({ namespace: kvBinding })
+        const kvCacheLayer = AppCache.createLayer({
+            layerName: 'esa-kv',
+            layerType: "consistent",
+            getter: async (_, key): Promise<CacheWarp | null> => {
+                return (await kv.get(key, { type: "json" }) ?? null) as CacheWarp | null
+            },
+            setter: async (_: AppContext, key: string, warp: CacheWarp): Promise<void> => {
+                await kv.put(key, JSON.stringify(warp))
+            },
+            deleter: async (_: AppContext, key: string): Promise<void> => {
+                await kv.delete(key)
+            }
+        })
+        layers.push(kvCacheLayer)
+    }
+    return layers
+}
+
+function createEsaAppLocation(ctx: AppContext): AppLocation {
+    const request = ctx.req.raw
+    const info = request.info
+    if (info) {
+        return {
+            city: info.ip_city_en,
+            continent: undefined,
+            asn: undefined,
+            country: info.ip_country_id,
+            colo: info.ip_region_id
+        }
+    }
+    else {
+        return {
+            city: "N/A",
+            continent: "AS",
+            country: "CN",
+            colo: "N/A",
+            asn: "N/A"
+        }
+    }
+}
+
 export default {
-    async fetch(request: Request, ctx?: any, e?: any) {
+    async fetch(request: Request, ctx?: any, e?: Record<any, any> | undefined | null) {
 
         const requestStart = Date.now()
-        const env = e ?? LOCAL_ENV ?? {}
+        const env = { ...LOCAL_ENV, ...e }
 
-        const reqInfo = request.info
-
-        let requestRay: string = md5String(crypto.randomUUID()).slice(0, 16)
-        if (reqInfo && reqInfo.ip_country_id && reqInfo.ip_region_en) {
-            requestRay += `-${reqInfo.ip_country_id}[${reqInfo.ip_region_en}]`
+        const requestInfo = request.info
+        let requestRay: string = crypto.randomUUID().replaceAll("-", '').slice(0, 16)
+        if (requestInfo && requestInfo.ip_country_id && requestInfo.ip_region_en) {
+            requestRay += `-${requestInfo.ip_country_id}[${requestInfo.ip_region_en}]`
         }
+
+        const config: AppConfig = new AppConfig(env)
+        const enableResponseCaching = config.ENABLE_RESPONSE_CACHING
 
         const ctagParams = {
-            country: reqInfo?.ip_country_id,
+            country: requestInfo?.ip_country_id,
             continent: "",
-            loginHash: `${env.ENABLE_CUSTOM_COOKIES},${env.CUSTOM_COOKIES}`,
-            cacheVersion: env.CACHE_DATA_VERSION,
-            serverVersion: env.SERVER_VERSION,
-            apiVersion: API_VERSION
+            apiVersion: API_VERSION,
+            serverStatusHash: config.SERVER_STATUS_HASH
         }
-
+        
         const ctag = md5String(JSON.stringify(ctagParams))
-
         request.meta = {
             cacheTag: ctag,
             ray: requestRay
         }
 
         const cacheKeyUrl = new URL(request.url)
-        // important!
         cacheKeyUrl.protocol = "http:"
         cacheKeyUrl.searchParams.set("__ctag", ctag)
-
-
-        const config: AppConfig = new AppConfig(env)
-        const enableResponseCaching = config.ENABLE_RESPONSE_CACHING
+        const cacheKey = cacheKeyUrl.toString()
 
         let cacheStatus: CacheStatus = 'BYPASS'
         let response: Response | null = null
-
         if (enableResponseCaching) {
-            const esaCache: Response | undefined = await cache.get(cacheKeyUrl.toString())
+            const esaCache: Response | undefined = await cache.get(cacheKey)
             if (esaCache) {
                 const cacheAtHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_TIME)
                 const maxAgeHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_TTL)
@@ -110,13 +195,9 @@ export default {
                             statusText: esaCache.statusText,
                             headers,
                         })
-
                         rResponse.headers.set('Age', String(age))
-                        if (rResponse.headers.has(AppHeaders.SERVER_CACHE_KV)) {
-                            rResponse.headers.set(AppHeaders.SERVER_CACHE_KV, 'BYPASS')
-                        }
-                        if (rResponse.headers.has(AppHeaders.SERVER_CACHE_WEB)) {
-                            rResponse.headers.set(AppHeaders.SERVER_CACHE_WEB, 'BYPASS')
+                        if (rResponse.headers.has(AppHeaders.SERVER_CACHE_STATUS)) {
+                            rResponse.headers.set(AppHeaders.SERVER_CACHE_STATUS, 'BYPASS')
                         }
                         rResponse.headers.set(ESAHeaders.ESA_CACHE_TIME, String(cacheAt))
                         rResponse.headers.set(ESAHeaders.ESA_CACHE_TTL, String(maxAge))
@@ -126,7 +207,7 @@ export default {
                     else {
                         cacheStatus = 'EXPIRED'
                         try {
-                            await cache.delete(cacheKeyUrl.toString())
+                            await cache.delete(cacheKey)
                         } catch (error) {
 
                         }
@@ -143,19 +224,10 @@ export default {
         }
 
         if (!response) {
-            let kv: EdgeKV | null = null
-            if (env?.KV_CACHE_BINDING) {
-                kv = new EdgeKV({ namespace: env.KV_CACHE_BINDING })
-            }
-            const app = createServer({
+            const app = createApp({
                 config: config,
-                webCacheSetterFactory: () => esaWebCacheSetter,
-                webCacheGetterFactory: () => esaWebCacheGetter,
-                webCacheDeleterFactory: () => esaWebCacheDeleter,
-                kvCacheSetterFactory: () => esaKvCacheSetter(kv),
-                kvCacheGetterFactory: () => esaKvCacheGetter(kv),
-                kvCacheDeleterFactory: () => esaKvCacheDeleter(kv),
-                locationFactory: (ctx) => esaRequestLocation(ctx),
+                appCacheLayerFactory: createEsaCacheLayers,
+                locationFactory: createEsaAppLocation,
                 onResponseCache: async (_ctx, res, maxage) => {
                     res.headers.set('Cache-Control', `public, max-age=0, s-maxage=${maxage}`)
                 },
@@ -164,12 +236,10 @@ export default {
                         await next()
                         const serverVersion = ctx.config.SERVER_VERSION
                         const cacheVersion = ctx.config.CACHE_DATA_VERSION
-                        const isServerLogin = ctx.config.IS_SERVER_LOGIN
+                        const serverStatusHash = ctx.config.SERVER_STATUS_HASH
                         ctx.res.headers.set(AppHeaders.SERVER_VERSION, String(serverVersion))
                         ctx.res.headers.set(AppHeaders.CACHE_VERSION, String(cacheVersion))
-                        ctx.res.headers.set(AppHeaders.SERVER_ONLINE, String(isServerLogin))
-                        ctx.res.headers.set("X-Service", "biliapi-esa")
-
+                        ctx.res.headers.set(AppHeaders.SERVER_STATUS_HASH,String(serverStatusHash))
                     }]
             })
             response = await app.fetch(request, env, ctx ?? {})
@@ -193,7 +263,7 @@ export default {
                         cResponse.headers.set(ESAHeaders.TEMP_STATUS_CODE, String(status))
                         cResponse.headers.set(ESAHeaders.TEMP_STATUS_TEXT, String(statusText))
                         cResponse.headers.set(ESAHeaders.TEMP_CACHE_RESPONSE, '')
-                        await cache.put(cacheKeyUrl.toString(), cResponse)
+                        await cache.put(cacheKey, cResponse)
                     }
                 }
             }
