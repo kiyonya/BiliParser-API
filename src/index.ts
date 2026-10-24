@@ -7,16 +7,16 @@ import { AppConfigOptions, AppContext, AppLocation, CacheStatus, CacheWarp } fro
 import { AppCache, AppCacheLayer } from "../api-core/utils/app-cache";
 import { AppConfig } from "../api-core/utils/app-config";
 import { md5String } from "../api-core/utils/hashlib";
-import crypto from 'node:crypto'
+import { v4 } from 'uuid'
 
 const LOCAL_ENV: Partial<AppConfigOptions> = {
     VIDEO_CDN_ALLOCATION: "*,CN,cos;*,HK,aliov;*,MO,aliov;*,TW,aliov;*,JP,alio1;*,KR,alio1;*,SG,cosov;*,VN,hw;*,*,aliov",
     ENABLE_COOKIE_WEB_CACHE: true,
     ENABLE_CACHE_DATA_VALIDATION: true,
     ENABLE_CACHE_LAYER_SYNC: true,
-    ENABLE_RESPONSE_CACHING: false,
+    ENABLE_RESPONSE_CACHING: true,
     ENABLE_CUSTOM_COOKIES: false,
-    SERVER_VERSION: "7.9.1.261023-esa",
+    SERVER_VERSION: "7.10.0.261024-esa",
     CACHE_DATA_VERSION: 6,
 }
 
@@ -129,7 +129,7 @@ export default {
         const env = { ...LOCAL_ENV, ...e }
 
         const requestInfo = request.info
-        let requestRay: string = crypto.randomUUID().replaceAll("-", '').slice(0, 16)
+        let requestRay: string = v4().replaceAll("-", '').slice(0, 16)
         if (requestInfo && requestInfo.ip_country_id && requestInfo.ip_region_en) {
             requestRay += `-${requestInfo.ip_country_id}[${requestInfo.ip_region_en}]`
         }
@@ -143,7 +143,7 @@ export default {
             apiVersion: API_VERSION,
             serverStatusHash: config.SERVER_STATUS_HASH
         }
-        
+
         const ctag = md5String(JSON.stringify(ctagParams))
         request.meta = {
             cacheTag: ctag,
@@ -239,7 +239,7 @@ export default {
                         const serverStatusHash = ctx.config.SERVER_STATUS_HASH
                         ctx.res.headers.set(AppHeaders.SERVER_VERSION, String(serverVersion))
                         ctx.res.headers.set(AppHeaders.CACHE_VERSION, String(cacheVersion))
-                        ctx.res.headers.set(AppHeaders.SERVER_STATUS_HASH,String(serverStatusHash))
+                        ctx.res.headers.set(AppHeaders.SERVER_STATUS_HASH, String(serverStatusHash))
                     }]
             })
             response = await app.fetch(request, env, ctx ?? {})

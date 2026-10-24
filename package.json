@@ -17,6 +17,8 @@
   "dependencies": {
     "fast-xml-parser": "^5.11.2",
     "hono": "^4.13.13",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "crypto-js": "^4.2.0",
+    "uuid": "^14.0.3"
   }
 }
