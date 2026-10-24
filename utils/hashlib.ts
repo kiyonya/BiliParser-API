@@ -1,8 +1,7 @@
-import crypto from 'node:crypto'
+import CryptoJS from "crypto-js"
 export function md5String(i:string){
-    return crypto.createHash("md5").update(i).digest("hex")
+    return CryptoJS.MD5(i).toString(CryptoJS.enc.Hex)
 }
-
 export function hmacSha256(key:string,i:string){
-    return crypto.createHmac("sha256",key).update(i).digest('hex')
+    return CryptoJS.HmacSHA256(i,key).toString(CryptoJS.enc.Hex)
 }
