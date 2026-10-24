@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "@hono/netlify": "npm:@hono/netlify@^1.0.2",
+    "@netlify/edge-functions": "npm:@netlify/edge-functions@^4.0.3",
+    "@types/node": "npm:@types/node@^26.6.5",
+    "fast-xml-parser": "npm:fast-xml-parser@^5.11.2",
+    "hono": "npm:hono@^4.12.12",
+    "zod": "npm:zod@^4.6.7"
+  }
+}

@@ -1,0 +1,4 @@
+[functions]
+  deno_import_map = "./import.map.json"
+[dev]
+port = 8787

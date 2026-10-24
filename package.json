@@ -1,0 +1,28 @@
+{
+  "name": "@nekocha/biliapi-netlify",
+  "version": "1.0.0",
+  "description": "",
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "main": "netlify/edge-funtions/index.ts",
+  "scripts": {
+    "dev": "netlify dev --geo=mock --country=cn",
+    "deploy": "netlify deploy --prod",
+    "build:bun": "bun build src/edge-functions/index.ts --outfile netlify/edge-functions/index.js --watch"
+  },
+  "dependencies": {
+    "@hono/netlify": "^1.0.2",
+    "@netlify/cache": "^4.1.0",
+    "@netlify/edge-functions": "^4.0.3",
+    "@types/node": "^26.6.5",
+    "crypto-js": "^4.2.0",
+    "fast-xml-parser": "^5.11.2",
+    "hono": "^4.12.12",
+    "uuid": "^14.0.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2"
+  }
+}
