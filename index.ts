@@ -20,7 +20,7 @@ import { AppCache, AppCacheKey, AppCacheLayer } from "./utils/app-cache";
 import z from "zod";
 import { RouteHandler } from "./apis/api";
 
-export const API_VERSION = "7.9.1"
+export const API_VERSION = "8.0.0"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -47,14 +47,15 @@ export interface createAppOptions {
     fetchFactory?: (ctx: AppContext) => typeof fetch,
     locationFactory?: (ctx: AppContext) => AppLocation,
     deferFactory?: (ctx: AppContext) => ((p: Promise<unknown>) => void | Promise<void>),
-    onResponseCache?: (ctx: AppContext, response: Response, maxAge: number) => void | Promise<void>
+    shouldResponseCache?: (ctx: AppContext, status: number) => boolean
+    setResponseCacheHeaders?: (ctx: AppContext, maxage: number) => Record<string, string>
     appCacheLayerFactory?: (ctx: AppContext) => AppCacheLayer[] | Promise<AppCacheLayer[]>
     middlewares?: AppMiddlewareFunction[],
     config?: AppConfig
 }
 
 export function createApp(createAppOptions: createAppOptions = {}) {
-    const { fetchFactory, locationFactory, deferFactory, onResponseCache: howShouldICacheResponse, middlewares, config, appCacheLayerFactory } = createAppOptions
+    const { fetchFactory, locationFactory, deferFactory, middlewares, config, appCacheLayerFactory, shouldResponseCache, setResponseCacheHeaders } = createAppOptions
     const app = new Hono()
     app.use(async (c, next) => {
         const ctx = createAppContext(c, config)
@@ -99,27 +100,40 @@ export function createApp(createAppOptions: createAppOptions = {}) {
     app.use(async (c, next) => {
         await next()
         const ctx = c as unknown as AppContext
-        if (ctx.res.headers.has('Cache-Control')) { return }
-        const maxCacheTime = ctx.config.RESPONSE_MAX_CACHE_TIME
+        const res = ctx.res
+        const headers = ctx.res.headers;
         const status = ctx.res.status
-        const isResponseCacheable = ctx.config.ENABLE_RESPONSE_CACHING && maxCacheTime > 0 && [200, 302, 304, 307].includes(status) && howShouldICacheResponse
+        const isCacheEnable = ctx.config.ENABLE_RESPONSE_CACHING
+        if (!isCacheEnable) {
+            headers.set("cache-control", "no-store")
+            return
+        }
+        const cacheHeader = headers.get("cache-control")
+        if (cacheHeader) { return }
+        const maxCacheTime = ctx.config.RESPONSE_MAX_CACHE_TIME
+        const shouldCache = Boolean(isCacheEnable && maxCacheTime > 0 && !res.bodyUsed && shouldResponseCache && shouldResponseCache(ctx, status))
 
-        if (isResponseCacheable) {
-            const response = ctx.res
+        if (shouldCache) {
             const appCache = ctx.appCache
             const nowS = Math.floor(Date.now() / 1000)
             const minExpirationTime = appCache.minExpirationTime
             const maxCacheExpiration = nowS + maxCacheTime
             const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
-            const maxAge = Math.max(0, Math.floor(maxExpiration - nowS))
-
-            if (response && maxAge > 0) {
-                await howShouldICacheResponse(ctx, response, maxAge)
+            const maxAge = Math.min(Math.max(0, Math.floor(maxExpiration - nowS)), maxCacheTime)
+            //set-header
+            if (setResponseCacheHeaders) {
+                const extraHeaders = setResponseCacheHeaders(ctx, maxAge)
+                console.log(extraHeaders)
+                for (const [k, v] of Object.entries(extraHeaders)) {
+                    headers.set(k, v)
+                }
+            }
+            else {
+                headers.set("cache-control", `public, max-age=${maxAge}`)
             }
         }
-
-        if (!ctx.res.headers.has("Cache-Control")) {
-            ctx.res.headers.set("Cache-Control", "no-store")
+        if (!headers.has("cache-control")) {
+            headers.set("cache-control", "no-store")
         }
     })
 
