@@ -151,12 +151,16 @@ export function createApp(createAppOptions: createAppOptions = {}) {
     app.get('/cookie', toHono(CookieAPI))
     app.get('/ipregion', toHono(IpRegionAPI))
     app.get('/video/:id?/:p?', toHono(VideoAPI))
-    app.get('/bangumi/info', toHono(BangumiInfoAPI))
-    app.get('/bangumi/episodes', toHono(BangumiEpisodesAPI))
+    //alia
+    app.get('/v/:id?/:p?', toHono(VideoAPI))
+    // app.get('/bangumi/info', toHono(BangumiInfoAPI))
+    // app.get('/bangumi/episodes', toHono(BangumiEpisodesAPI))
     app.get('/danmaku/:id?/:p?', toHono(DanmakuAPI))
     app.get('/subtitle/:id?/:p?', toHono(SubtitleAPI))
     app.get('/cover/:id?', toHono(CoverAPI))
     app.get('/live/:roomId?', toHono(LiveAPI))
+    //alia
+    app.get('/l/:roomId?', toHono(LiveAPI))
     app.get('/user/archieve/:mid?/:sid?', toHono(ArchieveAPI))
     app.get('/user/fav/:fid?', toHono(FavListAPI))
     app.get('/search/:type?', toHono(SearchAPI))

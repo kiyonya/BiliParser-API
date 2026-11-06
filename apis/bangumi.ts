@@ -5,6 +5,9 @@ import { AppContext } from "../types/app";
 import { BiliTypes } from "../types/bili";
 import { Schema } from "../shared/schema";
 
+/**
+ * @deprecated
+ */
 export class BangumiInfoAPI extends RouteHandler {
 
     private readonly paramSchema = z.object({
@@ -49,6 +52,9 @@ export class BangumiInfoAPI extends RouteHandler {
     }
 }
 
+/**
+ * @deprecated
+ */
 export class BangumiEpisodesAPI extends RouteHandler {
 
     protected readonly paramSchema = z.object({
