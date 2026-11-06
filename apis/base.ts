@@ -12,14 +12,22 @@ export class BaseAPI extends RouteHandler {
         const port = url.port
         const demoUrl = ['127.0.0.1', 'localhost'].includes(hostname) ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`
 
-        const demoBvid = "BV1y5UNYUEhu"
+        const demoBvid = "BV1Sg411w7T9"
         const demoAvid = "av248637970"
-        const publishYear = '2026'
         const license = "MIT"
         const github = "https://github.com/kiyonya/BiliParser-API"
 
+        const intro = `A lightweight, free server compatible with multiple edge computing platforms, used to parse Bilibili videos, livestreams, covers, danmaku, search keywords, and view user archieves and favorite collections.
+
+Fully compatible with VRChat! you can enter the link into almost any built-in player and play the corresponding video without needing to copy the lengthy parsed video URL. You can also play them in browsers and audio/video players.
+
+The server will assign an appropriate video CDN based on your geographic location to ensure your access speed. This data will not be collected.
+
+Please do not use it for illegal purposes, and do not use crawlers to scrape information in bulk.`
+
         const demoUrls: Record<string, string> = {
             "video play": `${demoUrl}/video/${demoBvid}`,
+            "video play alias": `${demoUrl}/v/${demoBvid}`,
             "video play by url": `${demoUrl}/video?url=https://www.bilibili.com/video/BV18F8UzkEwg`,
             "video part": `${demoUrl}/video/BV1LCzTByEBY/2`,
             "video info": `${demoUrl}/video/${demoBvid}?type=info`,
@@ -35,22 +43,21 @@ export class BaseAPI extends RouteHandler {
             "video subtitle part": `${demoUrl}/subtitle/BV1vnbPz4ECg/1`,
             "video subtitle advance": `${demoUrl}/subtitle/BV1vnbPz4ECg?lang=zh-Hans&type=srt`,
             "video cdn allocations": `${demoUrl}/cdn`,
+            "live": `${demoUrl}/live/5055636`,
+            "live alias": `${demoUrl}/l/5055636`,
+            "live info": `${demoUrl}/live/5055636?type=json`,
             "search video": `${demoUrl}/search/video?keyword=宇多田光`,
             "search uploader": `${demoUrl}/search/up?keyword=宇多田光`,
             "search live": `${demoUrl}/search/live?keyword=VRChat`,
             "danmaku xml": ` ${demoUrl}/danmaku/${demoBvid}`,
             "danmaku json": ` ${demoUrl}/danmaku/${demoBvid}?type=json`,
-            "live info": `${demoUrl}/live/5055636?type=json`,
-            "live stream": `${demoUrl}/live/5055636`,
-            "bangumi info": `${demoUrl}/bangumi/info?epid=ep378374`,
-            "bangumi episodes": `${demoUrl}/bangumi/episodes?ssid=37498`,
             "user archieve": ` ${demoUrl}/user/archieve/296909317/3091395`,
             "user favlist": ` ${demoUrl}/user/fav/220737630`,
         }
 
         const infos: Record<string, string> = {
             "Server Version": serverVersion,
-            "Colo": ctx.appLocation?.colo as string,
+            "Location": ctx.appLocation?.colo as string,
         }
         //@ts-ignore
         const ray = ctx.req.header("cf-ray") || ctx.req.raw?.meta?.ray
@@ -60,7 +67,6 @@ export class BaseAPI extends RouteHandler {
         const rows = Object.entries(demoUrls)
             .map(([type, url]) => `<tr><td>${type}</td><td><a href="${url}">${url}</a></td></tr>`)
             .join("")
-
 
 
         const html = `
@@ -82,14 +88,7 @@ export class BaseAPI extends RouteHandler {
         <br />
         
         <h3>Introduction</h3>
-        
-        <p>A free and lightweight server to parse Bilibili videos, covers, danmaku list, live streams, bangumis, archives, search and favourite playlist.</p>
-
-        <p>It was designed to play videos and live streams in VRChat. It also provides an API interface that lets you call it whenever you need.</p>
-
-        <p>The server will determine your approximate country or region to assign the appropriate CDN server. Your information won't be collected and will be deleted after the request is completed.</p>
-        <p><b>Please don't use it for illegal or unauthorized purposes</b></p>
-        <p><b>No crawlers or bots</b></p>
+        ${intro.split("\n\n").map(i=>`<p>${i.trim()}</p>`).join(" ")}
         <br />
         <p>
         <a href="${github}">Github</a>
@@ -110,7 +109,7 @@ export class BaseAPI extends RouteHandler {
         <br />
         <h3>License</h3>
         <p>This project is open-source under the <b>${license}</b> license.</p>
-        <p>Program by nekocha (${publishYear})</p></body></html>`
+        </body></html>`
 
         return ctx.html(html, 200, {
             'Cache-Control': "public, max-age=60, must-revalidate",
