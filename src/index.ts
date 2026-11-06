@@ -2,6 +2,7 @@
  * Biliparser-ESA
  */
 import { API_VERSION, createApp } from "../api-core";
+import { ManualResponseCache } from "../api-core/misc/manual-cache";
 import { AppHeaders } from "../api-core/shared/headers";
 import { AppConfigOptions, AppContext, AppLocation, CacheStatus, CacheWarp } from "../api-core/types/app";
 import { AppCache, AppCacheLayer } from "../api-core/utils/app-cache";
@@ -16,7 +17,7 @@ const LOCAL_ENV: Partial<AppConfigOptions> = {
     ENABLE_CACHE_LAYER_SYNC: true,
     ENABLE_RESPONSE_CACHING: true,
     ENABLE_CUSTOM_COOKIES: false,
-    SERVER_VERSION: "7.10.0.261024-esa",
+    SERVER_VERSION: "8.0.0-261106-esa",
     CACHE_DATA_VERSION: 6,
 }
 
@@ -26,12 +27,7 @@ enum ESAHeaders {
     ESA_CACHE_STATUS = "ESA-Cache-Status",
     ESA_CACHE_TAG = "ESA-Cache-Tag",
     ESA_RAY = "ESA-Ray",
-
-    TEMP_CACHE_TIME = "_ESA-Cache-Time",
-    TEMP_CACHE_TTL = "_ESA-Cache-Ttl",
-    TEMP_STATUS_CODE = "_ESA-Status-Code",
-    TEMP_STATUS_TEXT = "_ESA-Status-Text",
-    TEMP_CACHE_RESPONSE = "_ESA-Cache-Response"
+    ESA_CACHE_TYPE = "ESA-Cache-Type",
 }
 
 async function createEsaCacheLayers(ctx: AppContext) {
@@ -126,155 +122,118 @@ export default {
     async fetch(request: Request, ctx?: any, e?: Record<any, any> | undefined | null) {
 
         const requestStart = Date.now()
-        const env = { ...LOCAL_ENV, ...e }
-
         const requestInfo = request.info
         let requestRay: string = v4().replaceAll("-", '').slice(0, 16)
         if (requestInfo && requestInfo.ip_country_id && requestInfo.ip_region_en) {
             requestRay += `-${requestInfo.ip_country_id}[${requestInfo.ip_region_en}]`
         }
 
-        const config: AppConfig = new AppConfig(env)
-        const enableResponseCaching = config.ENABLE_RESPONSE_CACHING
+        try {
+            const env = { ...LOCAL_ENV, ...e }
+            const config: AppConfig = new AppConfig(env)
+            const enableResponseCaching = config.ENABLE_RESPONSE_CACHING
 
-        const ctagParams = {
-            country: requestInfo?.ip_country_id,
-            continent: "",
-            apiVersion: API_VERSION,
-            serverStatusHash: config.SERVER_STATUS_HASH
-        }
+            const ctagParams = {
+                country: requestInfo?.ip_country_id,
+                continent: "",
+                apiVersion: API_VERSION,
+                serverStatusHash: config.SERVER_STATUS_HASH
+            }
 
-        const ctag = md5String(JSON.stringify(ctagParams))
-        request.meta = {
-            cacheTag: ctag,
-            ray: requestRay
-        }
+            const ctag = md5String(JSON.stringify(ctagParams))
+            request.meta = {
+                cacheTag: ctag,
+                ray: requestRay
+            }
 
-        const cacheKeyUrl = new URL(request.url)
-        cacheKeyUrl.protocol = "http:"
-        cacheKeyUrl.searchParams.set("__ctag", ctag)
-        const cacheKey = cacheKeyUrl.toString()
+            const cacheKeyUrl = new URL(request.url)
+            cacheKeyUrl.protocol = "http:"
+            cacheKeyUrl.searchParams.set("__ctag", ctag)
+            const cacheKey = cacheKeyUrl.toString()
 
-        let cacheStatus: CacheStatus = 'BYPASS'
-        let response: Response | null = null
-        if (enableResponseCaching) {
-            const esaCache: Response | undefined = await cache.get(cacheKey)
-            if (esaCache) {
-                const cacheAtHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_TIME)
-                const maxAgeHeader = esaCache.headers.get(ESAHeaders.TEMP_CACHE_TTL)
-                if (cacheAtHeader && maxAgeHeader && esaCache.headers.has(ESAHeaders.TEMP_CACHE_RESPONSE)) {
-                    const cacheAt = parseInt(cacheAtHeader)
-                    const maxAge = parseInt(maxAgeHeader)
-                    const now = Math.floor(Date.now() / 1000)
-                    const age = Math.max(0, now - cacheAt)
-                    if (age < maxAge) {
-                        const storedStatus = parseInt(
-                            esaCache.headers.get(ESAHeaders.TEMP_STATUS_CODE) ?? "200", 10
-                        )
-                        const headers = new Headers(esaCache.headers)
+            let cacheStatus: CacheStatus = 'BYPASS'
+            let response: Response | null = null
 
-                        const removeHeaders = [
-                            ESAHeaders.TEMP_CACHE_TIME,
-                            ESAHeaders.TEMP_CACHE_TTL,
-                            ESAHeaders.TEMP_STATUS_CODE,
-                            ESAHeaders.TEMP_STATUS_TEXT,
-                            ESAHeaders.TEMP_CACHE_RESPONSE,
-                            AppHeaders.BCRYPTO_COOKIE_CACHE,
-                            AppHeaders.BCRYPTO_SIGN_TIME,
-                            "x-swift-savetime",
-                            "x-swift-cachetime",
-                            "ali-swift-global-savetime",
-                            "x-site-cache-status"
-                        ]
+            const manualCache = new ManualResponseCache({
+                setter: (key, response) => cache.put(key.href, response),
+                getter: (key) => cache.get(key.href),
+                deleter: (key) => cache.delete(key.href),
+                shouldCacheResponse: (status) => status >= 200 && status < 400
+            })
 
-                        for (const h of removeHeaders) headers.delete(h)
-
-                        const bodyLess = [101, 204, 205, 304].includes(storedStatus)
-                        const rResponse = new Response(bodyLess ? null : esaCache.body, {
-                            status: storedStatus,
-                            statusText: esaCache.statusText,
-                            headers,
-                        })
-                        rResponse.headers.set('Age', String(age))
-                        if (rResponse.headers.has(AppHeaders.SERVER_CACHE_STATUS)) {
-                            rResponse.headers.set(AppHeaders.SERVER_CACHE_STATUS, 'BYPASS')
+            if (enableResponseCaching) {
+                const cache = await manualCache.get(cacheKey, {
+                    headerModifier(headers, cacheAt, maxage) {
+                        if (headers.has(AppHeaders.SERVER_CACHE_STATUS)) {
+                            headers.set(AppHeaders.SERVER_CACHE_STATUS, 'BYPASS')
                         }
-                        rResponse.headers.set(ESAHeaders.ESA_CACHE_TIME, String(cacheAt))
-                        rResponse.headers.set(ESAHeaders.ESA_CACHE_TTL, String(maxAge))
-                        response = rResponse
-                        cacheStatus = 'HIT'
-                    }
-                    else {
-                        cacheStatus = 'EXPIRED'
-                        try {
-                            await cache.delete(cacheKey)
-                        } catch (error) {
-
-                        }
-                    }
+                        headers.set(ESAHeaders.ESA_CACHE_TIME, String(cacheAt))
+                        headers.set(ESAHeaders.ESA_CACHE_TTL, String(maxage))
+                        return headers
+                    },
+                    removeHeaders: [
+                        "x-swift-savetime",
+                        "x-swift-cachetime",
+                        "ali-swift-global-savetime",
+                        "x-site-cache-status",
+                        AppHeaders.BCRYPTO_COOKIE_CACHE,
+                        AppHeaders.BCRYPTO_SIGN_TIME
+                    ],
+                    deleteExpired: true
+                })
+                if (cache) {
+                    response = cache
+                    cacheStatus = 'HIT'
+                }
+                else {
+                    cacheStatus = 'MISS'
                 }
             }
             else {
-                cacheStatus = 'MISS'
+                response = null
+                cacheStatus = 'BYPASS'
             }
-        }
-        else {
-            response = null
-            cacheStatus = 'BYPASS'
-        }
 
-        if (!response) {
-            const app = createApp({
-                config: config,
-                appCacheLayerFactory: createEsaCacheLayers,
-                locationFactory: createEsaAppLocation,
-                onResponseCache: async (_ctx, res, maxage) => {
-                    res.headers.set('Cache-Control', `public, max-age=0, s-maxage=${maxage}`)
-                },
-                middlewares: [
-                    async (ctx, next) => {
-                        await next()
-                        const serverVersion = ctx.config.SERVER_VERSION
-                        const cacheVersion = ctx.config.CACHE_DATA_VERSION
-                        const serverStatusHash = ctx.config.SERVER_STATUS_HASH
-                        ctx.res.headers.set(AppHeaders.SERVER_VERSION, String(serverVersion))
-                        ctx.res.headers.set(AppHeaders.CACHE_VERSION, String(cacheVersion))
-                        ctx.res.headers.set(AppHeaders.SERVER_STATUS_HASH, String(serverStatusHash))
-                    }]
+            if (!response) {
+                const app = createApp({
+                    config: config,
+                    appCacheLayerFactory: createEsaCacheLayers,
+                    locationFactory: createEsaAppLocation,
+                    shouldResponseCache: (ctx, status) => {
+                        const method = ctx.req.method
+                        return (method === 'GET' || method === 'HEAD')  && status >= 200 && status < 400
+                    },
+                    setResponseCacheHeaders: (_, maxage) => {
+                        return {
+                            'cache-control': `public, s-maxage=${maxage}`
+                        }
+                    },
+                    middlewares: [
+                        async (ctx, next) => {
+                            await next()
+                            const serverVersion = ctx.config.SERVER_VERSION
+                            const cacheVersion = ctx.config.CACHE_DATA_VERSION
+                            const serverStatusHash = ctx.config.SERVER_STATUS_HASH
+                            ctx.res.headers.set(AppHeaders.SERVER_VERSION, String(serverVersion))
+                            ctx.res.headers.set(AppHeaders.CACHE_VERSION, String(cacheVersion))
+                            ctx.res.headers.set(AppHeaders.SERVER_STATUS_HASH, String(serverStatusHash))
+                        }]
+                })
+                response = await app.fetch(request, env, ctx ?? {})
+                await manualCache.put(cacheKey, response.clone())
+            }
+            const requestEnd = Date.now()
+            const duration = Math.max(0, requestEnd - requestStart)
+            response.headers.set(ESAHeaders.ESA_RAY, String(requestRay))
+            response.headers.set(ESAHeaders.ESA_CACHE_TAG, ctag)
+            response.headers.set(ESAHeaders.ESA_CACHE_STATUS, cacheStatus)
+            response.headers.set("X-Request-Duration", String(duration))
+            return response
+        } catch (error) {
+            const message = (error as Error)?.message ?? "Internel Server Error"
+            return new Response(message, {
+                status: 500
             })
-            response = await app.fetch(request, env, ctx ?? {})
-            if (enableResponseCaching) {
-                const cacheHeader = response.headers.get('Cache-Control')
-                if (cacheHeader && !cacheHeader.includes('no-store') && !cacheHeader.includes("no-cache")) {
-
-                    const matchAge =
-                        cacheHeader.match(/(?:^|,)\s*s-maxage\s*=\s*(\d+)/i)?.[1] ||
-                        cacheHeader.match(/(?:^|,)\s*max-age\s*=\s*(\d+)/i)?.[1] ||
-                        null
-
-                    const age = matchAge ? parseInt(matchAge) : null
-                    if (age && age > 0) {
-                        const status = response.status
-                        const statusText = response.statusText
-                        const cResponse = response.clone()
-                        const cacheTime = Math.floor(Date.now() / 1000)
-                        cResponse.headers.set(ESAHeaders.TEMP_CACHE_TIME, String(cacheTime))
-                        cResponse.headers.set(ESAHeaders.TEMP_CACHE_TTL, String(age))
-                        cResponse.headers.set(ESAHeaders.TEMP_STATUS_CODE, String(status))
-                        cResponse.headers.set(ESAHeaders.TEMP_STATUS_TEXT, String(statusText))
-                        cResponse.headers.set(ESAHeaders.TEMP_CACHE_RESPONSE, '')
-                        await cache.put(cacheKey, cResponse)
-                    }
-                }
-            }
         }
-        const requestEnd = Date.now()
-        const duration = Math.max(0, requestEnd - requestStart)
-        const fResponse = response.clone()
-        fResponse.headers.set(ESAHeaders.ESA_RAY, String(requestRay))
-        fResponse.headers.set(ESAHeaders.ESA_CACHE_TAG, ctag)
-        fResponse.headers.set(ESAHeaders.ESA_CACHE_STATUS, cacheStatus)
-        fResponse.headers.set("X-Request-Duration", String(duration))
-        return fResponse
     }
 }
