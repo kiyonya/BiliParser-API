@@ -124,7 +124,7 @@ export class BiliCrypto {
                 const expirationAt = signTs + this.ctx.config.COOKIES_SIGN_CACHE_TIME
                 await this.ctx.appCache.setCache(cookiesCacheKey, cookies, () => {
                     return expirationAt
-                }, undefined,cookieCacheMode)
+                }, undefined,cookieCacheMode,false)
             }
         }
         else {

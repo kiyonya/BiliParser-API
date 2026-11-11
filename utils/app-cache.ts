@@ -39,6 +39,9 @@ export class AppCache {
             headerParts.push(`${keyHash}:${statusParts.join(",")}`)
         }
         headers[AppHeaders.SERVER_CACHE_STATUS] = headerParts.length ? headerParts.join("; ") : 'MISS'
+        if (this.minExpirationTime < Infinity) {
+            headers[AppHeaders.MIN_EXPIRATION_TIME] = String(this.minExpirationTime)
+        }
         return headers
     }
 
@@ -65,7 +68,7 @@ export class AppCache {
         return pickLayers
     }
 
-    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode?: CacheLayerType): Promise<void> {
+    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode?: CacheLayerType,setMinExpriationTime:boolean = true): Promise<void> {
         try {
             if (!this.cacheLayers.length) { return }
             if (!await this.validateSchema(data, schema)) { return }
@@ -74,7 +77,9 @@ export class AppCache {
                 : expirationAtCall;
             const now = Math.floor(Date.now() / 1000)
             if (expirationAt <= now) { return }
-
+            if (expirationAt < this.minExpirationTime && setMinExpriationTime) {
+                this.minExpirationTime = expirationAt
+            }
             let operationLayers: AppCacheLayer[] = this.pickLayers(mode)
             if (!operationLayers.length) { return }
 
