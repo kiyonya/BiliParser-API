@@ -100,7 +100,7 @@ export class AppConfig<EnvLike extends Record<any, any> = Record<any, any>> impl
         this.ENABLE_CACHE_DATA_VALIDATION = bool(env.ENABLE_CACHE_DATA_VALIDATION, true)
         this.ENABLE_CACHE_LAYER_SYNC = bool(env.ENABLE_CACHE_LAYER_SYNC, true)
 
-        this.ENABLE_RESPONSE_CACHING = bool(env.ENABLE_RESPONSE_CACHING, true)
+        this.ENABLE_RESPONSE_CACHING = bool(env.ENABLE_RESPONSE_CACHING, false)
         this.RESPONSE_MAX_CACHE_TIME = num(env.RESPONSE_MAX_CACHE_TIME, 3600)
         this.KV_CACHE_BINDING = str(env.KV_CACHE_BINDING)
 
