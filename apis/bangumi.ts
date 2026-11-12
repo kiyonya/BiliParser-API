@@ -45,7 +45,9 @@ export class BangumiInfoAPI extends RouteHandler {
         if (!result) {
             const parser: BiliBangumiParser = new BiliBangumiParser(ctx)
             result = await this.getSchemaValidData(await parser.getBangumiInfo(seasonId, episodeId), Schema.bangumiInfoSchema, true)
-            await ctx.appCache.setCache(key, result, this.nowS + ctx.config.BILI_BANGUMI_INFO_CACHE_TIME)
+            await ctx.appCache.setCache(key, result, {
+                ttl: ctx.config.BILI_BANGUMI_INFO_CACHE_TIME
+            })
         }
         return ctx.jsonResp('Success', 200, result)
 
@@ -86,7 +88,9 @@ export class BangumiEpisodesAPI extends RouteHandler {
         if (!result) {
             const parser: BiliBangumiParser = new BiliBangumiParser(ctx)
             result = await this.getSchemaValidData(await parser.getBangumiEpisodes(seasonId), Schema.bangumiEpisodeSchema, true)
-            await ctx.appCache.setCache(key, result, this.nowS + ctx.config.BILI_BANGUMI_EPISODES_CACHE_TIME)
+            await ctx.appCache.setCache(key, result, {
+                ttl: ctx.config.BILI_BANGUMI_INFO_CACHE_TIME
+            })
         }
 
         return ctx.jsonResp('Success', 200, result)

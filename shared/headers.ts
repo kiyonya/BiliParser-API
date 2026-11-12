@@ -19,5 +19,6 @@ export enum AppHeaders {
     LIVE_STREAM_SERVER = "X-Stream-Server",
     CDN_ALLOCATION = "X-CDN-Allocation",
     CDN_BILI_CDN = 'X-Bili-CDN',
-    CDN_BILI_ORIGIN_CDN = 'X-Bili-Origin-CDN'
+    CDN_BILI_ORIGIN_CDN = 'X-Bili-Origin-CDN',
+    MIN_EXPIRATION_TIME = 'X-Min-Expiration'
 }

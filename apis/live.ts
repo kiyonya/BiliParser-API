@@ -1,4 +1,4 @@
-import z from "zod";
+import z, { config } from "zod";
 import BiliLiveParser from "../services/live-parser";
 import SharedData from "../shared/data";
 import { RouteHandler, BadRequestError } from "./api";
@@ -88,8 +88,13 @@ export class LiveAPI extends RouteHandler {
                 ctx.header(AppHeaders.LIVE_ROOM_ID, String(realRoomId))
             }
             live = await this.getSchemaValidData(livef, Schema.liveSchema, true)
-            let cacheTtl = streamMinExpirationAt ? Math.min(streamMinExpirationAt, this.nowS + ctx.config.BILI_LIVE_CACHE_TIME) : this.nowS + ctx.config.BILI_LIVE_CACHE_TIME
-            await ctx.appCache.setCache(liveCacheKey, live, cacheTtl, undefined)
+
+            const now = Math.floor(Date.now() / 1000)
+            const ttl = streamMinExpirationAt ? Math.max(0, Math.min(streamMinExpirationAt - now, ctx.config.BILI_LIVE_CACHE_TIME)) : ctx.config.BILI_LIVE_CACHE_TIME
+            await ctx.appCache.setCache(liveCacheKey, live, {
+                ttl: ttl,
+                targetLayer: "isolate"
+            })
         }
         return live
     }

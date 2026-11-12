@@ -40,7 +40,9 @@ export class SearchAPI extends RouteHandler {
 
             searchResult = await this.getSchemaValidData(await parser.search(keyword, type as any, page, pageSize, order), Schema.searchResultSchema, true)
 
-            await ctx.appCache.setCache(key, searchResult, () => this.nowS + ctx.config.BILI_SEARCH_CACHE_TIME)
+            await ctx.appCache.setCache(key, searchResult, {
+                ttl:ctx.config.BILI_SEARCH_CACHE_TIME
+            })
         }
         return ctx.jsonResp('ok', 200, searchResult)
     }

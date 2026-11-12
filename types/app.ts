@@ -45,7 +45,8 @@ export type AppContext<
 
 export interface CacheWarp<Data = any> {
     data: Data,
-    expirationAt: number,
+    cacheAt:number,
+    cacheTtl:number
     key: string
 }
 export interface CacheResult<Data = any> {

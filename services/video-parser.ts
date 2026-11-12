@@ -470,21 +470,6 @@ export default class BiliVideoParser extends Parser {
         }
     }
 
-    public async getVideoDanmakuXML(cid: number): Promise<string | null> {
-        const cookie = await this.BCrypto.getBiliCookie();
-        const url = new URL(SharedData.BILI_DANMAKU_API)
-        url.pathname = `${cid}.xml`
-        const req = await this.ctx.appFetch(url, {
-            headers: { ...SharedData.FAKE_BROWSER_HEADERS, 'Referer': SharedData.BILI_REFERER, 'Cookie': cookie }
-        })
-        const isXML = req.headers.get('content-type') === 'text/xml' || req.headers.get('content-type') === 'application/xml'
-        if (isXML) {
-            const xmlText = await req.text()
-            return xmlText
-        }
-        return null
-    }
-
     public async getVideoSubtitles(videoId: BiliTypes.BVideoId, cid: number): Promise<BiliTypes.RES.Subtitle.SubtitleItem[]> {
         const cookie = await this.BCrypto.getBiliCookie()
         const url = new URL(SharedData.BILI_PLAYERV2_API)

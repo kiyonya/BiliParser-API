@@ -1,4 +1,4 @@
-import z from "zod"
+import z, { ZodType } from "zod"
 import { AppContext, CacheDeleter, CacheGetter, CacheLayerType, CacheSetter, CacheStatus, CacheWarp } from "../types/app"
 import { md5String } from "./hashlib"
 import { BiliTypes } from "../types/bili"
@@ -6,10 +6,17 @@ import { AppHeaders } from "../shared/headers"
 
 export type CacheMode = "kv" | "edge" | "all"
 
+export interface CacheRecord {
+    action: "set" | "get",
+    cacheTtl: number,
+    cacheAt: number
+}
+
 export class AppCache {
 
     protected ctx: AppContext
     private cacheLayers: AppCacheLayer[] = []
+    public cacheRecords: CacheRecord[] = []
 
     constructor(ctx: AppContext, cacheLayers: AppCacheLayer[] = []) {
         if (!ctx.config) {
@@ -24,7 +31,14 @@ export class AppCache {
     }
 
     protected layerCacheStatus = new Map<string, { layer: string, status: CacheStatus }[]>()
-    public minExpirationTime: number = Infinity
+
+    public get minExpirationRecords() {
+        return this.cacheRecords.toSorted((a, b) => (a.cacheAt + a.cacheTtl) - (b.cacheAt + b.cacheTtl)).shift()
+    }
+
+    public get minExpirationTime(): number {
+        return this.minExpirationRecords ? (this.minExpirationRecords.cacheAt + this.minExpirationRecords.cacheTtl) : 0
+    }
 
     public get cacheHeaders(): Record<string, string> {
         //X-Server-Cache-Status:acedfs:webCache[MISS],kvCache[HIT];acssdk:webCache[HIT]
@@ -68,36 +82,48 @@ export class AppCache {
         return pickLayers
     }
 
-    public async setCache<Data = any>(key: string, data: Data, expirationAtCall: number | ((data: Data) => number), schema?: z.ZodType<Data>, mode?: CacheLayerType,setMinExpriationTime:boolean = true): Promise<void> {
+    public async setCache<Data = any>(key: string, data: Data, options: { schema?: z.ZodType<Data>, targetLayer?: CacheLayerType, ttl?: number, expriationAt?: number, cacheAt?: number, ignoreRecord?: boolean } = {}): Promise<void> {
         try {
             if (!this.cacheLayers.length) { return }
-            if (!await this.validateSchema(data, schema)) { return }
-            const expirationAt: number = typeof expirationAtCall === 'function'
-                ? expirationAtCall(data)
-                : expirationAtCall;
-            const now = Math.floor(Date.now() / 1000)
-            if (expirationAt <= now) { return }
-            if (expirationAt < this.minExpirationTime && setMinExpriationTime) {
-                this.minExpirationTime = expirationAt
+            const { targetLayer, ttl, expriationAt, schema, cacheAt, ignoreRecord } = options
+            //
+            let mcacheAt = cacheAt || Math.floor(Date.now() / 1000)
+            let mcacheTtl: number | null = null
+            if (ttl) {
+                mcacheTtl = ttl
             }
-            let operationLayers: AppCacheLayer[] = this.pickLayers(mode)
+            else if (expriationAt) {
+                const ttl = expriationAt - mcacheAt
+                if (ttl > 0) { mcacheTtl = ttl }
+            }
+            if (!mcacheTtl) { return }
+            //
+            if (!await this.validateSchema(data, schema)) { return }
+            let operationLayers: AppCacheLayer[] = this.pickLayers(targetLayer)
             if (!operationLayers.length) { return }
-
 
             const layerSetPromise: Promise<void>[] = []
             for (const layer of operationLayers) {
-                layerSetPromise.push(layer.set<Data>(this.ctx, key, data, expirationAt))
+                layerSetPromise.push(layer.set<Data>(this.ctx, key, data, mcacheAt, mcacheTtl))
             }
             await this.ctx.defer(Promise.allSettled(layerSetPromise))
+            if (!ignoreRecord) {
+                this.cacheRecords.push({
+                    action: "set",
+                    cacheTtl: mcacheTtl,
+                    cacheAt: mcacheAt
+                })
+            }
         } catch (error) {
             return;
         }
     }
 
-    public async getCache<Data = any>(key: string, schema?: z.ZodType<Data>, mode?: CacheLayerType): Promise<Data | null> {
+    public async getCache<Data = any>(key: string, options:{schema?: z.ZodType<Data>, targetLayer?: CacheLayerType} = {}): Promise<Data | null> {
         try {
             if (!this.cacheLayers.length) { return null }
-            let operationLayers: AppCacheLayer[] = this.pickLayers(mode)
+            const {schema,targetLayer} = options;
+            let operationLayers: AppCacheLayer[] = this.pickLayers(targetLayer)
             if (!operationLayers.length) { return null }
 
             let hitCache: CacheWarp<Data> | null = null
@@ -114,7 +140,7 @@ export class AppCache {
                     cacheStatus.push({ layer: layerName, status: 'MISS' })
                     continue
                 }
-                const expirationAt = layerCache.expirationAt
+                const expirationAt = layerCache.cacheAt + layerCache.cacheTtl
                 if (expirationAt <= now) {
                     invalidLayers.push(layer);
                     cacheStatus.push({ layer: layerName, status: "EXPIRED" })
@@ -124,9 +150,6 @@ export class AppCache {
                     invalidLayers.push(layer);
                     cacheStatus.push({ layer: layerName, status: "MISS" })
                     continue
-                }
-                if (expirationAt < this.minExpirationTime) {
-                    this.minExpirationTime = expirationAt
                 }
                 hitCache = layerCache
                 cacheStatus.push({ layer: layerName, status: "HIT" })
@@ -140,8 +163,15 @@ export class AppCache {
             if (hitCache && missLayers.length && this.ctx.config.ENABLE_CACHE_LAYER_SYNC) {
                 await this.ctx.defer(Promise.allSettled(missLayers.map(l => l.setWarp(this.ctx, key, hitCache!))))
             }
-
-            return hitCache?.data ?? null
+            if (hitCache) {
+                this.cacheRecords.push({
+                    action: "get",
+                    cacheTtl: hitCache.cacheTtl,
+                    cacheAt: hitCache.cacheAt
+                })
+                return hitCache.data
+            }
+            return null
         } catch (error) {
             return null;
         }
@@ -257,12 +287,11 @@ export class AppCacheLayer {
         return null
     }
 
-    public async set<Data = any>(ctx: AppContext, key: string, data: Data, expirationAt: number): Promise<void> {
+    public async set<Data = any>(ctx: AppContext, key: string, data: Data, cacheAt: number, ttl: number): Promise<void> {
         if (!this.setter) { return }
-        const now = Math.floor(Date.now() / 1000)
-        if (expirationAt <= now) { return }
         const warp: CacheWarp<Data> = {
-            expirationAt: expirationAt,
+            cacheAt: cacheAt,
+            cacheTtl: ttl,
             data: data,
             key: key
         }

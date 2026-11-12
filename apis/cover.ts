@@ -13,12 +13,12 @@ export class CoverAPI extends RouteHandler {
         id: z.string().optional(),
         type: z.enum(['url', 'redirect']).optional()
     })
-    .transform(this.utils.zodBiliVideoIdTransformer)
-    .superRefine((args, ctx) => {
-        if (!args.videoId) {
-            ctx.addIssue("cannot resolve video id: no valid url, bvid or avid was provided, so the video cannot be parsed")
-        }
-    })
+        .transform(this.utils.zodBiliVideoIdTransformer)
+        .superRefine((args, ctx) => {
+            if (!args.videoId) {
+                ctx.addIssue("cannot resolve video id: no valid url, bvid or avid was provided, so the video cannot be parsed")
+            }
+        })
 
     public override async doHandle(ctx: AppContext) {
         const url = new URL(ctx.req.url)
@@ -43,10 +43,10 @@ export class CoverAPI extends RouteHandler {
 
             const setCacheTasks: Promise<void>[] = []
             if (videoInfo.bvid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, { ttl: ctx.config.BILI_VIDEO_INFO_CACHE_TIME }))
             }
             if (videoInfo.aid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, { ttl: ctx.config.BILI_VIDEO_INFO_CACHE_TIME }))
             }
             await Promise.allSettled(setCacheTasks)
         }

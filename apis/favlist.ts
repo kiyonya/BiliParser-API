@@ -33,7 +33,7 @@ export class FavListAPI extends RouteHandler {
         if (!result) {
             const parser: BiliUserParser = new BiliUserParser(ctx)
             result = await this.getSchemaValidData(await parser.getUserFavList(fid, keyword, page, pageSize), Schema.userFavSchema, true)
-            await ctx.appCache.setCache(resultCacheKey, result, this.nowS + ctx.config.BILI_USER_FAV_CACHE_TIME)
+            await ctx.appCache.setCache(resultCacheKey, result,{ttl: ctx.config.BILI_USER_FAV_CACHE_TIME})
         }
         return ctx.jsonResp('Success', 200, result)
     }

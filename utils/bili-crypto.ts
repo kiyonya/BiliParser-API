@@ -50,7 +50,9 @@ export class BiliCrypto {
     public async createAnonymousCookie(noCache: boolean = false): Promise<Record<string, string>> {
         const cookiesCacheKey = this.ctx.appCacheKey.cookie()
         const cookieCacheMode:CacheLayerType = this.ctx.config.ENABLE_COOKIE_WEB_CACHE ? 'any' : 'consistent'
-        let cookies = noCache ? null : await this.ctx.appCache.getCache<Record<string, string>>(cookiesCacheKey, undefined, cookieCacheMode)
+        let cookies = noCache ? null : await this.ctx.appCache.getCache<Record<string, string>>(cookiesCacheKey, {
+            targetLayer:cookieCacheMode
+        } )
         if (!cookies) {
             const signTs = Math.floor(Date.now() / 1000)
             this.ctx.header(AppHeaders.BCRYPTO_COOKIE_CACHE, 'MISS' satisfies CacheStatus)
@@ -121,10 +123,10 @@ export class BiliCrypto {
             }
 
             if (cookieCacheOk && !noCache) {
-                const expirationAt = signTs + this.ctx.config.COOKIES_SIGN_CACHE_TIME
-                await this.ctx.appCache.setCache(cookiesCacheKey, cookies, () => {
-                    return expirationAt
-                }, undefined,cookieCacheMode,false)
+                await this.ctx.appCache.setCache(cookiesCacheKey, cookies, {
+                    ttl:this.ctx.config.COOKIES_SIGN_CACHE_TIME,
+                    cacheAt:signTs
+                })
             }
         }
         else {

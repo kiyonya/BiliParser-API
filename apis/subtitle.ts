@@ -33,10 +33,10 @@ export class SubtitleAPI extends RouteHandler {
 
             const setCacheTasks: Promise<void>[] = []
             if (videoInfo.bvid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, { ttl: ctx.config.BILI_VIDEO_INFO_CACHE_TIME }))
             }
             if (videoInfo.aid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, { ttl: ctx.config.BILI_VIDEO_INFO_CACHE_TIME }))
             }
             await Promise.allSettled(setCacheTasks)
         }
@@ -58,7 +58,7 @@ export class SubtitleAPI extends RouteHandler {
             subtitles = await this.getSchemaValidData(await parser.getVideoSubtitles(videoId, targetCid), z.array(Schema.videoSubtitleItemSchema), true)
 
             if (subtitles.length) {
-                await ctx.appCache.setCache(subtitlesKey, subtitles, this.nowS + ctx.config.BILI_VIDEO_SUBTITLES_CACHE_TIME)
+                await ctx.appCache.setCache(subtitlesKey, subtitles, { ttl: ctx.config.BILI_VIDEO_SUBTITLES_CACHE_TIME })
             }
         }
         return subtitles

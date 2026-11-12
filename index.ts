@@ -1,6 +1,5 @@
-import { Context, Handler, Hono, Next } from "hono";
+import { Handler, Hono, Next } from "hono";
 import { AppContext, AppLocation, APIResponse, AppFetch, FetchOptions } from "./types/app";
-
 import { BaseAPI } from "./apis/base";
 import { VideoCDNAPI } from "./apis/cdn";
 import { CookieAPI } from "./apis/cookie";
@@ -10,17 +9,15 @@ import { DanmakuAPI } from "./apis/danmaku";
 import { SubtitleAPI } from "./apis/subtitle";
 import { CoverAPI } from "./apis/cover";
 import { LiveAPI } from "./apis/live";
-import { BangumiEpisodesAPI, BangumiInfoAPI } from "./apis/bangumi";
 import { ArchieveAPI } from "./apis/archieve";
 import { FavListAPI } from "./apis/favlist";
 import { SearchAPI } from "./apis/search";
-
 import { AppConfig } from "./utils/app-config";
 import { AppCache, AppCacheKey, AppCacheLayer } from "./utils/app-cache";
 import z from "zod";
 import { RouteHandler } from "./apis/api";
 
-export const API_VERSION = "8.0.0"
+export const API_VERSION = "8.5.0"
 
 const DEFAULT_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -47,18 +44,37 @@ export interface createAppOptions {
     fetchFactory?: (ctx: AppContext) => typeof fetch,
     locationFactory?: (ctx: AppContext) => AppLocation,
     deferFactory?: (ctx: AppContext) => ((p: Promise<unknown>) => void | Promise<void>),
-    shouldResponseCache?: (ctx: AppContext, status: number) => boolean
-    setResponseCacheHeaders?: (ctx: AppContext, maxage: number) => Record<string, string>
+    // shouldResponseCache?: (ctx: AppContext, status: number) => boolean
+    // setResponseCacheHeaders?: (ctx: AppContext, maxage: number) => Record<string, string>
     appCacheLayerFactory?: (ctx: AppContext) => AppCacheLayer[] | Promise<AppCacheLayer[]>
     middlewares?: AppMiddlewareFunction[],
     config?: AppConfig
 }
 
 export function createApp(createAppOptions: createAppOptions = {}) {
-    const { fetchFactory, locationFactory, deferFactory, middlewares, config, appCacheLayerFactory, shouldResponseCache, setResponseCacheHeaders } = createAppOptions
+    const { fetchFactory, locationFactory, deferFactory, middlewares, config, appCacheLayerFactory } = createAppOptions
     const app = new Hono()
     app.use(async (c, next) => {
-        const ctx = createAppContext(c, config)
+        const ctx = c as unknown as AppContext
+        if (!ctx.config) {
+            ctx.config = config || new AppConfig(ctx.env)
+        }
+        ctx.jsonResp = <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>): Response => {
+            if (schema) {
+                const parsed = schema.safeParse(data)
+                if (!parsed.success) {
+                    throw new Error(`response validation failed: ${parsed.error.message}`)
+                }
+                data = parsed.data
+            }
+            const response: APIResponse<Data> = {
+                code: code,
+                message: message ?? "",
+                data: data,
+            }
+            const responseJson: Response = ctx.json(response, code as any)
+            return responseJson
+        }
         const cacheLayers = appCacheLayerFactory ? await appCacheLayerFactory(ctx) : []
         ctx.appCache = new AppCache(ctx, cacheLayers)
         ctx.appCacheKey = new AppCacheKey(ctx)
@@ -81,61 +97,45 @@ export function createApp(createAppOptions: createAppOptions = {}) {
         await next()
     })
 
-    app.use(async (ctx, next) => {
-        for (const [k, v] of Object.entries(DEFAULT_HEADERS)) {
-            ctx.header(k, v)
-        }
-        await next()
-        const cache = (ctx as unknown as AppContext).appCache
-        if (cache) {
-            for (const [k, v] of Object.entries(cache.cacheHeaders)) {
-                ctx.res.headers.set(k, v)
-            }
-            if (cache.minExpirationTime < Infinity) {
-                ctx.res.headers.set('X-Min-Expiration', String(cache.minExpirationTime))
-            }
-        }
-    })
+    // app.use(async (c, next) => {
+    //     await next()
+    //     const ctx = c as unknown as AppContext
+    //     const res = ctx.res
+    //     const headers = ctx.res.headers;
+    //     const status = ctx.res.status
+    //     //默认配置不启用
+    //     const isCacheEnable = ctx.config.ENABLE_RESPONSE_CACHING
+    //     if (!isCacheEnable) {
+    //         headers.set("cache-control", "no-store")
+    //         return
+    //     }
+    //     const cacheHeader = headers.get("cache-control")
+    //     if (cacheHeader) { return }
+    //     const maxCacheTime = ctx.config.RESPONSE_MAX_CACHE_TIME
+    //     const shouldCache = Boolean(isCacheEnable && maxCacheTime > 0 && !res.bodyUsed && shouldResponseCache!==undefined && shouldResponseCache(ctx, status))
 
-    app.use(async (c, next) => {
-        await next()
-        const ctx = c as unknown as AppContext
-        const res = ctx.res
-        const headers = ctx.res.headers;
-        const status = ctx.res.status
-        const isCacheEnable = ctx.config.ENABLE_RESPONSE_CACHING
-        if (!isCacheEnable) {
-            headers.set("cache-control", "no-store")
-            return
-        }
-        const cacheHeader = headers.get("cache-control")
-        if (cacheHeader) { return }
-        const maxCacheTime = ctx.config.RESPONSE_MAX_CACHE_TIME
-        const shouldCache = Boolean(isCacheEnable && maxCacheTime > 0 && !res.bodyUsed && shouldResponseCache && shouldResponseCache(ctx, status))
-
-        if (shouldCache) {
-            const appCache = ctx.appCache
-            const nowS = Math.floor(Date.now() / 1000)
-            const minExpirationTime = appCache.minExpirationTime
-            const maxCacheExpiration = nowS + maxCacheTime
-            const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
-            const maxAge = Math.min(Math.max(0, Math.floor(maxExpiration - nowS)), maxCacheTime)
-            //set-header
-            if (setResponseCacheHeaders) {
-                const extraHeaders = setResponseCacheHeaders(ctx, maxAge)
-                console.log(extraHeaders)
-                for (const [k, v] of Object.entries(extraHeaders)) {
-                    headers.set(k, v)
-                }
-            }
-            else {
-                headers.set("cache-control", `public, max-age=${maxAge}`)
-            }
-        }
-        if (!headers.has("cache-control")) {
-            headers.set("cache-control", "no-store")
-        }
-    })
+    //     if (shouldCache) {
+    //         const appCache = ctx.appCache
+    //         const nowS = Math.floor(Date.now() / 1000)
+    //         const minExpirationTime = appCache.minExpirationTime
+    //         const maxCacheExpiration = nowS + maxCacheTime
+    //         const maxExpiration = Math.min(maxCacheExpiration, minExpirationTime)
+    //         const maxAge = Math.min(Math.max(0, Math.floor(maxExpiration - nowS)), maxCacheTime)
+    //         //set-header
+    //         if (setResponseCacheHeaders) {
+    //             const extraHeaders = setResponseCacheHeaders(ctx, maxAge)
+    //             for (const [k, v] of Object.entries(extraHeaders)) {
+    //                 headers.set(k, v)
+    //             }
+    //         }
+    //         else {
+    //             headers.set("cache-control", `public, max-age=${maxAge}`)
+    //         }
+    //     }
+    //     if (!headers.has("cache-control")) {
+    //         headers.set("cache-control", "no-store")
+    //     }
+    // })
 
     if (middlewares && middlewares.length) {
         for (const func of middlewares) {
@@ -146,6 +146,22 @@ export function createApp(createAppOptions: createAppOptions = {}) {
         }
     }
 
+    app.use(async (ctx, next) => {
+        for (const [k, v] of Object.entries(DEFAULT_HEADERS)) {
+            ctx.header(k, v)
+        }
+        await next()
+        const cache = (ctx as unknown as AppContext).appCache
+        if (cache) {
+            for (const [k, v] of Object.entries(cache.cacheHeaders)) {
+                ctx.res.headers.set(k, v)
+            }
+        }
+        if (!ctx.res.headers.has("cache-control")) {
+            ctx.res.headers.set('cache-control', 'no-store, no-cache')
+        }
+    })
+
     app.get('/', toHono(BaseAPI))
     app.get('/cdn', toHono(VideoCDNAPI))
     app.get('/cookie', toHono(CookieAPI))
@@ -153,8 +169,6 @@ export function createApp(createAppOptions: createAppOptions = {}) {
     app.get('/video/:id?/:p?', toHono(VideoAPI))
     //alia
     app.get('/v/:id?/:p?', toHono(VideoAPI))
-    // app.get('/bangumi/info', toHono(BangumiInfoAPI))
-    // app.get('/bangumi/episodes', toHono(BangumiEpisodesAPI))
     app.get('/danmaku/:id?/:p?', toHono(DanmakuAPI))
     app.get('/subtitle/:id?/:p?', toHono(SubtitleAPI))
     app.get('/cover/:id?', toHono(CoverAPI))
@@ -172,30 +186,6 @@ export function createApp(createAppOptions: createAppOptions = {}) {
  */
 export function createServer(createServerOptions: createAppOptions = {}) {
     return createApp(createServerOptions)
-}
-
-export function createAppContext(c: Context, cfg?: AppConfig): AppContext {
-    const ctx = c as unknown as AppContext
-    if (!ctx.config) {
-        ctx.config = cfg || new AppConfig(ctx.env)
-    }
-    ctx.jsonResp = <Data = any>(message: string, code: number, data: Data, schema?: z.ZodType<Data>): Response => {
-        if (schema) {
-            const parsed = schema.safeParse(data)
-            if (!parsed.success) {
-                throw new Error(`response validation failed: ${parsed.error.message}`)
-            }
-            data = parsed.data
-        }
-        const response: APIResponse<Data> = {
-            code: code,
-            message: message ?? "",
-            data: data,
-        }
-        const responseJson: Response = ctx.json(response, code as any)
-        return responseJson
-    }
-    return ctx
 }
 
 export function createAppFetch(ctx: AppContext, fetchImplement: typeof fetch = fetch): AppFetch {

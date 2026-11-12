@@ -41,10 +41,10 @@ export class VideoAPI extends RouteHandler {
             videoInfo = await this.getSchemaValidData(await parser.getVideoInfo(videoId), Schema.videoInfoSchema, true)
             const setCacheTasks: Promise<void>[] = []
             if (videoInfo.bvid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoBv(videoInfo.bvid), videoInfo, { ttl: ctx.config.BILI_VIDEO_INFO_CACHE_TIME }))
             }
             if (videoInfo.aid) {
-                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, this.nowS + ctx.config.BILI_VIDEO_INFO_CACHE_TIME))
+                setCacheTasks.push(ctx.appCache.setCache(ctx.appCacheKey.videoInfoAv(videoInfo.aid), videoInfo, { ttl: ctx.config.BILI_VIDEO_INFO_CACHE_TIME }))
             }
             await Promise.allSettled(setCacheTasks)
         }
@@ -72,14 +72,14 @@ export class VideoAPI extends RouteHandler {
                 videoBufferTimeS = Math.min(duration * 0.05, 20 * 60)
             }
             const videoExpirationS = videoPlay.urlExpirationAt - videoBufferTimeS
-            const userExpirationS = this.nowS + ctx.config.BILI_VIDEO_PLAYURL_CACHE_TIME
-            const expiration: number = Math.min(videoExpirationS, userExpirationS)
+            const now = Math.floor(Date.now() / 1000)
+            const ttl = Math.max(0, Math.min(ctx.config.BILI_VIDEO_PLAYURL_CACHE_TIME, videoExpirationS - now))
 
             const realQnCacheKey = ctx.appCacheKey.videoPlayUrl(cid, videoPlay.realQuality, platform, format)
 
             await Promise.allSettled([
-                ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(cacheKey, videoPlay, expiration),
-                ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(realQnCacheKey, videoPlay, expiration),
+                ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(cacheKey, videoPlay, { ttl: ttl, cacheAt: now }),
+                ctx.appCache.setCache<BiliTypes.RES.Video.PlayURL | BiliTypes.RES.Video.PlayDash>(realQnCacheKey, videoPlay, { ttl: ttl, cacheAt: now }),
             ])
         }
 
